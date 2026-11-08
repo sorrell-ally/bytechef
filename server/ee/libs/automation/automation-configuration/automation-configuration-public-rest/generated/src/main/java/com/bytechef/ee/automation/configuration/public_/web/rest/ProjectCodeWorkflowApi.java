@@ -34,7 +34,7 @@ import java.util.Map;
 import java.util.Optional;
 import jakarta.annotation.Generated;
 
-@Generated(value = "org.openapitools.codegen.languages.SpringCodegen", date = "2026-10-16T17:05:20.760824+02:00[Europe/Zagreb]", comments = "Generator version: 7.26.0")
+@Generated(value = "org.openapitools.codegen.languages.SpringCodegen", date = "2026-11-08T15:59:13.273189+01:00[Europe/Zagreb]", comments = "Generator version: 7.26.0")
 @Validated
 @Tag(name = "project-code-workflow", description = "The Automation Project Code Workflow Public API")
 public interface ProjectCodeWorkflowApi {
@@ -49,9 +49,9 @@ public interface ProjectCodeWorkflowApi {
      * Deploy a new code based project.
      *
      * @param workspaceId The id of a workspace this project will belong. (required)
+     * @param projectFile The file of a code-native project. (required)
      * @param xEnvironment The environment. (optional)
      * @param enable Whether to make the published project live in the environment: create and enable its deployment when it has none there, otherwise move the existing one to the published version and enable it. (optional, default to false)
-     * @param projectFile The file of a code-native project. (optional)
      * @return Successful operation. (status code 204)
      */
     @Operation(
@@ -70,9 +70,9 @@ public interface ProjectCodeWorkflowApi {
     )
     default ResponseEntity<Void> deployProject(
         @Parameter(name = "workspaceId", description = "The id of a workspace this project will belong.", required = true) @Valid @RequestParam(value = "workspaceId", required = true) Long workspaceId,
+        @Parameter(name = "projectFile", description = "The file of a code-native project.", required = true) @RequestPart(value = "projectFile", required = true) MultipartFile projectFile,
         @Parameter(name = "X-Environment", description = "The environment.", in = ParameterIn.HEADER) @RequestHeader(value = "X-Environment", required = false) @Nullable EnvironmentModel xEnvironment,
-        @Parameter(name = "enable", description = "Whether to make the published project live in the environment: create and enable its deployment when it has none there, otherwise move the existing one to the published version and enable it.", in = ParameterIn.QUERY) @Valid @RequestParam(value = "enable", required = false, defaultValue = "false") Boolean enable,
-        @Parameter(name = "projectFile", description = "The file of a code-native project.") @RequestPart(value = "projectFile", required = false) MultipartFile projectFile
+        @Parameter(name = "enable", description = "Whether to make the published project live in the environment: create and enable its deployment when it has none there, otherwise move the existing one to the published version and enable it.", in = ParameterIn.QUERY) @Valid @RequestParam(value = "enable", required = false, defaultValue = "false") Boolean enable
     ) {
         return new ResponseEntity<>(HttpStatus.NOT_IMPLEMENTED);
 
