@@ -22,7 +22,7 @@ export default function buildFirstCallCurl({
 
     const url = [
         apiBaseUrl,
-        externalUserId || 'EXTERNAL_USER_ID',
+        externalUserId ? encodeURIComponent(externalUserId) : 'EXTERNAL_USER_ID',
         'components',
         componentName || 'COMPONENT_NAME',
         'versions',
@@ -32,10 +32,14 @@ export default function buildFirstCallCurl({
     ].join('/');
 
     return [
-        `curl -X POST '${url}' \\`,
+        `curl -X POST ${quoteShellArgument(url)} \\`,
         '  -H "Authorization: Bearer $BYTECHEF_API_KEY" \\',
         `  -H 'X-Environment: ${environmentName}' \\`,
         "  -H 'Content-Type: application/json' \\",
         `  -d '{"input": ${input}}'`,
     ].join('\n');
+}
+
+function quoteShellArgument(value: string): string {
+    return `'${value.replaceAll("'", `'\\''`)}'`;
 }

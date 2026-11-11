@@ -39,6 +39,28 @@ describe('buildFirstCallCurl', () => {
         expect(curl).toContain(`-d '{"input": {}}'`);
     });
 
+    it('encodes URL delimiters in the external user ID as part of its path segment', () => {
+        const curl = buildFirstCallCurl({
+            apiBaseUrl,
+            componentName: 'github',
+            environmentName: 'DEVELOPMENT',
+            externalUserId: 'customer#42/a?b',
+        });
+
+        expect(curl).toContain(`'${apiBaseUrl}/customer%2342%2Fa%3Fb/components/github/`);
+    });
+
+    it('escapes an apostrophe in the external user ID for the shell', () => {
+        const curl = buildFirstCallCurl({
+            apiBaseUrl,
+            componentName: 'github',
+            environmentName: 'DEVELOPMENT',
+            externalUserId: "o'brien",
+        });
+
+        expect(curl).toContain(`curl -X POST '${apiBaseUrl}/o'\\''brien/components/github/`);
+    });
+
     it('uses placeholders when the test user and integration are not set up yet', () => {
         const curl = buildFirstCallCurl({apiBaseUrl, environmentName: 'DEVELOPMENT'});
 
