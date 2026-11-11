@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                   http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+    <changeSet id="20261111120000-1" author="Ivica Cardic">
+        <createTable tableName="getting_started">
+            <column name="id" type="BIGINT" autoIncrement="true" startWith="1050">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="type" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="completion_type" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="completed_date" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addUniqueConstraint constraintName="uk_getting_started_type" tableName="getting_started" columnNames="type"/>
+    </changeSet>
+</databaseChangeLog>
