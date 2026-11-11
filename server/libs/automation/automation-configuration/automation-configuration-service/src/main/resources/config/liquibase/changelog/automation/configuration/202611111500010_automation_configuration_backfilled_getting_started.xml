@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                   http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+    <changeSet id="202611111500010-1" author="ivicac">
+        <sql>
+            INSERT INTO getting_started (type, completion_type, completed_date)
+            SELECT 0, 2, CURRENT_TIMESTAMP
+            WHERE EXISTS (SELECT 1 FROM project)
+            AND NOT EXISTS (SELECT 1 FROM getting_started WHERE type = 0)
+        </sql>
+
+        <rollback/>
+    </changeSet>
+</databaseChangeLog>
