@@ -1,0 +1,282 @@
+/*
+ * Copyright 2025 ByteChef
+ *
+ * Licensed under the ByteChef Enterprise license (the "Enterprise License");
+ * you may not use this file except in compliance with the Enterprise License.
+ */
+
+package com.bytechef.ee.embedded.configuration.facade;
+
+import com.bytechef.ee.embedded.configuration.domain.Integration;
+import com.bytechef.ee.embedded.configuration.domain.IntegrationInstanceConfiguration;
+import com.bytechef.ee.embedded.configuration.dto.EmbeddedGettingStartedDTO;
+import com.bytechef.ee.embedded.configuration.dto.LastFailedCallDTO;
+import com.bytechef.ee.embedded.configuration.service.IntegrationInstanceConfigurationService;
+import com.bytechef.ee.embedded.configuration.service.IntegrationInstanceService;
+import com.bytechef.ee.embedded.configuration.service.IntegrationService;
+import com.bytechef.ee.embedded.connected.user.domain.ConnectedUser;
+import com.bytechef.ee.embedded.connected.user.service.ConnectedUserService;
+import com.bytechef.ee.platform.external.invocation.log.domain.ExternalInvocationLog;
+import com.bytechef.ee.platform.external.invocation.log.service.ExternalInvocationLogService;
+import com.bytechef.platform.annotation.ConditionalOnEEVersion;
+import com.bytechef.platform.configuration.domain.Environment;
+import com.bytechef.platform.configuration.domain.GettingStarted;
+import com.bytechef.platform.configuration.domain.GettingStarted.CompletionType;
+import com.bytechef.platform.configuration.service.GettingStartedService;
+import com.bytechef.platform.constant.PlatformType;
+import com.bytechef.platform.external.invocation.ExternalInvocationOutcome;
+import com.bytechef.platform.security.domain.ApiKey;
+import com.bytechef.platform.security.service.ApiKeyService;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.jspecify.annotations.Nullable;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * @version ee
+ *
+ * @author Ivica Cardic
+ */
+@Service
+@Transactional
+@ConditionalOnEEVersion
+public class EmbeddedGettingStartedFacadeImpl implements EmbeddedGettingStartedFacade {
+
+    private final ApiKeyService apiKeyService;
+    private final ConnectedUserService connectedUserService;
+    private final ExternalInvocationLogService externalInvocationLogService;
+    private final GettingStartedService gettingStartedService;
+    private final IntegrationInstanceConfigurationService integrationInstanceConfigurationService;
+    private final IntegrationInstanceService integrationInstanceService;
+    private final IntegrationService integrationService;
+
+    @SuppressFBWarnings("EI")
+    @SuppressWarnings("PMD.ExcessiveParameterList")
+    public EmbeddedGettingStartedFacadeImpl(
+        ApiKeyService apiKeyService, ConnectedUserService connectedUserService,
+        ExternalInvocationLogService externalInvocationLogService, GettingStartedService gettingStartedService,
+        IntegrationInstanceConfigurationService integrationInstanceConfigurationService,
+        IntegrationInstanceService integrationInstanceService, IntegrationService integrationService) {
+
+        this.apiKeyService = apiKeyService;
+        this.connectedUserService = connectedUserService;
+        this.externalInvocationLogService = externalInvocationLogService;
+        this.gettingStartedService = gettingStartedService;
+        this.integrationInstanceConfigurationService = integrationInstanceConfigurationService;
+        this.integrationInstanceService = integrationInstanceService;
+        this.integrationService = integrationService;
+    }
+
+    @Override
+    @PreAuthorize("isTenantAdmin()")
+    public void dismissEmbeddedGettingStarted() {
+        gettingStartedService.complete(PlatformType.EMBEDDED, CompletionType.DISMISSED);
+    }
+
+    @Override
+    @PreAuthorize("isTenantAdmin()")
+    public EmbeddedGettingStartedDTO getEmbeddedGettingStarted(Environment environment) {
+        Set<Long> publishedIntegrationIds = getPublishedIntegrationIds();
+
+        Optional<GettingStarted> gettingStartedOptional =
+            gettingStartedService.fetchGettingStarted(PlatformType.EMBEDDED);
+
+        EmbeddedGettingStartedDTO embeddedGettingStartedDTO = evaluate(environment, publishedIntegrationIds);
+
+        if (gettingStartedOptional.isEmpty() && isSetupComplete(embeddedGettingStartedDTO)) {
+            gettingStartedService.complete(PlatformType.EMBEDDED, CompletionType.COMPLETED);
+
+            gettingStartedOptional = gettingStartedService.fetchGettingStarted(PlatformType.EMBEDDED);
+        }
+
+        return new EmbeddedGettingStartedDTO(
+            embeddedGettingStartedDTO.apiKeyCreated(), embeddedGettingStartedDTO.integrationCreated(),
+            embeddedGettingStartedDTO.integrationPublished(),
+            embeddedGettingStartedDTO.integrationConfigurationCreated(),
+            embeddedGettingStartedDTO.integrationConfigurationEnabled(), embeddedGettingStartedDTO.testUserAdded(),
+            embeddedGettingStartedDTO.testUserConnected(), embeddedGettingStartedDTO.testUserExternalId(),
+            embeddedGettingStartedDTO.firstCallMade(),
+            embeddedGettingStartedDTO.lastFailedCall(), gettingStartedOptional.isPresent(),
+            gettingStartedOptional.map(this::toCompletionTypeName)
+                .orElse(null),
+            embeddedGettingStartedDTO.integrationId(), embeddedGettingStartedDTO.integrationInstanceConfigurationId(),
+            embeddedGettingStartedDTO.testUserId(), embeddedGettingStartedDTO.componentName(),
+            embeddedGettingStartedDTO.componentVersion());
+    }
+
+    @Override
+    @PreAuthorize("isTenantAdmin()")
+    public boolean isEmbeddedGettingStartedCompleted() {
+        Optional<GettingStarted> gettingStartedOptional =
+            gettingStartedService.fetchGettingStarted(PlatformType.EMBEDDED);
+
+        if (gettingStartedOptional.isPresent()) {
+            return true;
+        }
+
+        Set<Long> publishedIntegrationIds = getPublishedIntegrationIds();
+
+        for (Environment environment : Environment.values()) {
+            if (isSetupComplete(environment, publishedIntegrationIds)) {
+                gettingStartedService.complete(PlatformType.EMBEDDED, CompletionType.COMPLETED);
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private Set<Long> getPublishedIntegrationIds() {
+        List<Integration> integrations = integrationService.getIntegrations();
+
+        return integrations.stream()
+            .filter(Integration::isPublished)
+            .map(Integration::getId)
+            .collect(Collectors.toSet());
+    }
+
+    private boolean hasApiKey(Environment environment) {
+        List<ApiKey> apiKeys = apiKeyService.getApiKeys(environment.ordinal(), PlatformType.EMBEDDED);
+
+        return !apiKeys.isEmpty();
+    }
+
+    private List<IntegrationInstanceConfiguration> getPublishedIntegrationInstanceConfigurations(
+        Environment environment, Set<Long> publishedIntegrationIds) {
+
+        List<IntegrationInstanceConfiguration> integrationInstanceConfigurations =
+            integrationInstanceConfigurationService.getIntegrationInstanceConfigurations(environment, null, null);
+
+        return integrationInstanceConfigurations.stream()
+            .filter(integrationInstanceConfiguration -> publishedIntegrationIds.contains(
+                integrationInstanceConfiguration.getIntegrationId()))
+            .toList();
+    }
+
+    private boolean isConfigurationEnabled(Environment environment, Set<Long> publishedIntegrationIds) {
+        List<IntegrationInstanceConfiguration> integrationInstanceConfigurations =
+            integrationInstanceConfigurationService.getIntegrationInstanceConfigurations(environment, true);
+
+        return integrationInstanceConfigurations.stream()
+            .map(IntegrationInstanceConfiguration::getIntegrationId)
+            .anyMatch(publishedIntegrationIds::contains);
+    }
+
+    private boolean isFirstCallMade(Environment environment) {
+        return externalInvocationLogService.hasExternalInvocationLog(
+            PlatformType.EMBEDDED, environment.ordinal(), ExternalInvocationOutcome.SUCCESS);
+    }
+
+    private boolean isSetupComplete(Environment environment, Set<Long> publishedIntegrationIds) {
+        if (!hasApiKey(environment) || !isConfigurationEnabled(environment, publishedIntegrationIds)) {
+            return false;
+        }
+
+        Optional<String> testUserExternalId =
+            integrationInstanceService.fetchFirstRunnableConnectedUserExternalId(environment);
+
+        return testUserExternalId.isPresent() && isFirstCallMade(environment);
+    }
+
+    private EmbeddedGettingStartedDTO evaluate(Environment environment, Set<Long> publishedIntegrationIds) {
+        List<Integration> integrations = integrationService.getIntegrations();
+
+        Optional<String> testUserExternalIdOptional =
+            integrationInstanceService.fetchFirstRunnableConnectedUserExternalId(environment);
+
+        String testUserExternalId = testUserExternalIdOptional.orElse(null);
+
+        boolean firstCallMade = isFirstCallMade(environment);
+
+        LastFailedCallDTO lastFailedCall = null;
+
+        if (!firstCallMade) {
+            Optional<ExternalInvocationLog> lastFailedExternalInvocationLogOptional =
+                externalInvocationLogService.fetchLastFailedExternalInvocationLog(
+                    PlatformType.EMBEDDED, environment.ordinal());
+
+            lastFailedCall = lastFailedExternalInvocationLogOptional
+                .map(EmbeddedGettingStartedFacadeImpl::toLastFailedCallDTO)
+                .orElse(null);
+        }
+
+        List<IntegrationInstanceConfiguration> publishedIntegrationInstanceConfigurations =
+            getPublishedIntegrationInstanceConfigurations(environment, publishedIntegrationIds);
+
+        Optional<IntegrationInstanceConfiguration> newestIntegrationInstanceConfigurationOptional =
+            publishedIntegrationInstanceConfigurations.stream()
+                .max(Comparator.comparing(IntegrationInstanceConfiguration::getId));
+
+        Long integrationInstanceConfigurationId = newestIntegrationInstanceConfigurationOptional
+            .map(IntegrationInstanceConfiguration::getId)
+            .orElse(null);
+
+        Long targetIntegrationId = getTargetIntegrationId(integrations, publishedIntegrationIds);
+
+        Long componentIntegrationId = newestIntegrationInstanceConfigurationOptional
+            .map(IntegrationInstanceConfiguration::getIntegrationId)
+            .orElse(targetIntegrationId);
+
+        Optional<Integration> componentIntegrationOptional = integrations.stream()
+            .filter(integration -> Objects.equals(integration.getId(), componentIntegrationId))
+            .findFirst();
+
+        Optional<ConnectedUser> lastEnabledConnectedUserOptional =
+            connectedUserService.fetchLastEnabledConnectedUser(environment);
+
+        Long testUserId = lastEnabledConnectedUserOptional.map(ConnectedUser::getId)
+            .orElse(null);
+
+        return new EmbeddedGettingStartedDTO(
+            hasApiKey(environment), !integrations.isEmpty(), !publishedIntegrationIds.isEmpty(),
+            !publishedIntegrationInstanceConfigurations.isEmpty(),
+            isConfigurationEnabled(environment, publishedIntegrationIds), testUserId != null,
+            testUserExternalId != null, testUserExternalId, firstCallMade, lastFailedCall, false, null,
+            targetIntegrationId, integrationInstanceConfigurationId, testUserId,
+            componentIntegrationOptional.map(Integration::getComponentName)
+                .orElse(null),
+            componentIntegrationOptional.map(Integration::getComponentVersion)
+                .orElse(null));
+    }
+
+    private static @Nullable Long getTargetIntegrationId(
+        List<Integration> integrations, Set<Long> publishedIntegrationIds) {
+
+        if (!publishedIntegrationIds.isEmpty()) {
+            return publishedIntegrationIds.stream()
+                .max(Long::compare)
+                .orElse(null);
+        }
+
+        return integrations.stream()
+            .map(Integration::getId)
+            .max(Long::compare)
+            .orElse(null);
+    }
+
+    private static boolean isSetupComplete(EmbeddedGettingStartedDTO embeddedGettingStartedDTO) {
+        return embeddedGettingStartedDTO.apiKeyCreated() && embeddedGettingStartedDTO.integrationConfigurationEnabled()
+            && embeddedGettingStartedDTO.testUserConnected() && embeddedGettingStartedDTO.firstCallMade();
+    }
+
+    private String toCompletionTypeName(GettingStarted gettingStarted) {
+        CompletionType completionType = gettingStarted.getCompletionType();
+
+        return completionType.name();
+    }
+
+    private static LastFailedCallDTO toLastFailedCallDTO(ExternalInvocationLog externalInvocationLog) {
+        ExternalInvocationOutcome outcome = externalInvocationLog.getOutcome();
+
+        return new LastFailedCallDTO(
+            outcome.name(), externalInvocationLog.getErrorMessage(), externalInvocationLog.getCreatedDate());
+    }
+}
