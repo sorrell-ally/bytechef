@@ -6,7 +6,7 @@ import {Textarea} from '@/components/ui/textarea';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip';
 import {zodResolver} from '@hookform/resolvers/zod';
 import {SendIcon} from 'lucide-react';
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
 import {useForm} from 'react-hook-form';
 import * as z from 'zod';
 
@@ -17,13 +17,25 @@ const formSchema = z.object({
 const PublishPopover = ({
     disabled,
     isPending,
+    onOpenChange,
     onPublishProjectSubmit,
+    open: controlledOpen,
 }: {
     disabled?: boolean;
     isPending: boolean;
+    onOpenChange?: (open: boolean) => void;
     onPublishProjectSubmit: ({description, onSuccess}: {description?: string; onSuccess: () => void}) => void;
+    open?: boolean;
 }) => {
-    const [open, setOpen] = useState(false);
+    const [internalOpen, setInternalOpen] = useState(false);
+
+    const open = controlledOpen ?? internalOpen;
+
+    const setOpen = (nextOpen: boolean) => {
+        setInternalOpen(nextOpen);
+
+        onOpenChange?.(nextOpen);
+    };
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -40,6 +52,12 @@ const PublishPopover = ({
             },
         });
     };
+
+    useEffect(() => {
+        if (disabled && controlledOpen) {
+            onOpenChange?.(false);
+        }
+    }, [controlledOpen, disabled, onOpenChange]);
 
     if (disabled) {
         return (
@@ -98,7 +116,11 @@ const PublishPopover = ({
                                         <FormLabel>Description</FormLabel>
 
                                         <FormControl>
-                                            <Textarea className="h-28" {...field}></Textarea>
+                                            <Textarea
+                                                className="h-28"
+                                                placeholder="What changed in this version?"
+                                                {...field}
+                                            ></Textarea>
                                         </FormControl>
 
                                         <FormMessage />
