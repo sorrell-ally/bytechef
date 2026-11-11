@@ -1226,6 +1226,36 @@ export type DynamicPropertiesProperty = Property & {
   type: PropertyType;
 };
 
+export type EmbeddedGettingStarted = {
+  __typename?: 'EmbeddedGettingStarted';
+  apiBaseUrl?: Maybe<Scalars['String']['output']>;
+  apiKeyCreated: Scalars['Boolean']['output'];
+  completed: Scalars['Boolean']['output'];
+  completionType?: Maybe<Scalars['String']['output']>;
+  componentName?: Maybe<Scalars['String']['output']>;
+  componentVersion?: Maybe<Scalars['Int']['output']>;
+  firstCallMade: Scalars['Boolean']['output'];
+  integrationConfigurationCreated: Scalars['Boolean']['output'];
+  integrationConfigurationEnabled: Scalars['Boolean']['output'];
+  integrationCreated: Scalars['Boolean']['output'];
+  integrationHasWorkflows: Scalars['Boolean']['output'];
+  integrationId?: Maybe<Scalars['Long']['output']>;
+  integrationInstanceConfigurationId?: Maybe<Scalars['Long']['output']>;
+  integrationPublished: Scalars['Boolean']['output'];
+  lastFailedCall?: Maybe<EmbeddedGettingStartedFailedCall>;
+  testUserAdded: Scalars['Boolean']['output'];
+  testUserConnected: Scalars['Boolean']['output'];
+  testUserExternalId?: Maybe<Scalars['String']['output']>;
+  testUserId?: Maybe<Scalars['Long']['output']>;
+};
+
+export type EmbeddedGettingStartedFailedCall = {
+  __typename?: 'EmbeddedGettingStartedFailedCall';
+  createdDate: Scalars['Long']['output'];
+  errorMessage?: Maybe<Scalars['String']['output']>;
+  outcome: Scalars['String']['output'];
+};
+
 export type EndpointDefinitionInput = {
   description?: InputMaybe<Scalars['String']['input']>;
   httpMethod: HttpMethod;
@@ -1933,6 +1963,7 @@ export type Mutation = {
   deleteWorkspaceApiKey: Scalars['Boolean']['output'];
   deleteWorkspaceMcpServer?: Maybe<Scalars['Boolean']['output']>;
   disconnectConnection: Scalars['Boolean']['output'];
+  dismissEmbeddedGettingStarted?: Maybe<Scalars['Boolean']['output']>;
   dropDataTable: Scalars['Boolean']['output'];
   duplicateAutomationProject: Scalars['ID']['output'];
   duplicateAutomationProjectWorkflow: Scalars['ID']['output'];
@@ -3455,6 +3486,8 @@ export type Query = {
   editorJobFileLogs: LogPage;
   editorJobFileLogsExist: Scalars['Boolean']['output'];
   editorTaskExecutionFileLogs: Array<LogEntry>;
+  embeddedGettingStarted: EmbeddedGettingStarted;
+  embeddedGettingStartedCompleted: Scalars['Boolean']['output'];
   embeddedMcpComponentsByServerId?: Maybe<Array<Maybe<McpComponent>>>;
   embeddedMcpServerTags?: Maybe<Array<Maybe<Tag>>>;
   embeddedMcpServers?: Maybe<Array<Maybe<McpServer>>>;
@@ -4015,6 +4048,11 @@ export type QueryEditorJobFileLogsExistArgs = {
 export type QueryEditorTaskExecutionFileLogsArgs = {
   jobId: Scalars['ID']['input'];
   taskExecutionId: Scalars['ID']['input'];
+};
+
+
+export type QueryEmbeddedGettingStartedArgs = {
+  environmentId: Scalars['ID']['input'];
 };
 
 
