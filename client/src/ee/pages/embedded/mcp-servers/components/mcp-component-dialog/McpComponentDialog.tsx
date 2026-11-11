@@ -15,12 +15,16 @@ const McpComponentDialog = ({
     triggerNode,
 }: McpComponentDialogProps & {integrationUnavailable?: boolean}) => {
     const {
+        aiValuesByTool,
         currentStep,
         existingTools,
         handleBack,
         handleComponentSelect,
         handleOpenChange,
         handleSave,
+        isSavePending,
+        registerToolForm,
+        savedParametersByToolName,
         selectedComponent,
         selectedTools,
         setSelectedTools,
@@ -30,6 +34,7 @@ const McpComponentDialog = ({
         <McpComponentDialogShell
             currentStep={currentStep}
             editing={!!mcpComponent}
+            isSavePending={isSavePending}
             onBack={handleBack}
             onOpenChange={handleOpenChange}
             onSave={handleSave}
@@ -48,8 +53,12 @@ const McpComponentDialog = ({
 
             {currentStep === 'tools' && (
                 <McpComponentDialogToolSelectionStep
+                    aiValuesByTool={aiValuesByTool}
+                    connectionId={mcpComponent?.connectionId}
                     existingTools={existingTools}
+                    onToolFormChange={registerToolForm}
                     onToolsChange={setSelectedTools}
+                    savedParametersByToolName={savedParametersByToolName}
                     selectedComponent={selectedComponent}
                     selectedTools={selectedTools}
                 />
