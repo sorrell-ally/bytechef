@@ -98,7 +98,9 @@ const ExternalInvocationsEmptyState = ({
 
                     <div aria-hidden="true" className="flex items-center gap-3 text-xs text-content-neutral-secondary">
                         <span className="h-px flex-1 bg-stroke-neutral-secondary" />
-                        or
+
+                        <span>or</span>
+
                         <span className="h-px flex-1 bg-stroke-neutral-secondary" />
                     </div>
 
