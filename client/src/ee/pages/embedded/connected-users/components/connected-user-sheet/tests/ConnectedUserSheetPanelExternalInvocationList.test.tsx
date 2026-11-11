@@ -80,6 +80,33 @@ describe('ConnectedUserSheetPanelExternalInvocationList', () => {
         ).not.toBeInTheDocument();
     });
 
+    it('opens the details of a call when its row is clicked', () => {
+        hoisted.externalInvocationLogsQuery.mockReturnValue({
+            data: {
+                externalInvocationLogs: {
+                    content: [externalInvocationLog],
+                    number: 0,
+                    size: 50,
+                    totalElements: 1,
+                    totalPages: 1,
+                },
+            },
+            isLoading: false,
+        });
+
+        render(
+            <TooltipProvider>
+                <ConnectedUserSheetPanelExternalInvocationList connectedUserId={7} />
+            </TooltipProvider>
+        );
+
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByText('SLACK_SEND_MESSAGE'));
+
+        expect(screen.getByRole('dialog', {name: 'SLACK_SEND_MESSAGE'})).toBeInTheDocument();
+    });
+
     it('shows an error with a retry instead of the empty message when the invocations cannot be loaded', () => {
         const refetch = vi.fn();
 
