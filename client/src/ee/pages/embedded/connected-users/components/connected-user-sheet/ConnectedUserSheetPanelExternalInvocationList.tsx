@@ -1,16 +1,29 @@
 import {Button} from '@/components/ui/button';
+import ExternalInvocationDetailsDialog from '@/pages/automation/external-invocations/components/ExternalInvocationDetailsDialog';
 import ExternalInvocationsTable from '@/pages/automation/external-invocations/components/ExternalInvocationsTable';
+import {type ExternalInvocationLogItemType} from '@/pages/automation/external-invocations/utils/externalInvocationLabels';
 import {PlatformType, useExternalInvocationLogsQuery} from '@/shared/middleware/graphql';
+import {useState} from 'react';
 
 interface ConnectedUserSheetPanelExternalInvocationListProps {
     connectedUserId: number;
+    integrationInstanceId?: number;
+    mcpServerId?: number;
 }
 
 const ConnectedUserSheetPanelExternalInvocationList = ({
     connectedUserId,
+    integrationInstanceId,
+    mcpServerId,
 }: ConnectedUserSheetPanelExternalInvocationListProps) => {
+    const [selectedExternalInvocationLog, setSelectedExternalInvocationLog] = useState<
+        ExternalInvocationLogItemType | undefined
+    >();
+
     const {data, isError, isLoading, refetch} = useExternalInvocationLogsQuery({
         connectedUserId,
+        integrationInstanceId,
+        mcpServerId,
         type: PlatformType.Embedded,
     });
 
@@ -33,10 +46,24 @@ const ConnectedUserSheetPanelExternalInvocationList = ({
     const externalInvocationLogs = data?.externalInvocationLogs.content ?? [];
 
     if (externalInvocationLogs.length === 0) {
-        return <div className="py-4 text-sm">No external invocations have been recorded for this user yet.</div>;
+        return <div className="py-4 text-sm text-content-neutral-secondary">No calls have been recorded yet.</div>;
     }
 
-    return <ExternalInvocationsTable externalInvocationLogs={externalInvocationLogs} />;
+    return (
+        <>
+            <ExternalInvocationsTable
+                externalInvocationLogs={externalInvocationLogs}
+                onSelect={setSelectedExternalInvocationLog}
+            />
+
+            {selectedExternalInvocationLog && (
+                <ExternalInvocationDetailsDialog
+                    externalInvocationLog={selectedExternalInvocationLog}
+                    onClose={() => setSelectedExternalInvocationLog(undefined)}
+                />
+            )}
+        </>
+    );
 };
 
 export default ConnectedUserSheetPanelExternalInvocationList;

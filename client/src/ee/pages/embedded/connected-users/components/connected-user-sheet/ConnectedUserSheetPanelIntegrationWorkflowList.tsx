@@ -17,9 +17,7 @@ const ConnectedUserSheetPanelIntegrationWorkflowList = ({
     workflows: Workflow[];
 }) => {
     return (
-        <div className="flex w-full flex-col gap-y-1 pt-3">
-            <h3 className="flex justify-start px-3 text-sm font-semibold text-muted-foreground uppercase">Workflows</h3>
-
+        <div className="flex w-full flex-col gap-y-1">
             {workflows.length > 0 ? (
                 <ul className="divide-y divide-stroke-neutral-primary">
                     {workflows.map((workflow) => {
@@ -52,7 +50,7 @@ const ConnectedUserSheetPanelIntegrationWorkflowList = ({
                     })}
                 </ul>
             ) : (
-                <div className="p-2 text-sm">No defined workflows.</div>
+                <div className="py-4 text-sm text-content-neutral-secondary">No defined workflows.</div>
             )}
         </div>
     );

@@ -1,10 +1,15 @@
 import Button from '@/components/Button/Button';
+import ConnectedUserSheetEmptyState from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserSheetEmptyState';
 import ConnectedUserProjectWorkflowList from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/connected-user-project-workflow-list/ConnectedUserProjectWorkflowList';
 import {ConnectedUserWorkflowTemplateSourceI} from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/connected-user-project-workflow-list/ConnectedUserProjectWorkflowListItem';
 import ProvisionProjectWorkflowDialog from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/provision-project-workflow-dialog/ProvisionProjectWorkflowDialog';
-import {useAutomationProjectsQuery, useConnectedUserProjectsQuery} from '@/shared/middleware/graphql';
+import {
+    useAutomationProjectsQuery,
+    useConnectedUserProjectsQuery,
+    useProvisionableConnectedUserProjectsQuery,
+} from '@/shared/middleware/graphql';
 import {useEnvironmentStore} from '@/shared/stores/useEnvironmentStore';
-import {PlusIcon} from 'lucide-react';
+import {FolderIcon, PlusIcon} from 'lucide-react';
 import {useMemo, useState} from 'react';
 
 interface ConnectedUserSheetPanelWorkflowListProps {
@@ -28,6 +33,10 @@ const ConnectedUserSheetPanelWorkflowList = ({
     });
 
     const {data: automationProjectsData, isLoading: automationProjectsIsLoading} = useAutomationProjectsQuery();
+
+    const {data: provisionableData} = useProvisionableConnectedUserProjectsQuery({
+        connectedUserId: connectedUserId.toString(),
+    });
 
     const workflowTemplateSourcesByWorkflowUuid = useMemo(
         () =>
@@ -68,27 +77,38 @@ const ConnectedUserSheetPanelWorkflowList = ({
 
     return (
         <div>
-            <div className="flex items-center justify-between pb-2">
-                <h3 className="text-sm font-semibold">Automations</h3>
-
-                <Button
-                    icon={<PlusIcon />}
-                    label="New Workflow"
-                    onClick={() => setShowProvisionDialog(true)}
-                    size="sm"
-                    variant="secondary"
-                />
-            </div>
-
             {connectedUserProjectWorkflows.length > 0 ? (
-                <ConnectedUserProjectWorkflowList
-                    configurations={configurations}
-                    connectedUser={connectedUser}
-                    connectedUserProjectWorkflows={connectedUserProjectWorkflows}
-                    workflowTemplateSourcesByWorkflowUuid={workflowTemplateSourcesByWorkflowUuid}
-                />
+                <>
+                    <div className="flex items-center justify-between pb-2">
+                        <h3 className="text-sm font-semibold">Automations</h3>
+
+                        <Button
+                            icon={<PlusIcon />}
+                            label="Provision Workflow"
+                            onClick={() => setShowProvisionDialog(true)}
+                            size="sm"
+                            variant="secondary"
+                        />
+                    </div>
+
+                    <ConnectedUserProjectWorkflowList
+                        configurations={configurations}
+                        connectedUser={connectedUser}
+                        connectedUserProjectWorkflows={connectedUserProjectWorkflows}
+                        workflowTemplateSourcesByWorkflowUuid={workflowTemplateSourcesByWorkflowUuid}
+                    />
+                </>
             ) : (
-                <div className="py-4 text-sm">No automations.</div>
+                <ConnectedUserSheetEmptyState
+                    description="Provision a workflow from one of your automation projects. This user gets their own copy to adjust."
+                    icon={<FolderIcon />}
+                    nothingToProvision={provisionableData?.provisionableConnectedUserProjects.length === 0}
+                    nothingToProvisionDescription="No project has a configuration released to this user's environment yet. Release one first, then provision its workflows for this user."
+                    onProvision={() => setShowProvisionDialog(true)}
+                    pageLink={{label: 'Go to Automations', to: '/embedded/automations'}}
+                    provisionLabel="Provision Workflow"
+                    title="No automations yet"
+                />
             )}
 
             {showProvisionDialog && (

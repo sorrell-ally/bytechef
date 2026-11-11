@@ -59,6 +59,19 @@ vi.mock('@/ee/shared/mutations/embedded/integrationInstanceConfigurations.mutati
     useMoveIntegrationInstanceConfigurationConnectedUsersMutation: () => ({mutateAsync: hoisted.moveMutateAsyncMock}),
 }));
 
+vi.mock(
+    '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserSheetPanelExternalInvocationList',
+    () => ({
+        default: ({
+            connectedUserId,
+            integrationInstanceId,
+        }: {
+            connectedUserId: number;
+            integrationInstanceId: number;
+        }) => <div>{`calls of user ${connectedUserId} on instance ${integrationInstanceId}`}</div>,
+    })
+);
+
 vi.mock('react-inlinesvg', () => ({
     default: () => <svg data-testid="integration-icon" />,
 }));
@@ -128,6 +141,19 @@ describe('ConnectedUserSheetPanelIntegrationListItem', () => {
 
         expect(screen.getByTestId('integration-icon')).toBeInTheDocument();
         expect(container.querySelector('svg.lucide-component')).not.toBeInTheDocument();
+    });
+
+    it("shows the integration's workflows and, on the Actions tab, its calls", async () => {
+        renderItem();
+
+        await userEvent.click(screen.getByText('GitHub'));
+
+        expect(screen.getByRole('tab', {name: 'Workflows', selected: true})).toBeInTheDocument();
+        expect(screen.queryByText('calls of user 9 on instance 40')).not.toBeInTheDocument();
+
+        await userEvent.click(screen.getByRole('tab', {name: 'Actions'}));
+
+        expect(screen.getByText('calls of user 9 on instance 40')).toBeInTheDocument();
     });
 
     it('shows the Credentials action only for provisioned integrations', () => {

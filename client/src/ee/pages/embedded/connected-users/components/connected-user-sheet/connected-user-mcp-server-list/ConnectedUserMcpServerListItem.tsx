@@ -4,6 +4,8 @@ import Switch from '@/components/Switch/Switch';
 import {Collapsible, CollapsibleContent, CollapsibleTrigger} from '@/components/ui/collapsible';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip';
 import ConnectedUserSheetDeleteDropdownMenu from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserSheetDeleteDropdownMenu';
+import ConnectedUserSheetItemTabs from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserSheetItemTabs';
+import ConnectedUserSheetPanelExternalInvocationList from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserSheetPanelExternalInvocationList';
 import ConnectedUserMcpServerComponentGroup from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/connected-user-mcp-server-list/ConnectedUserMcpServerComponentGroup';
 import ConnectedUserMcpServerListItemToolRow from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/connected-user-mcp-server-list/ConnectedUserMcpServerListItemToolRow';
 import ConnectedUserMcpServerListItemWorkflowRow from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/connected-user-mcp-server-list/ConnectedUserMcpServerListItemWorkflowRow';
@@ -140,62 +142,93 @@ const ConnectedUserMcpServerListItem = ({
                 </div>
 
                 <CollapsibleContent>
-                    {toolCount > 0 && (
-                        <div className="flex w-full flex-col gap-y-2 py-3">
-                            <h3 className="flex justify-start px-3 text-sm font-semibold text-muted-foreground uppercase">
-                                Component Tools
-                            </h3>
+                    <ConnectedUserSheetItemTabs
+                        tabs={[
+                            {
+                                content: (
+                                    <>
+                                        {toolCount > 0 && (
+                                            <div className="flex w-full flex-col gap-y-2 py-3">
+                                                <h3 className="flex justify-start px-3 text-sm font-semibold text-muted-foreground uppercase">
+                                                    Component Tools
+                                                </h3>
 
-                            <div className="flex flex-col gap-2 px-3">
-                                {toolsByComponentName.map((group) => (
-                                    <ConnectedUserMcpServerComponentGroup
-                                        componentName={group.componentName}
-                                        credentialStatus={getCredentialStatus(group.items[0].integrationInstanceId)}
-                                        key={`${group.componentName}_${group.version}`}
-                                        version={group.version}
-                                        versionKind="component"
-                                    >
-                                        {group.items.map((tool) => (
-                                            <ConnectedUserMcpServerListItemToolRow key={tool.id} tool={tool} />
-                                        ))}
-                                    </ConnectedUserMcpServerComponentGroup>
-                                ))}
-                            </div>
-                        </div>
-                    )}
+                                                <div className="flex flex-col gap-2 px-3">
+                                                    {toolsByComponentName.map((group) => (
+                                                        <ConnectedUserMcpServerComponentGroup
+                                                            componentName={group.componentName}
+                                                            credentialStatus={getCredentialStatus(
+                                                                group.items[0].integrationInstanceId
+                                                            )}
+                                                            key={`${group.componentName}_${group.version}`}
+                                                            version={group.version}
+                                                            versionKind="component"
+                                                        >
+                                                            {group.items.map((tool) => (
+                                                                <ConnectedUserMcpServerListItemToolRow
+                                                                    key={tool.id}
+                                                                    tool={tool}
+                                                                />
+                                                            ))}
+                                                        </ConnectedUserMcpServerComponentGroup>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
 
-                    {workflowCount > 0 && (
-                        <div className="flex w-full flex-col gap-y-2 py-3">
-                            <h3 className="flex justify-start px-3 text-sm font-semibold text-muted-foreground uppercase">
-                                Workflow Tools
-                            </h3>
+                                        {workflowCount > 0 && (
+                                            <div className="flex w-full flex-col gap-y-2 py-3">
+                                                <h3 className="flex justify-start px-3 text-sm font-semibold text-muted-foreground uppercase">
+                                                    Workflow Tools
+                                                </h3>
 
-                            <div className="flex flex-col gap-2 px-3">
-                                {workflowsByComponentName.map((group) => (
-                                    <ConnectedUserMcpServerComponentGroup
-                                        componentName={group.componentName}
-                                        credentialStatus={getCredentialStatus(group.items[0].integrationInstanceId)}
-                                        key={`${group.componentName}_${group.version}`}
-                                        lastExecutionDate={getLastExecutionDate(group.items)}
-                                        version={group.version}
-                                        versionKind="integration"
-                                    >
-                                        {group.items.map((workflow) => (
-                                            <ConnectedUserMcpServerListItemWorkflowRow
-                                                connectedUserId={connectedUserId}
-                                                key={`${workflow.integrationInstanceId}_${workflow.workflowId}`}
-                                                workflow={workflow}
-                                            />
-                                        ))}
-                                    </ConnectedUserMcpServerComponentGroup>
-                                ))}
-                            </div>
-                        </div>
-                    )}
+                                                <div className="flex flex-col gap-2 px-3">
+                                                    {workflowsByComponentName.map((group) => (
+                                                        <ConnectedUserMcpServerComponentGroup
+                                                            componentName={group.componentName}
+                                                            credentialStatus={getCredentialStatus(
+                                                                group.items[0].integrationInstanceId
+                                                            )}
+                                                            key={`${group.componentName}_${group.version}`}
+                                                            lastExecutionDate={getLastExecutionDate(group.items)}
+                                                            version={group.version}
+                                                            versionKind="integration"
+                                                        >
+                                                            {group.items.map((workflow) => (
+                                                                <ConnectedUserMcpServerListItemWorkflowRow
+                                                                    connectedUserId={connectedUserId}
+                                                                    key={`${workflow.integrationInstanceId}_${workflow.workflowId}`}
+                                                                    workflow={workflow}
+                                                                />
+                                                            ))}
+                                                        </ConnectedUserMcpServerComponentGroup>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
 
-                    {toolCount === 0 && workflowCount === 0 && (
-                        <div className="px-3 py-3 text-sm text-muted-foreground">No tools enabled for this user.</div>
-                    )}
+                                        {toolCount === 0 && workflowCount === 0 && (
+                                            <div className="px-3 py-3 text-sm text-muted-foreground">
+                                                No tools enabled for this user.
+                                            </div>
+                                        )}
+                                    </>
+                                ),
+                                label: 'Tools',
+                                value: 'tools',
+                            },
+                            {
+                                content: (
+                                    <ConnectedUserSheetPanelExternalInvocationList
+                                        connectedUserId={connectedUserId}
+                                        mcpServerId={Number(mcpServer.id)}
+                                    />
+                                ),
+                                label: 'Calls',
+                                value: 'calls',
+                            },
+                        ]}
+                    />
                 </CollapsibleContent>
             </Collapsible>
 

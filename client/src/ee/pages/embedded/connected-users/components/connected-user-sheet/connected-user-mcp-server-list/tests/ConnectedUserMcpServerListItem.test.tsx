@@ -84,6 +84,15 @@ vi.mock('@/ee/shared/queries/embedded/workflows.queries', () => ({
     }),
 }));
 
+vi.mock(
+    '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserSheetPanelExternalInvocationList',
+    () => ({
+        default: ({connectedUserId, mcpServerId}: {connectedUserId: number; mcpServerId: number}) => (
+            <div>{`calls of user ${connectedUserId} through server ${mcpServerId}`}</div>
+        ),
+    })
+);
+
 vi.mock('@/ee/shared/queries/embedded/componentDefinitions.queries', () => ({
     useGetComponentDefinitionsQuery: () => ({data: [{name: 'gmail', title: 'Gmail'}]}),
 }));
@@ -230,6 +239,19 @@ describe('ConnectedUserMcpServerListItem', () => {
         expect(
             within(componentGroup as HTMLElement).queryByText(/^Executed at |No executions/)
         ).not.toBeInTheDocument();
+    });
+
+    it('shows the calls made through the server on the Calls tab', async () => {
+        renderListItem(mixedMcpServer);
+
+        await expandCard();
+
+        expect(screen.getByRole('tab', {name: 'Tools', selected: true})).toBeInTheDocument();
+
+        await userEvent.click(screen.getByRole('tab', {name: 'Calls'}));
+
+        expect(screen.getByText(`calls of user 5 through server ${mixedMcpServer.id}`)).toBeInTheDocument();
+        expect(screen.queryByText('Component Tools')).not.toBeInTheDocument();
     });
 
     it('groups tools by component, collapsed, with version badges and credential status', async () => {

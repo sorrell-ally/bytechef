@@ -193,6 +193,38 @@ describe('ExternalInvocationsTable', () => {
         expect(screen.queryByText('Sales MCP')).not.toBeInTheDocument();
     });
 
+    it('hands every clicked row to onSelect, including rows without a job', () => {
+        const onSelect = vi.fn();
+
+        render(<ExternalInvocationsTable externalInvocationLogs={[baseLog]} onSelect={onSelect} />);
+
+        fireEvent.click(screen.getByText('slack_sendMessage'));
+
+        expect(onSelect).toHaveBeenCalledWith(baseLog);
+    });
+
+    it('opens a focused row with the Enter and Space keys', () => {
+        const onSelect = vi.fn();
+
+        render(<ExternalInvocationsTable externalInvocationLogs={[baseLog]} onSelect={onSelect} />);
+
+        const row = screen.getByText('slack_sendMessage').closest('tr')!;
+
+        expect(row).toHaveAttribute('tabindex', '0');
+
+        fireEvent.keyDown(row, {key: 'Enter'});
+        fireEvent.keyDown(row, {key: ' '});
+        fireEvent.keyDown(row, {key: 'a'});
+
+        expect(onSelect).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not make a row without an action focusable', () => {
+        render(<ExternalInvocationsTable externalInvocationLogs={[baseLog]} />);
+
+        expect(screen.getByText('slack_sendMessage').closest('tr')).not.toHaveAttribute('tabindex');
+    });
+
     it('hides the source column when showSource is false', () => {
         render(<ExternalInvocationsTable externalInvocationLogs={[baseLog]} showSource={false} />);
 

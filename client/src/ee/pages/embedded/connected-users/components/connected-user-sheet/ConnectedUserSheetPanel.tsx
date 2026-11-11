@@ -1,5 +1,4 @@
 import {Tabs, TabsContent, TabsList, TabsTrigger} from '@/components/ui/tabs';
-import ConnectedUserSheetPanelExternalInvocationList from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserSheetPanelExternalInvocationList';
 import ConnectedUserSheetPanelIntegrationList from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserSheetPanelIntegrationList';
 import ConnectedUserSheetPanelMcpServerList from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserSheetPanelMcpServerList';
 import ConnectedUserSheetPanelProfile from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserSheetPanelProfile';
@@ -35,10 +34,6 @@ const ConnectedUserSheetPanel = ({connectedUser}: ConnectedUserSheetPanelProps) 
                     <TabsTrigger className={tabsTriggerClassName} value="workflows">
                         Automations
                     </TabsTrigger>
-
-                    <TabsTrigger className={tabsTriggerClassName} value="external-invocations">
-                        External Invocations
-                    </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="integrations">
@@ -67,12 +62,6 @@ const ConnectedUserSheetPanel = ({connectedUser}: ConnectedUserSheetPanelProps) 
                             connectedUserId={connectedUser.id}
                             connectedUserName={connectedUser.name}
                         />
-                    )}
-                </TabsContent>
-
-                <TabsContent value="external-invocations">
-                    {connectedUser.id != null && (
-                        <ConnectedUserSheetPanelExternalInvocationList connectedUserId={connectedUser.id} />
                     )}
                 </TabsContent>
             </Tabs>

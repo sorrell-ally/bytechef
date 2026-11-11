@@ -8,6 +8,8 @@ import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip';
 import ConnectedUserCredentialStatus from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserCredentialStatus';
 import ConnectedUserIntegrationCredentialsDialog from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserIntegrationCredentialsDialog';
 import ConnectedUserSheetDeleteDropdownMenu from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserSheetDeleteDropdownMenu';
+import ConnectedUserSheetItemTabs from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserSheetItemTabs';
+import ConnectedUserSheetPanelExternalInvocationList from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserSheetPanelExternalInvocationList';
 import ConnectedUserSheetPanelIntegrationWorkflowList from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserSheetPanelIntegrationWorkflowList';
 import {
     CONFIGURATIONS_LOAD_FAILED_REASON,
@@ -279,14 +281,32 @@ const ConnectedUserSheetPanelIntegrationListItem = ({
             )}
 
             <CollapsibleContent>
-                {workflows && integrationInstance && integrationInstanceConfiguration && (
-                    <ConnectedUserSheetPanelIntegrationWorkflowList
-                        integrationInstance={integrationInstance}
-                        integrationInstanceConfiguration={integrationInstanceConfiguration}
-                        mcpWorkflowUuids={mcpWorkflowUuids}
-                        workflows={workflows}
-                    />
-                )}
+                <ConnectedUserSheetItemTabs
+                    tabs={[
+                        {
+                            content: workflows && integrationInstance && integrationInstanceConfiguration && (
+                                <ConnectedUserSheetPanelIntegrationWorkflowList
+                                    integrationInstance={integrationInstance}
+                                    integrationInstanceConfiguration={integrationInstanceConfiguration}
+                                    mcpWorkflowUuids={mcpWorkflowUuids}
+                                    workflows={workflows}
+                                />
+                            ),
+                            label: 'Workflows',
+                            value: 'workflows',
+                        },
+                        {
+                            content: (
+                                <ConnectedUserSheetPanelExternalInvocationList
+                                    connectedUserId={connectedUserId}
+                                    integrationInstanceId={connectedUserIntegrationInstance.id}
+                                />
+                            ),
+                            label: 'Actions',
+                            value: 'actions',
+                        },
+                    ]}
+                />
             </CollapsibleContent>
 
             {showChangeConfigurationDialog && integrationInstanceConfiguration && (
