@@ -30,7 +30,7 @@ import org.springframework.data.relational.core.mapping.Table;
 public class GettingStarted {
 
     public enum CompletionType {
-        COMPLETED, DISMISSED
+        COMPLETED, DISMISSED, BACKFILLED
     }
 
     @Column("completed_date")
