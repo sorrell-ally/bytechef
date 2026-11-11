@@ -90,7 +90,7 @@ class IntegrationInstanceServiceIntTest {
     }
 
     @Test
-    void testFetchFirstRunnableConnectedUserExternalId() {
+    void testFetchFirstRunnableIntegrationInstance() {
         long publishedIntegrationId = createIntegration();
 
         integrationService.publishIntegration(publishedIntegrationId, null);
@@ -126,17 +126,22 @@ class IntegrationInstanceServiceIntTest {
         integrationInstanceService.create(stagingUserId, CONNECTION_ID, stagingConfigurationId);
         integrationInstanceService.create(mismatchedEnvironmentUserId, CONNECTION_ID, enabledConfigurationId);
 
-        assertThat(integrationInstanceService.fetchFirstRunnableConnectedUserExternalId(Environment.DEVELOPMENT))
+        assertThat(integrationInstanceService.fetchFirstRunnableIntegrationInstance(Environment.DEVELOPMENT))
             .isEmpty();
 
         integrationInstanceService.create(newerRunnableUserId, CONNECTION_ID, enabledConfigurationId);
         integrationInstanceService.create(runnableUserId, CONNECTION_ID, enabledConfigurationId);
 
-        assertThat(integrationInstanceService.fetchFirstRunnableConnectedUserExternalId(Environment.DEVELOPMENT))
-            .contains("runnable-user");
-        assertThat(integrationInstanceService.fetchFirstRunnableConnectedUserExternalId(Environment.STAGING))
-            .contains("staging-user");
-        assertThat(integrationInstanceService.fetchFirstRunnableConnectedUserExternalId(Environment.PRODUCTION))
+        assertThat(integrationInstanceService.fetchFirstRunnableIntegrationInstance(Environment.DEVELOPMENT))
+            .hasValueSatisfying(integrationInstance -> {
+                assertThat(integrationInstance.getConnectedUserId()).isEqualTo(runnableUserId);
+                assertThat(integrationInstance.getIntegrationInstanceConfigurationId())
+                    .isEqualTo(enabledConfigurationId);
+            });
+        assertThat(integrationInstanceService.fetchFirstRunnableIntegrationInstance(Environment.STAGING))
+            .hasValueSatisfying(
+                integrationInstance -> assertThat(integrationInstance.getConnectedUserId()).isEqualTo(stagingUserId));
+        assertThat(integrationInstanceService.fetchFirstRunnableIntegrationInstance(Environment.PRODUCTION))
             .isEmpty();
     }
 

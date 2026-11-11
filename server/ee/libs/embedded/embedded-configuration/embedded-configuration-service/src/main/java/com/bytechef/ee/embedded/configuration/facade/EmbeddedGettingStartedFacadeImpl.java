@@ -8,6 +8,7 @@
 package com.bytechef.ee.embedded.configuration.facade;
 
 import com.bytechef.ee.embedded.configuration.domain.Integration;
+import com.bytechef.ee.embedded.configuration.domain.IntegrationInstance;
 import com.bytechef.ee.embedded.configuration.domain.IntegrationInstanceConfiguration;
 import com.bytechef.ee.embedded.configuration.dto.EmbeddedGettingStartedDTO;
 import com.bytechef.ee.embedded.configuration.dto.LastFailedCallDTO;
@@ -180,19 +181,21 @@ public class EmbeddedGettingStartedFacadeImpl implements EmbeddedGettingStartedF
             return false;
         }
 
-        Optional<String> testUserExternalId =
-            integrationInstanceService.fetchFirstRunnableConnectedUserExternalId(environment);
+        Optional<IntegrationInstance> runnableIntegrationInstanceOptional =
+            integrationInstanceService.fetchFirstRunnableIntegrationInstance(environment);
 
-        return testUserExternalId.isPresent() && isFirstCallMade(environment);
+        return runnableIntegrationInstanceOptional.isPresent() && isFirstCallMade(environment);
     }
 
     private EmbeddedGettingStartedDTO evaluate(Environment environment, Set<Long> publishedIntegrationIds) {
         List<Integration> integrations = integrationService.getIntegrations();
 
-        Optional<String> testUserExternalIdOptional =
-            integrationInstanceService.fetchFirstRunnableConnectedUserExternalId(environment);
+        Optional<IntegrationInstance> runnableIntegrationInstanceOptional =
+            integrationInstanceService.fetchFirstRunnableIntegrationInstance(environment);
 
-        String testUserExternalId = testUserExternalIdOptional.orElse(null);
+        String testUserExternalId = runnableIntegrationInstanceOptional
+            .map(this::getConnectedUserExternalId)
+            .orElse(null);
 
         boolean firstCallMade = isFirstCallMade(environment);
 
@@ -221,7 +224,12 @@ public class EmbeddedGettingStartedFacadeImpl implements EmbeddedGettingStartedF
 
         Long targetIntegrationId = getTargetIntegrationId(integrations, publishedIntegrationIds);
 
-        Long componentIntegrationId = newestIntegrationInstanceConfigurationOptional
+        Optional<IntegrationInstanceConfiguration> componentIntegrationInstanceConfigurationOptional =
+            runnableIntegrationInstanceOptional
+                .map(this::getIntegrationInstanceConfiguration)
+                .or(() -> newestIntegrationInstanceConfigurationOptional);
+
+        Long componentIntegrationId = componentIntegrationInstanceConfigurationOptional
             .map(IntegrationInstanceConfiguration::getIntegrationId)
             .orElse(targetIntegrationId);
 
@@ -229,11 +237,9 @@ public class EmbeddedGettingStartedFacadeImpl implements EmbeddedGettingStartedF
             .filter(integration -> Objects.equals(integration.getId(), componentIntegrationId))
             .findFirst();
 
-        Optional<ConnectedUser> lastEnabledConnectedUserOptional =
-            connectedUserService.fetchLastEnabledConnectedUser(environment);
-
-        Long testUserId = lastEnabledConnectedUserOptional.map(ConnectedUser::getId)
-            .orElse(null);
+        Long testUserId = runnableIntegrationInstanceOptional
+            .map(IntegrationInstance::getConnectedUserId)
+            .orElseGet(() -> getLastEnabledConnectedUserId(environment));
 
         return new EmbeddedGettingStartedDTO(
             hasApiKey(environment), !integrations.isEmpty(), !publishedIntegrationIds.isEmpty(),
@@ -245,6 +251,28 @@ public class EmbeddedGettingStartedFacadeImpl implements EmbeddedGettingStartedF
                 .orElse(null),
             componentIntegrationOptional.map(Integration::getComponentVersion)
                 .orElse(null));
+    }
+
+    private @Nullable Long getLastEnabledConnectedUserId(Environment environment) {
+        Optional<ConnectedUser> lastEnabledConnectedUserOptional =
+            connectedUserService.fetchLastEnabledConnectedUser(environment);
+
+        return lastEnabledConnectedUserOptional
+            .map(ConnectedUser::getId)
+            .orElse(null);
+    }
+
+    private String getConnectedUserExternalId(IntegrationInstance integrationInstance) {
+        ConnectedUser connectedUser = connectedUserService.getConnectedUser(integrationInstance.getConnectedUserId());
+
+        return connectedUser.getExternalId();
+    }
+
+    private IntegrationInstanceConfiguration getIntegrationInstanceConfiguration(
+        IntegrationInstance integrationInstance) {
+
+        return integrationInstanceConfigurationService.getIntegrationInstanceConfiguration(
+            integrationInstance.getIntegrationInstanceConfigurationId());
     }
 
     private static @Nullable Long getTargetIntegrationId(
