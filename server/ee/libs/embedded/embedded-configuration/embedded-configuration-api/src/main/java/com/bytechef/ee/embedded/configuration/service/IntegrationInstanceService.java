@@ -47,7 +47,7 @@ public interface IntegrationInstanceService {
     Optional<IntegrationInstance> fetchIntegrationInstance(
         long connectedUserId, long integrationInstanceConfigurationId);
 
-    Optional<String> fetchFirstRunnableConnectedUserExternalId(Environment environment);
+    Optional<IntegrationInstance> fetchFirstRunnableIntegrationInstance(Environment environment);
 
     Optional<IntegrationInstance> fetchIntegrationInstanceByIntegrationId(
         long connectedUserId, long integrationId, Environment environment);

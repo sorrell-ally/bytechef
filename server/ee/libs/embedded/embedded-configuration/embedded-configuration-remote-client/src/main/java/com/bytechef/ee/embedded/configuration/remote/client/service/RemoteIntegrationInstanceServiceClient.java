@@ -76,7 +76,7 @@ public class RemoteIntegrationInstanceServiceClient implements IntegrationInstan
     }
 
     @Override
-    public Optional<String> fetchFirstRunnableConnectedUserExternalId(Environment environment) {
+    public Optional<IntegrationInstance> fetchFirstRunnableIntegrationInstance(Environment environment) {
         throw new UnsupportedOperationException();
     }
 

@@ -155,7 +155,7 @@ public interface IntegrationInstanceRepository
     List<Long> findConnectionIdsIn(@Param("connectionIds") Collection<Long> connectionIds);
 
     @Query("""
-        SELECT connected_user.external_id
+        SELECT integration_instance.*
         FROM integration_instance
         JOIN connected_user ON integration_instance.connected_user_id = connected_user.id
         JOIN integration_instance_configuration
@@ -170,8 +170,8 @@ public interface IntegrationInstanceRepository
             WHERE integration_version.integration_id = integration_instance_configuration.integration_id
             AND integration_version.status = 1
         )
-        ORDER BY connected_user.id
+        ORDER BY connected_user.id, integration_instance_configuration.id DESC
         LIMIT 1
         """)
-    Optional<String> findFirstRunnableConnectedUserExternalId(@Param("environment") int environment);
+    Optional<IntegrationInstance> findFirstRunnableIntegrationInstance(@Param("environment") int environment);
 }
