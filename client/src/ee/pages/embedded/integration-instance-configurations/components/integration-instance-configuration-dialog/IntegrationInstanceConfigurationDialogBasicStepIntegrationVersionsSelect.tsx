@@ -3,6 +3,7 @@ import {IntegrationStatus} from '@/ee/shared/middleware/embedded/configuration';
 import {useGetIntegrationVersionsQuery} from '@/ee/shared/queries/embedded/integrationVersions.queries';
 import {CheckIcon} from 'lucide-react';
 import {Select as SelectPrimitive} from 'radix-ui';
+import {useEffect} from 'react';
 
 const IntegrationInstanceConfigurationDialogBasicStepIntegrationVersionsSelect = ({
     integrationId,
@@ -18,6 +19,20 @@ const IntegrationInstanceConfigurationDialogBasicStepIntegrationVersionsSelect =
     const filteredIntegrationVersions = integrationVersions?.filter(
         (integrationVersion) => integrationVersion.status === IntegrationStatus.Published
     );
+
+    const latestPublishedVersion = filteredIntegrationVersions?.reduce<number | undefined>(
+        (latestVersion, publishedIntegrationVersion) =>
+            latestVersion === undefined || publishedIntegrationVersion.version! > latestVersion
+                ? publishedIntegrationVersion.version
+                : latestVersion,
+        undefined
+    );
+
+    useEffect(() => {
+        if (integrationVersion === undefined && latestPublishedVersion !== undefined) {
+            onChange(latestPublishedVersion);
+        }
+    }, [integrationVersion, latestPublishedVersion, onChange]);
 
     return (
         <Select
