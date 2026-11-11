@@ -1422,6 +1422,11 @@ export type DeleteMcpIntegrationInstanceConfigurationWorkflowMutationVariables =
 
 export type DeleteMcpIntegrationInstanceConfigurationWorkflowMutation = { deleteMcpIntegrationInstanceConfigurationWorkflow: boolean | null };
 
+export type DismissEmbeddedGettingStartedMutationVariables = Exact<{ [key: string]: never; }>;
+
+
+export type DismissEmbeddedGettingStartedMutation = { dismissEmbeddedGettingStarted: boolean | null };
+
 export type DuplicateAutomationProjectMutationVariables = Exact<{
   id: string | number;
 }>;
@@ -1435,6 +1440,18 @@ export type DuplicateAutomationProjectWorkflowMutationVariables = Exact<{
 
 
 export type DuplicateAutomationProjectWorkflowMutation = { duplicateAutomationProjectWorkflow: string };
+
+export type EmbeddedGettingStartedQueryVariables = Exact<{
+  environmentId: string | number;
+}>;
+
+
+export type EmbeddedGettingStartedQuery = { embeddedGettingStarted: { apiBaseUrl: string | null, apiKeyCreated: boolean, completed: boolean, completionType: string | null, componentName: string | null, componentVersion: number | null, firstCallMade: boolean, integrationConfigurationCreated: boolean, integrationConfigurationEnabled: boolean, integrationCreated: boolean, integrationHasWorkflows: boolean, integrationId: any, integrationInstanceConfigurationId: any, integrationPublished: boolean, testUserAdded: boolean, testUserConnected: boolean, testUserExternalId: string | null, testUserId: any, lastFailedCall: { createdDate: any, errorMessage: string | null, outcome: string } | null } };
+
+export type EmbeddedGettingStartedCompletedQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type EmbeddedGettingStartedCompletedQuery = { embeddedGettingStartedCompleted: boolean };
 
 export type EmbeddedMcpComponentsByServerIdQueryVariables = Exact<{
   mcpServerId: string | number;
@@ -7544,6 +7561,25 @@ export const useDeleteMcpIntegrationInstanceConfigurationWorkflowMutation = <
   }
     )};
 
+export const DismissEmbeddedGettingStartedDocument = new TypedDocumentString(`
+    mutation dismissEmbeddedGettingStarted {
+  dismissEmbeddedGettingStarted
+}
+    `);
+
+export const useDismissEmbeddedGettingStartedMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<DismissEmbeddedGettingStartedMutation, TError, DismissEmbeddedGettingStartedMutationVariables, TContext>) => {
+    
+    return useMutation<DismissEmbeddedGettingStartedMutation, TError, DismissEmbeddedGettingStartedMutationVariables, TContext>(
+      {
+    mutationKey: ['dismissEmbeddedGettingStarted'],
+    mutationFn: (variables?: DismissEmbeddedGettingStartedMutationVariables) => fetcher<DismissEmbeddedGettingStartedMutation, DismissEmbeddedGettingStartedMutationVariables>(DismissEmbeddedGettingStartedDocument, variables)(),
+    ...options
+  }
+    )};
+
 export const DuplicateAutomationProjectDocument = new TypedDocumentString(`
     mutation duplicateAutomationProject($id: ID!) {
   duplicateAutomationProject(id: $id)
@@ -7578,6 +7614,74 @@ export const useDuplicateAutomationProjectWorkflowMutation = <
       {
     mutationKey: ['duplicateAutomationProjectWorkflow'],
     mutationFn: (variables?: DuplicateAutomationProjectWorkflowMutationVariables) => fetcher<DuplicateAutomationProjectWorkflowMutation, DuplicateAutomationProjectWorkflowMutationVariables>(DuplicateAutomationProjectWorkflowDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const EmbeddedGettingStartedDocument = new TypedDocumentString(`
+    query embeddedGettingStarted($environmentId: ID!) {
+  embeddedGettingStarted(environmentId: $environmentId) {
+    apiBaseUrl
+    apiKeyCreated
+    completed
+    completionType
+    componentName
+    componentVersion
+    firstCallMade
+    integrationConfigurationCreated
+    integrationConfigurationEnabled
+    integrationCreated
+    integrationHasWorkflows
+    integrationId
+    integrationInstanceConfigurationId
+    integrationPublished
+    lastFailedCall {
+      createdDate
+      errorMessage
+      outcome
+    }
+    testUserAdded
+    testUserConnected
+    testUserExternalId
+    testUserId
+  }
+}
+    `);
+
+export const useEmbeddedGettingStartedQuery = <
+      TData = EmbeddedGettingStartedQuery,
+      TError = unknown
+    >(
+      variables: EmbeddedGettingStartedQueryVariables,
+      options?: Omit<UseQueryOptions<EmbeddedGettingStartedQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<EmbeddedGettingStartedQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<EmbeddedGettingStartedQuery, TError, TData>(
+      {
+    queryKey: ['embeddedGettingStarted', variables],
+    queryFn: fetcher<EmbeddedGettingStartedQuery, EmbeddedGettingStartedQueryVariables>(EmbeddedGettingStartedDocument, variables),
+    ...options
+  }
+    )};
+
+export const EmbeddedGettingStartedCompletedDocument = new TypedDocumentString(`
+    query embeddedGettingStartedCompleted {
+  embeddedGettingStartedCompleted
+}
+    `);
+
+export const useEmbeddedGettingStartedCompletedQuery = <
+      TData = EmbeddedGettingStartedCompletedQuery,
+      TError = unknown
+    >(
+      variables?: EmbeddedGettingStartedCompletedQueryVariables,
+      options?: Omit<UseQueryOptions<EmbeddedGettingStartedCompletedQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<EmbeddedGettingStartedCompletedQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<EmbeddedGettingStartedCompletedQuery, TError, TData>(
+      {
+    queryKey: variables === undefined ? ['embeddedGettingStartedCompleted'] : ['embeddedGettingStartedCompleted', variables],
+    queryFn: fetcher<EmbeddedGettingStartedCompletedQuery, EmbeddedGettingStartedCompletedQueryVariables>(EmbeddedGettingStartedCompletedDocument, variables),
     ...options
   }
     )};
