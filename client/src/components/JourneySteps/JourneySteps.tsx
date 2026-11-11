@@ -1,5 +1,5 @@
 import {CheckIcon} from 'lucide-react';
-import {ComponentPropsWithRef, KeyboardEvent, MouseEvent, ReactNode} from 'react';
+import {ComponentPropsWithRef, KeyboardEvent, ReactNode} from 'react';
 import {twMerge} from 'tailwind-merge';
 
 type JourneyStepStatusType = 'complete' | 'current' | 'upcoming';
@@ -57,18 +57,6 @@ const JourneyStepMarker = ({position, status}: {position: number; status: Journe
     </span>
 );
 
-const CONTENT_SELECTOR = '[data-slot="journey-step-content"]';
-
-const handleStepClick = (event: MouseEvent<HTMLLIElement>, onToggle?: () => void) => {
-    const target = event.target as Element;
-
-    if (!onToggle || !event.currentTarget.contains(target) || target.closest(CONTENT_SELECTOR)) {
-        return;
-    }
-
-    onToggle();
-};
-
 const handleStepKeyDown = (event: KeyboardEvent<HTMLSpanElement>, onToggle?: () => void) => {
     if (!onToggle || (event.key !== 'Enter' && event.key !== ' ')) {
         return;
@@ -84,12 +72,8 @@ const JourneySteps = ({className, orientation = 'horizontal', steps, ...props}: 
         {steps.map((step, index) => (
             <li
                 aria-current={step.status === 'current' ? 'step' : undefined}
-                className={twMerge(
-                    itemStyles[orientation],
-                    step.onToggle && 'cursor-pointer [&_[data-slot=journey-step-content]]:cursor-auto'
-                )}
+                className={itemStyles[orientation]}
                 key={step.id}
-                onClick={(event) => handleStepClick(event, step.onToggle)}
             >
                 {orientation === 'horizontal' && index > 0 && (
                     <span aria-hidden="true" className="mx-2 h-px w-4 bg-stroke-neutral-secondary" />
@@ -99,7 +83,8 @@ const JourneySteps = ({className, orientation = 'horizontal', steps, ...props}: 
 
                 <span
                     aria-expanded={step.onToggle ? !!step.expanded : undefined}
-                    className="flex min-w-0 flex-col"
+                    className={twMerge('flex min-w-0 flex-col', step.onToggle && 'cursor-pointer')}
+                    onClick={step.onToggle}
                     onKeyDown={(event) => handleStepKeyDown(event, step.onToggle)}
                     role={step.onToggle ? 'button' : undefined}
                     tabIndex={step.onToggle ? 0 : undefined}
