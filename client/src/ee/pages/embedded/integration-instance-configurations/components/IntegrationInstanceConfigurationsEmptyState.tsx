@@ -91,7 +91,12 @@ const IntegrationInstanceConfigurationsEmptyState = () => {
             title="Create your first instance configuration"
         >
             {integrations && (
-                <JourneySteps aria-label="Getting started" className="max-w-md" orientation="vertical" steps={steps} />
+                <JourneySteps
+                    aria-label="Getting started"
+                    className="w-full max-w-xl"
+                    orientation="vertical"
+                    steps={steps}
+                />
             )}
         </EmptyState>
     );
