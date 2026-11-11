@@ -35,6 +35,10 @@ vi.mock('@/ee/shared/mutations/embedded/integrations.mutations', () => ({
     useUpdateIntegrationTagsMutation: () => ({mutate: vi.fn()}),
 }));
 
+vi.mock('@/ee/pages/embedded/integrations/components/integration-list/useIntegrationComponentElements', () => ({
+    default: () => ({actions: undefined, isError: false, isLoading: false, refetch: vi.fn(), tools: undefined}),
+}));
+
 vi.mock('@/ee/shared/mutations/embedded/workflows.mutations', () => ({
     useCreateIntegrationWorkflowMutation: () => ({mutate: vi.fn()}),
 }));
