@@ -1,5 +1,5 @@
 import {CheckIcon} from 'lucide-react';
-import {ComponentPropsWithRef, ReactNode} from 'react';
+import {ComponentPropsWithRef, KeyboardEvent, MouseEvent, ReactNode} from 'react';
 import {twMerge} from 'tailwind-merge';
 
 type JourneyStepStatusType = 'complete' | 'current' | 'upcoming';
@@ -8,9 +8,12 @@ type OrientationType = 'horizontal' | 'vertical';
 
 interface JourneyStepI {
     action?: ReactNode;
+    content?: ReactNode;
     description?: string;
+    expanded?: boolean;
     id: string;
     label: string;
+    onToggle?: () => void;
     status: JourneyStepStatusType;
 }
 
@@ -54,13 +57,39 @@ const JourneyStepMarker = ({position, status}: {position: number; status: Journe
     </span>
 );
 
+const CONTENT_SELECTOR = '[data-slot="journey-step-content"]';
+
+const handleStepClick = (event: MouseEvent<HTMLLIElement>, onToggle?: () => void) => {
+    const target = event.target as Element;
+
+    if (!onToggle || !event.currentTarget.contains(target) || target.closest(CONTENT_SELECTOR)) {
+        return;
+    }
+
+    onToggle();
+};
+
+const handleStepKeyDown = (event: KeyboardEvent<HTMLSpanElement>, onToggle?: () => void) => {
+    if (!onToggle || (event.key !== 'Enter' && event.key !== ' ')) {
+        return;
+    }
+
+    event.preventDefault();
+
+    onToggle();
+};
+
 const JourneySteps = ({className, orientation = 'horizontal', steps, ...props}: JourneyStepsProps) => (
     <ol className={twMerge(listStyles[orientation], className)} {...props}>
         {steps.map((step, index) => (
             <li
                 aria-current={step.status === 'current' ? 'step' : undefined}
-                className={itemStyles[orientation]}
+                className={twMerge(
+                    itemStyles[orientation],
+                    step.onToggle && 'cursor-pointer [&_[data-slot=journey-step-content]]:cursor-auto'
+                )}
                 key={step.id}
+                onClick={(event) => handleStepClick(event, step.onToggle)}
             >
                 {orientation === 'horizontal' && index > 0 && (
                     <span aria-hidden="true" className="mx-2 h-px w-4 bg-stroke-neutral-secondary" />
@@ -68,7 +97,13 @@ const JourneySteps = ({className, orientation = 'horizontal', steps, ...props}: 
 
                 <JourneyStepMarker position={index + 1} status={step.status} />
 
-                <span className="flex min-w-0 flex-col">
+                <span
+                    aria-expanded={step.onToggle ? !!step.expanded : undefined}
+                    className="flex min-w-0 flex-col"
+                    onKeyDown={(event) => handleStepKeyDown(event, step.onToggle)}
+                    role={step.onToggle ? 'button' : undefined}
+                    tabIndex={step.onToggle ? 0 : undefined}
+                >
                     <span className={labelStyles[step.status]}>
                         {step.status === 'complete' && <span className="sr-only">Completed:</span>}
 
@@ -81,6 +116,12 @@ const JourneySteps = ({className, orientation = 'horizontal', steps, ...props}: 
                 </span>
 
                 {step.action}
+
+                {orientation === 'vertical' && step.content && (
+                    <div className="col-span-2 col-start-2 min-w-0" data-slot="journey-step-content">
+                        {step.content}
+                    </div>
+                )}
             </li>
         ))}
     </ol>
