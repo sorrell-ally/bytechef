@@ -31,11 +31,13 @@ input CreateMcpIntegrationInstanceConfigurationInput {
     integrationInstanceConfigurationId: ID!
     selectedWorkflowIds: [String!]!
     workflowConfigurations: [WorkflowConfigurationInput!]
+    toolParameters: [WorkflowToolParametersInput!]
 }
 
 input UpdateMcpIntegrationInstanceConfigurationInput {
     selectedWorkflowIds: [String!]!
     workflowConfigurations: [WorkflowConfigurationInput!]
+    toolParameters: [WorkflowToolParametersInput!]
 }
 
 input UpdateMcpIntegrationInstanceConfigurationVersionInput {

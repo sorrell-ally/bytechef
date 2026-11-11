@@ -7,9 +7,16 @@
 
 package com.bytechef.ee.embedded.ai.mcp.facade;
 
+import static com.bytechef.ee.embedded.ai.mcp.facade.McpIntegrationInstanceConfigurationWorkflowFacadeImpl.getToolCallableTrigger;
+
 import com.bytechef.atlas.configuration.domain.Workflow;
 import com.bytechef.atlas.configuration.domain.WorkflowTask;
 import com.bytechef.atlas.configuration.service.WorkflowService;
+import com.bytechef.commons.util.MapUtils;
+import com.bytechef.component.definition.Property;
+import com.bytechef.component.definition.Property.ArrayProperty;
+import com.bytechef.component.definition.Property.ObjectProperty;
+import com.bytechef.definition.BaseProperty.BaseValueProperty;
 import com.bytechef.ee.embedded.ai.mcp.audit.McpIntegrationInstanceConfigurationAuditEvents;
 import com.bytechef.ee.embedded.ai.mcp.domain.McpIntegrationInstanceConfiguration;
 import com.bytechef.ee.embedded.ai.mcp.domain.McpIntegrationInstanceConfigurationWorkflow;
@@ -25,17 +32,22 @@ import com.bytechef.ee.embedded.configuration.service.IntegrationInstanceConfigu
 import com.bytechef.ee.embedded.configuration.service.IntegrationInstanceWorkflowService;
 import com.bytechef.ee.embedded.configuration.service.IntegrationService;
 import com.bytechef.ee.embedded.configuration.service.IntegrationWorkflowService;
+import com.bytechef.platform.ai.tool.constant.ToolConstants;
 import com.bytechef.platform.annotation.ConditionalOnEEVersion;
 import com.bytechef.platform.audit.AuditData;
 import com.bytechef.platform.audit.Audited;
+import com.bytechef.platform.component.constant.WorkflowConstants;
+import com.bytechef.platform.component.definition.PropertyFactory;
 import com.bytechef.platform.configuration.domain.ComponentConnection;
 import com.bytechef.platform.configuration.domain.Environment;
 import com.bytechef.platform.configuration.domain.WorkflowTrigger;
 import com.bytechef.platform.configuration.dto.WorkflowConfigurationDTO;
 import com.bytechef.platform.configuration.dto.WorkflowConfigurationDTO.WorkflowConnectionDTO;
+import com.bytechef.platform.configuration.dto.WorkflowToolParametersDTO;
 import com.bytechef.platform.configuration.facade.ComponentConnectionFacade;
 import com.bytechef.platform.connection.domain.Connection;
 import com.bytechef.platform.connection.service.ConnectionService;
+import com.bytechef.platform.util.SchemaUtils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -46,6 +58,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -59,6 +73,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 @ConditionalOnEEVersion
 public class McpIntegrationInstanceConfigurationFacadeImpl implements McpIntegrationInstanceConfigurationFacade {
+
+    private static final Logger log = LoggerFactory.getLogger(McpIntegrationInstanceConfigurationFacadeImpl.class);
 
     private final ComponentConnectionFacade componentConnectionFacade;
     private final ConnectionService connectionService;
@@ -107,7 +123,7 @@ public class McpIntegrationInstanceConfigurationFacadeImpl implements McpIntegra
         long mcpServerId, long integrationInstanceConfigurationId, List<String> selectedWorkflowIds) {
 
         return createMcpIntegrationInstanceConfiguration(
-            mcpServerId, integrationInstanceConfigurationId, selectedWorkflowIds, List.of());
+            mcpServerId, integrationInstanceConfigurationId, selectedWorkflowIds, List.of(), List.of());
     }
 
     @Override
@@ -121,7 +137,7 @@ public class McpIntegrationInstanceConfigurationFacadeImpl implements McpIntegra
     @PreAuthorize("isTenantAdmin()")
     public McpIntegrationInstanceConfiguration createMcpIntegrationInstanceConfiguration(
         long mcpServerId, long integrationInstanceConfigurationId, List<String> selectedWorkflowIds,
-        List<WorkflowConfigurationDTO> workflowConfigurations) {
+        List<WorkflowConfigurationDTO> workflowConfigurations, List<WorkflowToolParametersDTO> toolParameters) {
 
         IntegrationInstanceConfiguration integrationInstanceConfiguration =
             integrationInstanceConfigurationService.getIntegrationInstanceConfiguration(
@@ -129,6 +145,8 @@ public class McpIntegrationInstanceConfigurationFacadeImpl implements McpIntegra
 
         Map<String, WorkflowConfigurationDTO> workflowConfigurationMap = toWorkflowConfigurationMap(
             workflowConfigurations);
+
+        Map<String, Map<String, ?>> toolParametersMap = toToolParametersMap(toolParameters);
 
         McpIntegrationInstanceConfiguration mcpIntegrationInstanceConfiguration =
             new McpIntegrationInstanceConfiguration(integrationInstanceConfigurationId, mcpServerId);
@@ -152,8 +170,11 @@ public class McpIntegrationInstanceConfigurationFacadeImpl implements McpIntegra
                     integrationInstanceConfiguration, existingWorkflowsByWorkflowId.get(workflowId), workflowId,
                     workflowConfigurationMap.get(workflowId));
 
-            mcpIntegrationInstanceConfigurationWorkflowService.create(
-                mcpIntegrationInstanceConfiguration.getId(), integrationInstanceConfigurationWorkflow.getId());
+            McpIntegrationInstanceConfigurationWorkflow mcpIntegrationInstanceConfigurationWorkflow =
+                mcpIntegrationInstanceConfigurationWorkflowService.create(
+                    mcpIntegrationInstanceConfiguration.getId(), integrationInstanceConfigurationWorkflow.getId());
+
+            storeToolParameters(mcpIntegrationInstanceConfigurationWorkflow, toolParametersMap.get(workflowId));
         }
 
         return mcpIntegrationInstanceConfiguration;
@@ -205,7 +226,7 @@ public class McpIntegrationInstanceConfigurationFacadeImpl implements McpIntegra
         long mcpIntegrationInstanceConfigurationId, List<String> selectedWorkflowIds) {
 
         return updateMcpIntegrationInstanceConfiguration(
-            mcpIntegrationInstanceConfigurationId, selectedWorkflowIds, List.of());
+            mcpIntegrationInstanceConfigurationId, selectedWorkflowIds, List.of(), List.of());
     }
 
     @Override
@@ -218,7 +239,7 @@ public class McpIntegrationInstanceConfigurationFacadeImpl implements McpIntegra
     @PreAuthorize("isTenantAdmin()")
     public McpIntegrationInstanceConfiguration updateMcpIntegrationInstanceConfiguration(
         long mcpIntegrationInstanceConfigurationId, List<String> selectedWorkflowIds,
-        List<WorkflowConfigurationDTO> workflowConfigurations) {
+        List<WorkflowConfigurationDTO> workflowConfigurations, List<WorkflowToolParametersDTO> toolParameters) {
 
         McpIntegrationInstanceConfiguration mcpIntegrationInstanceConfiguration =
             mcpIntegrationInstanceConfigurationService
@@ -271,6 +292,8 @@ public class McpIntegrationInstanceConfigurationFacadeImpl implements McpIntegra
         Map<String, WorkflowConfigurationDTO> workflowConfigurationMap = toWorkflowConfigurationMap(
             workflowConfigurations);
 
+        Map<String, Map<String, ?>> toolParametersMap = toToolParametersMap(toolParameters);
+
         for (String workflowId : selectedWorkflowIds) {
             IntegrationInstanceConfigurationWorkflow integrationInstanceConfigurationWorkflow =
                 integrationInstanceConfigurationWorkflowByWorkflowIdMap.get(workflowId);
@@ -288,8 +311,17 @@ public class McpIntegrationInstanceConfigurationFacadeImpl implements McpIntegra
                     integrationInstanceConfiguration, integrationInstanceConfigurationWorkflow, workflowId,
                     workflowConfigurationMap.get(workflowId));
 
-                mcpIntegrationInstanceConfigurationWorkflowService.create(
-                    mcpIntegrationInstanceConfigurationId, integrationInstanceConfigurationWorkflow.getId());
+                McpIntegrationInstanceConfigurationWorkflow mcpIntegrationInstanceConfigurationWorkflow =
+                    mcpIntegrationInstanceConfigurationWorkflowService.create(
+                        mcpIntegrationInstanceConfigurationId, integrationInstanceConfigurationWorkflow.getId());
+
+                storeToolParameters(mcpIntegrationInstanceConfigurationWorkflow, toolParametersMap.get(workflowId));
+            }
+        }
+
+        for (Map.Entry<String, McpIntegrationInstanceConfigurationWorkflow> entry : existingWorkflowIdMap.entrySet()) {
+            if (selectedWorkflowIdSet.contains(entry.getKey())) {
+                storeToolParameters(entry.getValue(), toolParametersMap.get(entry.getKey()));
             }
         }
 
@@ -341,7 +373,19 @@ public class McpIntegrationInstanceConfigurationFacadeImpl implements McpIntegra
                 .getMcpIntegrationInstanceConfigurationMcpIntegrationInstanceConfigurationWorkflows(
                     mcpIntegrationInstanceConfigurationId);
 
+        Map<String, McpIntegrationInstanceConfigurationWorkflow> previousMcpWorkflowsByUuid = new HashMap<>();
+
         for (McpIntegrationInstanceConfigurationWorkflow mcpIntegrationInstanceConfigurationWorkflow : mcpIntegrationInstanceConfigurationWorkflows) {
+            IntegrationInstanceConfigurationWorkflow previousIntegrationInstanceConfigurationWorkflow =
+                integrationInstanceConfigurationWorkflowService.getIntegrationInstanceConfigurationWorkflow(
+                    mcpIntegrationInstanceConfigurationWorkflow.getIntegrationInstanceConfigurationWorkflowId());
+
+            IntegrationWorkflow previousIntegrationWorkflow = integrationWorkflowService.getWorkflowIntegrationWorkflow(
+                previousIntegrationInstanceConfigurationWorkflow.getWorkflowId());
+
+            previousMcpWorkflowsByUuid.put(
+                previousIntegrationWorkflow.getUuidAsString(), mcpIntegrationInstanceConfigurationWorkflow);
+
             integrationInstanceWorkflowService.deleteByIntegrationInstanceConfigurationWorkflowId(
                 mcpIntegrationInstanceConfigurationWorkflow.getIntegrationInstanceConfigurationWorkflowId());
 
@@ -393,10 +437,150 @@ public class McpIntegrationInstanceConfigurationFacadeImpl implements McpIntegra
                 integrationInstanceConfigurationWorkflow =
                     integrationInstanceConfigurationWorkflowService.create(integrationInstanceConfigurationWorkflow);
 
-                mcpIntegrationInstanceConfigurationWorkflowService.create(
-                    mcpIntegrationInstanceConfigurationId, integrationInstanceConfigurationWorkflow.getId());
+                McpIntegrationInstanceConfigurationWorkflow recreatedMcpWorkflow =
+                    mcpIntegrationInstanceConfigurationWorkflowService.create(
+                        mcpIntegrationInstanceConfigurationId, integrationInstanceConfigurationWorkflow.getId());
+
+                McpIntegrationInstanceConfigurationWorkflow previousMcpWorkflow = previousMcpWorkflowsByUuid.get(
+                    integrationWorkflow.getUuidAsString());
+
+                if (previousMcpWorkflow != null) {
+                    carryOverToolSettings(
+                        previousMcpWorkflow, recreatedMcpWorkflow.getId(), integrationWorkflow.getWorkflowId());
+                }
             }
         }
+    }
+
+    private void carryOverToolSettings(
+        McpIntegrationInstanceConfigurationWorkflow previousMcpWorkflow, long recreatedMcpWorkflowId,
+        String workflowId) {
+
+        Map<String, ?> previousParameters = previousMcpWorkflow.getParameters();
+
+        Map<String, Object> carriedParameters = filterToolParameters(
+            previousParameters, getToolInputProperties(workflowService.getWorkflow(workflowId)));
+
+        if (!carriedParameters.isEmpty()) {
+            mcpIntegrationInstanceConfigurationWorkflowService.updateParameters(
+                recreatedMcpWorkflowId, carriedParameters);
+        }
+
+        if (!previousMcpWorkflow.isEnabled()) {
+            mcpIntegrationInstanceConfigurationWorkflowService.updateEnabled(recreatedMcpWorkflowId, false);
+        }
+    }
+
+    private static Map<String, Object> filterToolParameters(
+        Map<String, ?> parameters, List<? extends Property> inputProperties) {
+
+        Map<String, Object> filteredParameters = new HashMap<>();
+
+        for (String toolParameterName : List.of(ToolConstants.TOOL_NAME, ToolConstants.TOOL_DESCRIPTION)) {
+            if (parameters.containsKey(toolParameterName)) {
+                filteredParameters.put(toolParameterName, parameters.get(toolParameterName));
+            }
+        }
+
+        filteredParameters.putAll(filterValues(parameters, inputProperties, false));
+
+        return filteredParameters;
+    }
+
+    private static Map<String, Object> filterValues(
+        Map<?, ?> values, List<? extends Property> properties, boolean additionalPropertiesAllowed) {
+
+        Map<String, Property> propertiesByName = new HashMap<>();
+
+        for (Property property : properties) {
+            propertiesByName.put(property.getName(), property);
+        }
+
+        Map<String, Object> filteredValues = new HashMap<>();
+
+        for (Map.Entry<?, ?> entry : values.entrySet()) {
+            String name = String.valueOf(entry.getKey());
+            Property property = propertiesByName.get(name);
+
+            if (property != null) {
+                filteredValues.put(name, filterValue(entry.getValue(), property));
+            } else if (additionalPropertiesAllowed) {
+                filteredValues.put(name, entry.getValue());
+            }
+        }
+
+        return filteredValues;
+    }
+
+    private static @Nullable Object filterValue(@Nullable Object value, Property property) {
+        if (value instanceof Map<?, ?> map && property instanceof ObjectProperty objectProperty) {
+            List<? extends Property> childProperties = objectProperty.getProperties();
+
+            if (childProperties.isEmpty()) {
+                return value;
+            }
+
+            List<? extends Property> additionalProperties = objectProperty.getAdditionalProperties();
+
+            return filterValues(map, childProperties, !additionalProperties.isEmpty());
+        }
+
+        if (value instanceof List<?> list && property instanceof ArrayProperty arrayProperty) {
+            List<? extends Property> itemProperties = arrayProperty.getItems();
+
+            if (itemProperties.size() != 1) {
+                return value;
+            }
+
+            Property itemProperty = itemProperties.getFirst();
+
+            List<Object> filteredItems = new ArrayList<>();
+
+            for (Object item : list) {
+                filteredItems.add(filterValue(item, itemProperty));
+            }
+
+            return filteredItems;
+        }
+
+        return value;
+    }
+
+    private static List<? extends Property> getToolInputProperties(Workflow workflow) {
+        WorkflowTrigger callableTrigger = getToolCallableTrigger(workflow);
+
+        if (callableTrigger == null) {
+            return List.of();
+        }
+
+        String inputSchema = MapUtils.getString(callableTrigger.getParameters(), WorkflowConstants.INPUT_SCHEMA);
+
+        if (inputSchema == null || inputSchema.isEmpty()) {
+            return List.of();
+        }
+
+        BaseValueProperty<?> inputProperty;
+
+        try {
+            inputProperty = SchemaUtils.getJsonSchemaProperty(
+                inputSchema, PropertyFactory.JSON_SCHEMA_PROPERTY_FACTORY);
+        } catch (RuntimeException exception) {
+            log.warn(
+                "Unable to parse the input schema of workflow {}, its tool inputs are not carried over",
+                workflow.getId(), exception);
+
+            return List.of();
+        }
+
+        if (inputProperty instanceof ObjectProperty objectProperty) {
+            return objectProperty.getProperties();
+        }
+
+        if (inputProperty instanceof Property property) {
+            return List.of(property);
+        }
+
+        return List.of();
     }
 
     @Override
@@ -425,6 +609,26 @@ public class McpIntegrationInstanceConfigurationFacadeImpl implements McpIntegra
 
         return Objects.equals(workflowConnection.workflowNodeName(), componentConnection.workflowNodeName()) &&
             Objects.equals(workflowConnection.workflowConnectionKey(), componentConnection.key());
+    }
+
+    private void storeToolParameters(
+        McpIntegrationInstanceConfigurationWorkflow mcpIntegrationInstanceConfigurationWorkflow,
+        @Nullable Map<String, ?> parameters) {
+
+        if (parameters != null) {
+            mcpIntegrationInstanceConfigurationWorkflowService.updateParameters(
+                Objects.requireNonNull(mcpIntegrationInstanceConfigurationWorkflow.getId()), parameters);
+        }
+    }
+
+    private static Map<String, Map<String, ?>> toToolParametersMap(List<WorkflowToolParametersDTO> toolParameters) {
+        Map<String, Map<String, ?>> toolParametersMap = new HashMap<>();
+
+        for (WorkflowToolParametersDTO workflowToolParameters : toolParameters) {
+            toolParametersMap.put(workflowToolParameters.workflowId(), workflowToolParameters.parameters());
+        }
+
+        return toolParametersMap;
     }
 
     private static Map<String, WorkflowConfigurationDTO> toWorkflowConfigurationMap(
