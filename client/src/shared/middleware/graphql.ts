@@ -1441,9 +1441,7 @@ export type DuplicateAutomationProjectWorkflowMutationVariables = Exact<{
 
 export type DuplicateAutomationProjectWorkflowMutation = { duplicateAutomationProjectWorkflow: string };
 
-export type EmbeddedGettingStartedQueryVariables = Exact<{
-  environmentId: string | number;
-}>;
+export type EmbeddedGettingStartedQueryVariables = Exact<{ [key: string]: never; }>;
 
 
 export type EmbeddedGettingStartedQuery = { embeddedGettingStarted: { apiBaseUrl: string | null, apiKeyCreated: boolean, completed: boolean, completionType: string | null, componentName: string | null, componentVersion: number | null, firstCallMade: boolean, integrationConfigurationCreated: boolean, integrationConfigurationEnabled: boolean, integrationCreated: boolean, integrationHasWorkflows: boolean, integrationId: any, integrationInstanceConfigurationId: any, integrationPublished: boolean, testUserAdded: boolean, testUserConnected: boolean, testUserExternalId: string | null, testUserId: any, lastFailedCall: { createdDate: any, errorMessage: string | null, outcome: string } | null } };
@@ -7619,8 +7617,8 @@ export const useDuplicateAutomationProjectWorkflowMutation = <
     )};
 
 export const EmbeddedGettingStartedDocument = new TypedDocumentString(`
-    query embeddedGettingStarted($environmentId: ID!) {
-  embeddedGettingStarted(environmentId: $environmentId) {
+    query embeddedGettingStarted {
+  embeddedGettingStarted {
     apiBaseUrl
     apiKeyCreated
     completed
@@ -7652,13 +7650,13 @@ export const useEmbeddedGettingStartedQuery = <
       TData = EmbeddedGettingStartedQuery,
       TError = unknown
     >(
-      variables: EmbeddedGettingStartedQueryVariables,
+      variables?: EmbeddedGettingStartedQueryVariables,
       options?: Omit<UseQueryOptions<EmbeddedGettingStartedQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<EmbeddedGettingStartedQuery, TError, TData>['queryKey'] }
     ) => {
     
     return useQuery<EmbeddedGettingStartedQuery, TError, TData>(
       {
-    queryKey: ['embeddedGettingStarted', variables],
+    queryKey: variables === undefined ? ['embeddedGettingStarted'] : ['embeddedGettingStarted', variables],
     queryFn: fetcher<EmbeddedGettingStartedQuery, EmbeddedGettingStartedQueryVariables>(EmbeddedGettingStartedDocument, variables),
     ...options
   }

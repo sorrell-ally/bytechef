@@ -4051,11 +4051,6 @@ export type QueryEditorTaskExecutionFileLogsArgs = {
 };
 
 
-export type QueryEmbeddedGettingStartedArgs = {
-  environmentId: Scalars['ID']['input'];
-};
-
-
 export type QueryEmbeddedMcpComponentsByServerIdArgs = {
   mcpServerId: Scalars['ID']['input'];
 };
