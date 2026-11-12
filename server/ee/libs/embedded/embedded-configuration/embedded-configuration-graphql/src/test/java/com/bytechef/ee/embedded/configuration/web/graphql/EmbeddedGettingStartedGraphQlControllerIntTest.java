@@ -16,8 +16,6 @@ import com.bytechef.ee.embedded.configuration.dto.LastFailedCallDTO;
 import com.bytechef.ee.embedded.configuration.facade.EmbeddedGettingStartedFacade;
 import com.bytechef.ee.embedded.configuration.web.graphql.config.EmbeddedConfigurationGraphQlConfigurationSharedMocks;
 import com.bytechef.ee.embedded.configuration.web.graphql.config.EmbeddedConfigurationGraphQlTestConfiguration;
-import com.bytechef.platform.configuration.domain.Environment;
-import com.bytechef.platform.configuration.service.EnvironmentService;
 import com.bytechef.test.extension.ObjectMapperSetupExtension;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
@@ -50,7 +48,7 @@ class EmbeddedGettingStartedGraphQlControllerIntTest {
 
     private static final String API_BASE_URL_QUERY = """
         query {
-            embeddedGettingStarted(environmentId: "0") {
+            embeddedGettingStarted {
                 apiBaseUrl
             }
         }
@@ -63,16 +61,12 @@ class EmbeddedGettingStartedGraphQlControllerIntTest {
     @Autowired
     private EmbeddedGettingStartedFacade embeddedGettingStartedFacade;
 
-    @MockitoBean
-    private EnvironmentService environmentService;
-
     @Autowired
     private GraphQlTester graphQlTester;
 
     @Test
     void testEmbeddedGettingStartedMapsEveryField() {
-        when(environmentService.getEnvironment(0L)).thenReturn(Environment.DEVELOPMENT);
-        when(embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT))
+        when(embeddedGettingStartedFacade.getEmbeddedGettingStarted())
             .thenReturn(new EmbeddedGettingStartedDTO(
                 true, true, true, true, true, false, true, true, "user-1", true,
                 new LastFailedCallDTO("FAILED", "boom", CREATED_DATE), false, "AUTO", 7L, 8L, 9L,
@@ -81,7 +75,7 @@ class EmbeddedGettingStartedGraphQlControllerIntTest {
         this.graphQlTester
             .document("""
                 query {
-                    embeddedGettingStarted(environmentId: "0") {
+                    embeddedGettingStarted {
                         apiKeyCreated
                         completed
                         completionType
@@ -172,8 +166,7 @@ class EmbeddedGettingStartedGraphQlControllerIntTest {
 
     @Test
     void testEmbeddedGettingStartedWithoutLastFailedCallReturnsNull() {
-        when(environmentService.getEnvironment(0L)).thenReturn(Environment.DEVELOPMENT);
-        when(embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT))
+        when(embeddedGettingStartedFacade.getEmbeddedGettingStarted())
             .thenReturn(
                 new EmbeddedGettingStartedDTO(
                     false, false, false, false, false, false, false, false, null, false, null, false, null, null, null,
@@ -184,7 +177,7 @@ class EmbeddedGettingStartedGraphQlControllerIntTest {
         this.graphQlTester
             .document("""
                 query {
-                    embeddedGettingStarted(environmentId: "0") {
+                    embeddedGettingStarted {
                         lastFailedCall {
                             outcome
                         }
@@ -272,8 +265,7 @@ class EmbeddedGettingStartedGraphQlControllerIntTest {
     }
 
     private void mockEmptyEmbeddedGettingStarted() {
-        when(environmentService.getEnvironment(0L)).thenReturn(Environment.DEVELOPMENT);
-        when(embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT))
+        when(embeddedGettingStartedFacade.getEmbeddedGettingStarted())
             .thenReturn(
                 new EmbeddedGettingStartedDTO(
                     false, false, false, false, false, false, false, false, null, false, null, false, null, null, null,

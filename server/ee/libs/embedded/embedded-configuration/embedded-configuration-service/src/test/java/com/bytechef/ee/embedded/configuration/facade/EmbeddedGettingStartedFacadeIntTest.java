@@ -13,7 +13,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -62,7 +61,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.mockito.InOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -152,12 +150,12 @@ class EmbeddedGettingStartedFacadeIntTest {
     void testGetEmbeddedGettingStartedAllowedOnlyForAdmin() {
         authenticate(nonAdmin());
 
-        assertThatThrownBy(() -> embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT))
+        assertThatThrownBy(() -> embeddedGettingStartedFacade.getEmbeddedGettingStarted())
             .isInstanceOf(AccessDeniedException.class);
 
         authenticate(admin());
 
-        assertThat(embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT)).isNotNull();
+        assertThat(embeddedGettingStartedFacade.getEmbeddedGettingStarted()).isNotNull();
     }
 
     @Test
@@ -193,7 +191,7 @@ class EmbeddedGettingStartedFacadeIntTest {
         authenticate(admin());
 
         EmbeddedGettingStartedDTO embeddedGettingStartedDTO =
-            embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT);
+            embeddedGettingStartedFacade.getEmbeddedGettingStarted();
 
         assertThat(embeddedGettingStartedDTO.apiKeyCreated()).isFalse();
         assertThat(embeddedGettingStartedDTO.integrationCreated()).isFalse();
@@ -229,7 +227,7 @@ class EmbeddedGettingStartedFacadeIntTest {
         createConfiguration(unpublishedIntegrationId, Environment.DEVELOPMENT, false);
 
         EmbeddedGettingStartedDTO embeddedGettingStartedDTO =
-            embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT);
+            embeddedGettingStartedFacade.getEmbeddedGettingStarted();
 
         assertThat(embeddedGettingStartedDTO.integrationId()).isEqualTo(newerPublishedIntegrationId);
         assertThat(embeddedGettingStartedDTO.integrationInstanceConfigurationId()).isEqualTo(publishedConfigurationId);
@@ -246,7 +244,7 @@ class EmbeddedGettingStartedFacadeIntTest {
         createConfiguration(publishedIntegrationId, Environment.DEVELOPMENT, false);
 
         EmbeddedGettingStartedDTO embeddedGettingStartedDTO =
-            embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT);
+            embeddedGettingStartedFacade.getEmbeddedGettingStarted();
 
         assertThat(embeddedGettingStartedDTO.componentName()).isEqualTo("httpClient");
         assertThat(embeddedGettingStartedDTO.componentVersion()).isEqualTo(2);
@@ -266,7 +264,7 @@ class EmbeddedGettingStartedFacadeIntTest {
         stubRunnableIntegrationInstance(Environment.DEVELOPMENT, publishedConfigurationId);
 
         EmbeddedGettingStartedDTO embeddedGettingStartedDTO =
-            embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT);
+            embeddedGettingStartedFacade.getEmbeddedGettingStarted();
 
         assertThat(embeddedGettingStartedDTO.testUserExternalId()).isEqualTo("external-user");
         assertThat(embeddedGettingStartedDTO.componentName()).isEqualTo("httpClient");
@@ -280,7 +278,7 @@ class EmbeddedGettingStartedFacadeIntTest {
         createIntegration("github", 1);
 
         EmbeddedGettingStartedDTO embeddedGettingStartedDTO =
-            embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT);
+            embeddedGettingStartedFacade.getEmbeddedGettingStarted();
 
         assertThat(embeddedGettingStartedDTO.componentName()).isEqualTo("github");
         assertThat(embeddedGettingStartedDTO.componentVersion()).isEqualTo(1);
@@ -295,7 +293,7 @@ class EmbeddedGettingStartedFacadeIntTest {
         long newerIntegrationId = createIntegration("github", 1);
 
         EmbeddedGettingStartedDTO embeddedGettingStartedDTO =
-            embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT);
+            embeddedGettingStartedFacade.getEmbeddedGettingStarted();
 
         assertThat(embeddedGettingStartedDTO.integrationCreated()).isTrue();
         assertThat(embeddedGettingStartedDTO.integrationPublished()).isFalse();
@@ -309,13 +307,13 @@ class EmbeddedGettingStartedFacadeIntTest {
 
         long integrationId = createIntegration("httpClient", 1);
 
-        assertThat(embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT)
+        assertThat(embeddedGettingStartedFacade.getEmbeddedGettingStarted()
             .integrationHasWorkflows()).isFalse();
 
         integrationWorkflowRepository.save(
             new IntegrationWorkflow(integrationId, 1, String.valueOf(UUID.randomUUID()), UUID.randomUUID()));
 
-        assertThat(embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT)
+        assertThat(embeddedGettingStartedFacade.getEmbeddedGettingStarted()
             .integrationHasWorkflows()).isTrue();
     }
 
@@ -329,7 +327,7 @@ class EmbeddedGettingStartedFacadeIntTest {
         createConfiguration(unpublishedIntegrationId, Environment.DEVELOPMENT, true);
 
         EmbeddedGettingStartedDTO embeddedGettingStartedDTO =
-            embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT);
+            embeddedGettingStartedFacade.getEmbeddedGettingStarted();
 
         assertThat(embeddedGettingStartedDTO.integrationCreated()).isTrue();
         assertThat(embeddedGettingStartedDTO.integrationPublished()).isTrue();
@@ -337,13 +335,13 @@ class EmbeddedGettingStartedFacadeIntTest {
 
         createConfiguration(publishedIntegrationId, Environment.DEVELOPMENT, true);
 
-        embeddedGettingStartedDTO = embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT);
+        embeddedGettingStartedDTO = embeddedGettingStartedFacade.getEmbeddedGettingStarted();
 
         assertThat(embeddedGettingStartedDTO.integrationConfigurationEnabled()).isTrue();
     }
 
     @Test
-    void testIntegrationConfigurationEnabledOnlyInTheRequestedEnvironment() {
+    void testIntegrationConfigurationOutsideDevelopmentIsIgnored() {
         authenticate(admin());
 
         long publishedIntegrationId = createPublishedIntegration("httpClient", 1);
@@ -351,15 +349,10 @@ class EmbeddedGettingStartedFacadeIntTest {
         createConfiguration(publishedIntegrationId, Environment.STAGING, true);
 
         EmbeddedGettingStartedDTO embeddedGettingStartedDTO =
-            embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT);
+            embeddedGettingStartedFacade.getEmbeddedGettingStarted();
 
         assertThat(embeddedGettingStartedDTO.integrationConfigurationCreated()).isFalse();
         assertThat(embeddedGettingStartedDTO.integrationConfigurationEnabled()).isFalse();
-
-        embeddedGettingStartedDTO = embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.STAGING);
-
-        assertThat(embeddedGettingStartedDTO.integrationConfigurationCreated()).isTrue();
-        assertThat(embeddedGettingStartedDTO.integrationConfigurationEnabled()).isTrue();
     }
 
     @Test
@@ -372,13 +365,13 @@ class EmbeddedGettingStartedFacadeIntTest {
         createConfiguration(unpublishedIntegrationId, Environment.DEVELOPMENT, false);
 
         EmbeddedGettingStartedDTO embeddedGettingStartedDTO =
-            embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT);
+            embeddedGettingStartedFacade.getEmbeddedGettingStarted();
 
         assertThat(embeddedGettingStartedDTO.integrationConfigurationCreated()).isFalse();
 
         createConfiguration(publishedIntegrationId, Environment.DEVELOPMENT, false);
 
-        embeddedGettingStartedDTO = embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT);
+        embeddedGettingStartedDTO = embeddedGettingStartedFacade.getEmbeddedGettingStarted();
 
         assertThat(embeddedGettingStartedDTO.integrationConfigurationCreated()).isTrue();
         assertThat(embeddedGettingStartedDTO.integrationConfigurationEnabled()).isFalse();
@@ -391,7 +384,7 @@ class EmbeddedGettingStartedFacadeIntTest {
         stubLastEnabledConnectedUser(Environment.DEVELOPMENT);
 
         EmbeddedGettingStartedDTO embeddedGettingStartedDTO =
-            embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT);
+            embeddedGettingStartedFacade.getEmbeddedGettingStarted();
 
         assertThat(embeddedGettingStartedDTO.testUserAdded()).isTrue();
         assertThat(embeddedGettingStartedDTO.testUserConnected()).isFalse();
@@ -410,7 +403,7 @@ class EmbeddedGettingStartedFacadeIntTest {
         stubLastEnabledConnectedUser(Environment.DEVELOPMENT);
 
         EmbeddedGettingStartedDTO embeddedGettingStartedDTO =
-            embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT);
+            embeddedGettingStartedFacade.getEmbeddedGettingStarted();
 
         assertThat(embeddedGettingStartedDTO.testUserId()).isEqualTo(RUNNABLE_CONNECTED_USER_ID);
         assertThat(embeddedGettingStartedDTO.testUserAdded()).isTrue();
@@ -429,7 +422,7 @@ class EmbeddedGettingStartedFacadeIntTest {
         stubLastEnabledConnectedUser(Environment.DEVELOPMENT);
 
         EmbeddedGettingStartedDTO embeddedGettingStartedDTO =
-            embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT);
+            embeddedGettingStartedFacade.getEmbeddedGettingStarted();
 
         assertThat(embeddedGettingStartedDTO.testUserId()).isEqualTo(LAST_ENABLED_CONNECTED_USER_ID);
         assertThat(embeddedGettingStartedDTO.testUserConnected()).isFalse();
@@ -443,7 +436,7 @@ class EmbeddedGettingStartedFacadeIntTest {
         stubAllFourStepsHold(Environment.DEVELOPMENT);
 
         EmbeddedGettingStartedDTO embeddedGettingStartedDTO =
-            embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT);
+            embeddedGettingStartedFacade.getEmbeddedGettingStarted();
 
         assertThat(embeddedGettingStartedDTO.testUserConnected()).isTrue();
         assertThat(embeddedGettingStartedDTO.testUserExternalId()).isEqualTo("external-user");
@@ -464,7 +457,7 @@ class EmbeddedGettingStartedFacadeIntTest {
         stubAllFourStepsHoldExcept(Environment.DEVELOPMENT, missingCompletionCondition);
 
         EmbeddedGettingStartedDTO embeddedGettingStartedDTO =
-            embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT);
+            embeddedGettingStartedFacade.getEmbeddedGettingStarted();
 
         assertThat(embeddedGettingStartedDTO.completed()).isFalse();
         assertThat(embeddedGettingStartedDTO.completionType()).isNull();
@@ -483,7 +476,7 @@ class EmbeddedGettingStartedFacadeIntTest {
         embeddedGettingStartedFacade.dismissEmbeddedGettingStarted();
 
         EmbeddedGettingStartedDTO embeddedGettingStartedDTO =
-            embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT);
+            embeddedGettingStartedFacade.getEmbeddedGettingStarted();
 
         assertThat(embeddedGettingStartedDTO.completed()).isTrue();
         assertThat(embeddedGettingStartedDTO.completionType()).isEqualTo("DISMISSED");
@@ -506,7 +499,7 @@ class EmbeddedGettingStartedFacadeIntTest {
             .thenReturn(Optional.of(failedExternalInvocationLog));
 
         EmbeddedGettingStartedDTO embeddedGettingStartedDTO =
-            embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT);
+            embeddedGettingStartedFacade.getEmbeddedGettingStarted();
 
         assertThat(embeddedGettingStartedDTO.firstCallMade()).isTrue();
         assertThat(embeddedGettingStartedDTO.lastFailedCall()).isNull();
@@ -523,7 +516,7 @@ class EmbeddedGettingStartedFacadeIntTest {
                 .thenReturn(Optional.of(failedExternalInvocationLog));
 
         EmbeddedGettingStartedDTO embeddedGettingStartedDTO =
-            embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT);
+            embeddedGettingStartedFacade.getEmbeddedGettingStarted();
 
         assertThat(embeddedGettingStartedDTO.firstCallMade()).isFalse();
 
@@ -536,27 +529,35 @@ class EmbeddedGettingStartedFacadeIntTest {
     }
 
     @Test
-    void testFirstCallMadeIsPinnedToTheRequestedEnvironment() {
+    void testFirstCallMadeOutsideDevelopmentIsIgnored() {
         authenticate(admin());
 
         stubFirstCallMade(Environment.STAGING);
 
-        EmbeddedGettingStartedDTO developmentEmbeddedGettingStartedDTO =
-            embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT);
+        EmbeddedGettingStartedDTO embeddedGettingStartedDTO = embeddedGettingStartedFacade.getEmbeddedGettingStarted();
 
-        assertThat(developmentEmbeddedGettingStartedDTO.firstCallMade()).isFalse();
-
-        EmbeddedGettingStartedDTO stagingEmbeddedGettingStartedDTO =
-            embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.STAGING);
-
-        assertThat(stagingEmbeddedGettingStartedDTO.firstCallMade()).isTrue();
+        assertThat(embeddedGettingStartedDTO.firstCallMade()).isFalse();
     }
 
     @Test
-    void testIsCompletedEvaluatesOtherEnvironments() {
+    void testIsCompletedIgnoresEnvironmentsOtherThanDevelopment() {
         authenticate(admin());
 
         stubAllFourStepsHold(Environment.PRODUCTION);
+
+        assertThat(embeddedGettingStartedFacade.isEmbeddedGettingStartedCompleted()).isFalse();
+
+        assertThat(gettingStartedRepository.findAll()).isEmpty();
+
+        verify(apiKeyService).getApiKeys(Environment.DEVELOPMENT.ordinal(), PlatformType.EMBEDDED);
+        verify(apiKeyService, never()).getApiKeys(Environment.PRODUCTION.ordinal(), PlatformType.EMBEDDED);
+    }
+
+    @Test
+    void testIsCompletedWhenDevelopmentSetupHolds() {
+        authenticate(admin());
+
+        stubAllFourStepsHold(Environment.DEVELOPMENT);
 
         assertThat(embeddedGettingStartedFacade.isEmbeddedGettingStartedCompleted()).isTrue();
 
@@ -565,34 +566,11 @@ class EmbeddedGettingStartedFacadeIntTest {
             .extracting(GettingStarted::getCompletionType)
             .isEqualTo(CompletionType.COMPLETED);
 
-        InOrder inOrder = inOrder(apiKeyService);
-
-        inOrder.verify(apiKeyService)
-            .getApiKeys(Environment.DEVELOPMENT.ordinal(), PlatformType.EMBEDDED);
-        inOrder.verify(apiKeyService)
-            .getApiKeys(Environment.STAGING.ordinal(), PlatformType.EMBEDDED);
-        inOrder.verify(apiKeyService)
-            .getApiKeys(Environment.PRODUCTION.ordinal(), PlatformType.EMBEDDED);
-        inOrder.verifyNoMoreInteractions();
-
         verify(externalInvocationLogService, never()).fetchLastFailedExternalInvocationLog(any(), anyInt());
     }
 
     @Test
-    void testIsCompletedStopsAtFirstPassingEnvironment() {
-        authenticate(admin());
-
-        stubAllFourStepsHold(Environment.STAGING);
-
-        assertThat(embeddedGettingStartedFacade.isEmbeddedGettingStartedCompleted()).isTrue();
-
-        verify(apiKeyService).getApiKeys(Environment.DEVELOPMENT.ordinal(), PlatformType.EMBEDDED);
-        verify(apiKeyService).getApiKeys(Environment.STAGING.ordinal(), PlatformType.EMBEDDED);
-        verify(apiKeyService, never()).getApiKeys(Environment.PRODUCTION.ordinal(), PlatformType.EMBEDDED);
-    }
-
-    @Test
-    void testIsCompletedFalseWhenNoEnvironmentPasses() {
+    void testIsCompletedFalseWhenDevelopmentSetupIsIncomplete() {
         authenticate(admin());
 
         assertThat(embeddedGettingStartedFacade.isEmbeddedGettingStartedCompleted()).isFalse();

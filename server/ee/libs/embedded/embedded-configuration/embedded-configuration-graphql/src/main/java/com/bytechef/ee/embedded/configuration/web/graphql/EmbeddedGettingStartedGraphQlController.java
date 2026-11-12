@@ -13,12 +13,10 @@ import com.bytechef.ee.embedded.configuration.dto.EmbeddedGettingStartedDTO;
 import com.bytechef.ee.embedded.configuration.dto.LastFailedCallDTO;
 import com.bytechef.ee.embedded.configuration.facade.EmbeddedGettingStartedFacade;
 import com.bytechef.platform.annotation.ConditionalOnEEVersion;
-import com.bytechef.platform.configuration.service.EnvironmentService;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.time.Instant;
 import org.apache.commons.lang3.StringUtils;
 import org.jspecify.annotations.Nullable;
-import org.springframework.graphql.data.method.annotation.Argument;
 import org.springframework.graphql.data.method.annotation.MutationMapping;
 import org.springframework.graphql.data.method.annotation.QueryMapping;
 import org.springframework.graphql.data.method.annotation.SchemaMapping;
@@ -38,16 +36,13 @@ public class EmbeddedGettingStartedGraphQlController {
 
     private final ApplicationProperties applicationProperties;
     private final EmbeddedGettingStartedFacade embeddedGettingStartedFacade;
-    private final EnvironmentService environmentService;
 
     @SuppressFBWarnings("EI")
     public EmbeddedGettingStartedGraphQlController(
-        ApplicationProperties applicationProperties, EmbeddedGettingStartedFacade embeddedGettingStartedFacade,
-        EnvironmentService environmentService) {
+        ApplicationProperties applicationProperties, EmbeddedGettingStartedFacade embeddedGettingStartedFacade) {
 
         this.applicationProperties = applicationProperties;
         this.embeddedGettingStartedFacade = embeddedGettingStartedFacade;
-        this.environmentService = environmentService;
     }
 
     @SchemaMapping(typeName = "EmbeddedGettingStarted", field = "apiBaseUrl")
@@ -63,8 +58,8 @@ public class EmbeddedGettingStartedGraphQlController {
     }
 
     @QueryMapping
-    public EmbeddedGettingStartedDTO embeddedGettingStarted(@Argument Long environmentId) {
-        return embeddedGettingStartedFacade.getEmbeddedGettingStarted(environmentService.getEnvironment(environmentId));
+    public EmbeddedGettingStartedDTO embeddedGettingStarted() {
+        return embeddedGettingStartedFacade.getEmbeddedGettingStarted();
     }
 
     @QueryMapping

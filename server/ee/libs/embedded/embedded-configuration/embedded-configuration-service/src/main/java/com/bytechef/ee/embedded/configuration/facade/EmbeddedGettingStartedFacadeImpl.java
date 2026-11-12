@@ -87,13 +87,14 @@ public class EmbeddedGettingStartedFacadeImpl implements EmbeddedGettingStartedF
 
     @Override
     @PreAuthorize("isTenantAdmin()")
-    public EmbeddedGettingStartedDTO getEmbeddedGettingStarted(Environment environment) {
+    public EmbeddedGettingStartedDTO getEmbeddedGettingStarted() {
         Set<Long> publishedIntegrationIds = getPublishedIntegrationIds();
 
         Optional<GettingStarted> gettingStartedOptional =
             gettingStartedService.fetchGettingStarted(PlatformType.EMBEDDED);
 
-        EmbeddedGettingStartedDTO embeddedGettingStartedDTO = evaluate(environment, publishedIntegrationIds);
+        EmbeddedGettingStartedDTO embeddedGettingStartedDTO =
+            evaluate(Environment.DEVELOPMENT, publishedIntegrationIds);
 
         if (gettingStartedOptional.isEmpty() && isSetupComplete(embeddedGettingStartedDTO)) {
             gettingStartedService.complete(PlatformType.EMBEDDED, CompletionType.COMPLETED);
@@ -126,17 +127,13 @@ public class EmbeddedGettingStartedFacadeImpl implements EmbeddedGettingStartedF
             return true;
         }
 
-        Set<Long> publishedIntegrationIds = getPublishedIntegrationIds();
-
-        for (Environment environment : Environment.values()) {
-            if (isSetupComplete(environment, publishedIntegrationIds)) {
-                gettingStartedService.complete(PlatformType.EMBEDDED, CompletionType.COMPLETED);
-
-                return true;
-            }
+        if (!isSetupComplete(Environment.DEVELOPMENT, getPublishedIntegrationIds())) {
+            return false;
         }
 
-        return false;
+        gettingStartedService.complete(PlatformType.EMBEDDED, CompletionType.COMPLETED);
+
+        return true;
     }
 
     private Set<Long> getPublishedIntegrationIds() {
