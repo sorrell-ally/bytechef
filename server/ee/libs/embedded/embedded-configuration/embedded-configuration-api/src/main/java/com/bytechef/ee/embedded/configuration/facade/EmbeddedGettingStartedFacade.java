@@ -8,7 +8,6 @@
 package com.bytechef.ee.embedded.configuration.facade;
 
 import com.bytechef.ee.embedded.configuration.dto.EmbeddedGettingStartedDTO;
-import com.bytechef.platform.configuration.domain.Environment;
 
 /**
  * @version ee
@@ -19,7 +18,7 @@ public interface EmbeddedGettingStartedFacade {
 
     void dismissEmbeddedGettingStarted();
 
-    EmbeddedGettingStartedDTO getEmbeddedGettingStarted(Environment environment);
+    EmbeddedGettingStartedDTO getEmbeddedGettingStarted();
 
     boolean isEmbeddedGettingStartedCompleted();
 }

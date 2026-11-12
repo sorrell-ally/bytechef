@@ -1,5 +1,5 @@
 extend type Query {
-    embeddedGettingStarted(environmentId: ID!): EmbeddedGettingStarted!
+    embeddedGettingStarted: EmbeddedGettingStarted!
     embeddedGettingStartedCompleted: Boolean!
 }
 
