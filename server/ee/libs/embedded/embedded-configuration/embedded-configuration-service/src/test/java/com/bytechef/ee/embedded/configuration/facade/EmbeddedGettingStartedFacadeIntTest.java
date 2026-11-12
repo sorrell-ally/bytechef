@@ -28,6 +28,7 @@ import com.bytechef.ee.embedded.configuration.config.IntegrationIntTestConfigura
 import com.bytechef.ee.embedded.configuration.domain.Integration;
 import com.bytechef.ee.embedded.configuration.domain.IntegrationInstance;
 import com.bytechef.ee.embedded.configuration.domain.IntegrationInstanceConfiguration;
+import com.bytechef.ee.embedded.configuration.domain.IntegrationWorkflow;
 import com.bytechef.ee.embedded.configuration.dto.EmbeddedGettingStartedDTO;
 import com.bytechef.ee.embedded.configuration.dto.LastFailedCallDTO;
 import com.bytechef.ee.embedded.configuration.repository.IntegrationInstanceConfigurationRepository;
@@ -300,6 +301,22 @@ class EmbeddedGettingStartedFacadeIntTest {
         assertThat(embeddedGettingStartedDTO.integrationPublished()).isFalse();
         assertThat(embeddedGettingStartedDTO.integrationId()).isEqualTo(newerIntegrationId);
         assertThat(embeddedGettingStartedDTO.integrationInstanceConfigurationId()).isNull();
+    }
+
+    @Test
+    void testIntegrationHasWorkflowsReflectsTheDraftOfTheTargetIntegration() {
+        authenticate(admin());
+
+        long integrationId = createIntegration("httpClient", 1);
+
+        assertThat(embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT)
+            .integrationHasWorkflows()).isFalse();
+
+        integrationWorkflowRepository.save(
+            new IntegrationWorkflow(integrationId, 1, String.valueOf(UUID.randomUUID()), UUID.randomUUID()));
+
+        assertThat(embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT)
+            .integrationHasWorkflows()).isTrue();
     }
 
     @Test
