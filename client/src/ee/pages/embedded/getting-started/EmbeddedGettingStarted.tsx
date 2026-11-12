@@ -1,6 +1,5 @@
 import JourneySteps, {JourneyStepI} from '@/components/JourneySteps/JourneySteps';
 import PageLoader from '@/components/PageLoader';
-import {Alert, AlertDescription} from '@/components/ui/alert';
 import ConnectedUserSheet from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserSheet';
 import useConnectedUserSheetStore from '@/ee/pages/embedded/connected-users/stores/useConnectedUserSheetStore';
 import buildFirstCallCurl from '@/ee/pages/embedded/getting-started/buildFirstCallCurl';
@@ -18,21 +17,21 @@ import {
     getIntegrationSubStage,
     isListeningForFirstCall,
 } from '@/ee/pages/embedded/getting-started/getEmbeddedGettingStartedSteps';
+import {DEVELOPMENT_ENVIRONMENT} from '@/shared/constants';
 import {ENVIRONMENT_CONFIGS} from '@/shared/constants/environmentConfigs';
-import {useEnvironmentScopeNote} from '@/shared/hooks/useEnvironmentScopeNote';
 import Header from '@/shared/layout/Header';
 import LayoutContainer from '@/shared/layout/LayoutContainer';
 import {useEmbeddedGettingStartedQuery} from '@/shared/middleware/graphql';
 import {useEnvironmentStore} from '@/shared/stores/useEnvironmentStore';
 import {useQueryClient} from '@tanstack/react-query';
-import {InfoIcon} from 'lucide-react';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {Navigate} from 'react-router-dom';
 
 const FIRST_CALL_POLLING_INTERVAL = 5000;
 
 const INTRO = 'ByteChef lets your product run actions and tools in apps like GitHub and Gmail on behalf of your users.';
 
-const toTitleCase = (name: string) => name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+const DEVELOPMENT_ENVIRONMENT_NAME = ENVIRONMENT_CONFIGS[DEVELOPMENT_ENVIRONMENT].label;
 
 const EmbeddedGettingStarted = () => {
     const [stepExpandedOverrides, setStepExpandedOverrides] = useState<Record<string, boolean>>({});
@@ -43,13 +42,14 @@ const EmbeddedGettingStarted = () => {
     const setConnectedUserSheetOpen = useConnectedUserSheetStore((state) => state.setConnectedUserSheetOpen);
     const currentEnvironmentId = useEnvironmentStore((state) => state.currentEnvironmentId);
 
-    const environmentScopeNote = useEnvironmentScopeNote('Setup steps');
-
     const queryClient = useQueryClient();
 
+    const isDevelopment = currentEnvironmentId === DEVELOPMENT_ENVIRONMENT;
+
     const {data, error, isLoading} = useEmbeddedGettingStartedQuery(
-        {environmentId: `${currentEnvironmentId}`},
+        {},
         {
+            enabled: isDevelopment,
             refetchInterval: (query) => {
                 const status = query.state.data?.embeddedGettingStarted;
 
@@ -59,8 +59,6 @@ const EmbeddedGettingStarted = () => {
     );
 
     const status = data?.embeddedGettingStarted;
-
-    const environmentName = ENVIRONMENT_CONFIGS[currentEnvironmentId]?.label || 'DEVELOPMENT';
 
     const toggleStep = useCallback((stepId: string, expanded: boolean) => {
         setStepExpandedOverrides((previousOverrides) => ({...previousOverrides, [stepId]: !expanded}));
@@ -79,7 +77,7 @@ const EmbeddedGettingStarted = () => {
             apiBaseUrl: status.apiBaseUrl || `${window.location.origin}/api/embedded/v1`,
             componentName: status.componentName || undefined,
             componentVersion: status.componentVersion || undefined,
-            environmentName,
+            environmentName: DEVELOPMENT_ENVIRONMENT_NAME,
             externalUserId: testUserExternalId,
         });
 
@@ -108,13 +106,7 @@ const EmbeddedGettingStarted = () => {
             },
             {
                 action: integrationDone && <StepDoneText text="Published and enabled" />,
-                content: integrationExpanded && (
-                    <IntegrationSubSteps
-                        environmentId={currentEnvironmentId}
-                        environmentLabel={toTitleCase(environmentName)}
-                        status={status}
-                    />
-                ),
+                content: integrationExpanded && <IntegrationSubSteps status={status} />,
                 description: 'An integration is the app your users connect, like GitHub or Gmail.',
                 expanded: integrationExpanded,
                 id: 'integration',
@@ -159,7 +151,7 @@ const EmbeddedGettingStarted = () => {
                 status: stepStatuses.firstCall,
             },
         ];
-    }, [currentEnvironmentId, environmentName, status, stepExpandedOverrides, toggleStep]);
+    }, [status, stepExpandedOverrides, toggleStep]);
 
     const completed = !!status?.completed;
 
@@ -184,6 +176,10 @@ const EmbeddedGettingStarted = () => {
         [queryClient]
     );
 
+    if (!isDevelopment) {
+        return <Navigate replace to="/embedded/configurations" />;
+    }
+
     return (
         <PageLoader errors={[error]} loading={isLoading}>
             <LayoutContainer
@@ -199,14 +195,6 @@ const EmbeddedGettingStarted = () => {
                 leftSidebarOpen={false}
             >
                 <div className="mx-auto h-fit w-full max-w-3xl space-y-6 px-4 pt-4 pb-12">
-                    {environmentScopeNote && (
-                        <Alert role="note">
-                            <InfoIcon />
-
-                            <AlertDescription>{environmentScopeNote}</AlertDescription>
-                        </Alert>
-                    )}
-
                     <JourneySteps aria-label="Setup steps" orientation="vertical" steps={steps} />
 
                     <hr className="border-stroke-neutral-secondary" />

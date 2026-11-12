@@ -45,7 +45,7 @@ const FirstCallStepContent = ({callReceived, curl, lastFailedCall, listening, mu
                 </div>
 
                 <p className="text-xs text-content-neutral-secondary">
-                    Your first call succeeded in this environment. Setup is complete.
+                    Your first call succeeded in Development. Setup is complete.
                 </p>
 
                 <Link
@@ -73,7 +73,7 @@ const FirstCallStepContent = ({callReceived, curl, lastFailedCall, listening, mu
                 </div>
 
                 <p className="text-xs text-content-neutral-secondary">
-                    A call from this environment finishes setup. You can leave this page; we&apos;ll remember.
+                    A call to Development finishes setup. You can leave this page; we&apos;ll remember.
                 </p>
 
                 {lastFailedCall && (

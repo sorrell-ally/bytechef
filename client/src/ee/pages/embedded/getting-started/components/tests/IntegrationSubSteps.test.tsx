@@ -1,3 +1,4 @@
+import {DEVELOPMENT_ENVIRONMENT} from '@/shared/constants';
 import {EmbeddedGettingStartedQuery} from '@/shared/middleware/graphql';
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {cleanup, render, screen} from '@testing-library/react';
@@ -63,8 +64,6 @@ vi.mock('@/shared/hooks/useAnalytics', () => ({
     }),
 }));
 
-const STAGING_ENVIRONMENT_ID = 1;
-
 const baseStatus: StatusType = {
     apiBaseUrl: null,
     apiKeyCreated: false,
@@ -91,11 +90,7 @@ const renderSubSteps = (status: StatusType) =>
     render(
         <QueryClientProvider client={new QueryClient()}>
             <MemoryRouter>
-                <IntegrationSubSteps
-                    environmentId={STAGING_ENVIRONMENT_ID}
-                    environmentLabel="Staging"
-                    status={status}
-                />
+                <IntegrationSubSteps status={status} />
             </MemoryRouter>
         </QueryClientProvider>
     );
@@ -125,11 +120,8 @@ describe('IntegrationSubSteps', () => {
     it('links the steps that have no integration to act on yet', () => {
         renderSubSteps(baseStatus);
 
-        expect(screen.getByRole('link', {name: 'Publish a version'})).toHaveAttribute(
-            'href',
-            '/embedded/configurations'
-        );
-        expect(screen.getByRole('link', {name: 'Create a configuration in Staging'})).toBeInTheDocument();
+        expect(screen.getByRole('link', {name: 'Publish a version'})).toHaveAttribute('href', '/embedded/integrations');
+        expect(screen.getByRole('link', {name: 'Create a configuration in Development'})).toBeInTheDocument();
         expect(screen.getByRole('link', {name: 'Enable the configuration'})).toBeInTheDocument();
     });
 
@@ -148,14 +140,14 @@ describe('IntegrationSubSteps', () => {
         expect(hoisted.publishDialogMock).toHaveBeenLastCalledWith(expect.objectContaining({integration}));
     });
 
-    it('opens the configuration dialog for the published integration in the current environment', async () => {
+    it('opens a Development configuration dialog for the published integration', async () => {
         renderSubSteps({...baseStatus, integrationCreated: true, integrationId: 12, integrationPublished: true});
 
-        await userEvent.click(screen.getByRole('button', {name: 'Create a configuration in Staging'}));
+        await userEvent.click(screen.getByRole('button', {name: 'Create a configuration in Development'}));
 
         expect(hoisted.configurationDialogMock).toHaveBeenLastCalledWith(
             expect.objectContaining({
-                integrationInstanceConfiguration: {environmentId: STAGING_ENVIRONMENT_ID, integrationId: 12},
+                integrationInstanceConfiguration: {environmentId: DEVELOPMENT_ENVIRONMENT, integrationId: 12},
             })
         );
     });
@@ -165,11 +157,11 @@ describe('IntegrationSubSteps', () => {
 
         expect(screen.queryByText('Publish a version')).not.toBeInTheDocument();
 
-        await userEvent.click(screen.getByRole('button', {name: 'Create a configuration in Staging'}));
+        await userEvent.click(screen.getByRole('button', {name: 'Create a configuration in Development'}));
 
         expect(hoisted.configurationDialogMock).toHaveBeenLastCalledWith(
             expect.objectContaining({
-                integrationInstanceConfiguration: {environmentId: STAGING_ENVIRONMENT_ID, integrationId: 12},
+                integrationInstanceConfiguration: {environmentId: DEVELOPMENT_ENVIRONMENT, integrationId: 12},
             })
         );
     });

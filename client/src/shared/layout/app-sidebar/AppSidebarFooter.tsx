@@ -73,6 +73,7 @@ export function AppSidebarFooter() {
 
     const showEmbeddedGettingStartedHelpLink = shouldShowEmbeddedGettingStartedHelpLink({
         edition,
+        environmentId: currentEnvironmentId,
         isAdmin: !!account?.authorities?.includes(AUTHORITIES.ADMIN),
         pathname,
     });

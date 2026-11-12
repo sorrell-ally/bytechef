@@ -1,6 +1,7 @@
 import {AUTHORITIES} from '@/shared/constants';
 import {EditionType, applicationInfoStore} from '@/shared/stores/useApplicationInfoStore';
 import {authenticationStore} from '@/shared/stores/useAuthenticationStore';
+import {environmentStore} from '@/shared/stores/useEnvironmentStore';
 import {QueryClient} from '@tanstack/react-query';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
@@ -33,6 +34,7 @@ describe('loadEmbeddedIndexRedirect', () => {
 
         applicationInfoStore.setState(applicationInfoStore.getInitialState(), true);
         authenticationStore.setState(authenticationStore.getInitialState(), true);
+        environmentStore.setState({currentEnvironmentId: 0});
     });
 
     afterEach(() => {
@@ -103,6 +105,17 @@ describe('loadEmbeddedIndexRedirect', () => {
                 return undefined;
             }),
         });
+
+        const querySpy = vi.spyOn(queryClient, 'query');
+
+        await expect(loadEmbeddedIndexRedirect(queryClient)).resolves.toBe('integrations');
+        expect(querySpy).not.toHaveBeenCalled();
+    });
+
+    it('redirects to integrations outside Development without querying completion', async () => {
+        applicationInfoStore.setState({application: {edition: EditionType.EE}});
+        authenticationStore.setState({account: ADMIN_ACCOUNT, authenticated: true, sessionHasBeenFetched: true});
+        environmentStore.setState({currentEnvironmentId: 1});
 
         const querySpy = vi.spyOn(queryClient, 'query');
 
