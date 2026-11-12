@@ -1,5 +1,5 @@
-query embeddedGettingStarted($environmentId: ID!) {
-    embeddedGettingStarted(environmentId: $environmentId) {
+query embeddedGettingStarted {
+    embeddedGettingStarted {
         apiBaseUrl
         apiKeyCreated
         completed
