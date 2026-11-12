@@ -18,6 +18,7 @@ type EmbeddedGettingStarted {
     integrationConfigurationCreated: Boolean!
     integrationConfigurationEnabled: Boolean!
     integrationCreated: Boolean!
+    integrationHasWorkflows: Boolean!
     integrationId: Long
     integrationInstanceConfigurationId: Long
     integrationPublished: Boolean!

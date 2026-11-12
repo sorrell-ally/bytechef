@@ -74,7 +74,7 @@ class EmbeddedGettingStartedGraphQlControllerIntTest {
         when(environmentService.getEnvironment(0L)).thenReturn(Environment.DEVELOPMENT);
         when(embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT))
             .thenReturn(new EmbeddedGettingStartedDTO(
-                true, true, true, true, false, true, true, "user-1", true,
+                true, true, true, true, true, false, true, true, "user-1", true,
                 new LastFailedCallDTO("FAILED", "boom", CREATED_DATE), false, "AUTO", 7L, 8L, 9L,
                 "httpClient", 1));
 
@@ -91,6 +91,7 @@ class EmbeddedGettingStartedGraphQlControllerIntTest {
                         integrationConfigurationCreated
                         integrationConfigurationEnabled
                         integrationCreated
+                        integrationHasWorkflows
                         integrationId
                         integrationInstanceConfigurationId
                         integrationPublished
@@ -126,6 +127,9 @@ class EmbeddedGettingStartedGraphQlControllerIntTest {
             .entity(Boolean.class)
             .isEqualTo(true)
             .path("embeddedGettingStarted.integrationConfigurationCreated")
+            .entity(Boolean.class)
+            .isEqualTo(true)
+            .path("embeddedGettingStarted.integrationHasWorkflows")
             .entity(Boolean.class)
             .isEqualTo(true)
             .path("embeddedGettingStarted.integrationConfigurationEnabled")
@@ -172,7 +176,8 @@ class EmbeddedGettingStartedGraphQlControllerIntTest {
         when(embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT))
             .thenReturn(
                 new EmbeddedGettingStartedDTO(
-                    false, false, false, false, false, false, false, null, false, null, false, null, null, null, null,
+                    false, false, false, false, false, false, false, false, null, false, null, false, null, null, null,
+                    null,
                     null,
                     null));
 
@@ -271,7 +276,8 @@ class EmbeddedGettingStartedGraphQlControllerIntTest {
         when(embeddedGettingStartedFacade.getEmbeddedGettingStarted(Environment.DEVELOPMENT))
             .thenReturn(
                 new EmbeddedGettingStartedDTO(
-                    false, false, false, false, false, false, false, null, false, null, false, null, null, null, null,
+                    false, false, false, false, false, false, false, false, null, false, null, false, null, null, null,
+                    null,
                     null,
                     null));
     }

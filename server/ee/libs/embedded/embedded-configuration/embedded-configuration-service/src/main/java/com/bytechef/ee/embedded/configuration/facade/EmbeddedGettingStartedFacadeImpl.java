@@ -15,6 +15,7 @@ import com.bytechef.ee.embedded.configuration.dto.LastFailedCallDTO;
 import com.bytechef.ee.embedded.configuration.service.IntegrationInstanceConfigurationService;
 import com.bytechef.ee.embedded.configuration.service.IntegrationInstanceService;
 import com.bytechef.ee.embedded.configuration.service.IntegrationService;
+import com.bytechef.ee.embedded.configuration.service.IntegrationWorkflowService;
 import com.bytechef.ee.embedded.connected.user.domain.ConnectedUser;
 import com.bytechef.ee.embedded.connected.user.service.ConnectedUserService;
 import com.bytechef.ee.platform.external.invocation.log.domain.ExternalInvocationLog;
@@ -57,6 +58,7 @@ public class EmbeddedGettingStartedFacadeImpl implements EmbeddedGettingStartedF
     private final IntegrationInstanceConfigurationService integrationInstanceConfigurationService;
     private final IntegrationInstanceService integrationInstanceService;
     private final IntegrationService integrationService;
+    private final IntegrationWorkflowService integrationWorkflowService;
 
     @SuppressFBWarnings("EI")
     @SuppressWarnings("PMD.ExcessiveParameterList")
@@ -64,7 +66,8 @@ public class EmbeddedGettingStartedFacadeImpl implements EmbeddedGettingStartedF
         ApiKeyService apiKeyService, ConnectedUserService connectedUserService,
         ExternalInvocationLogService externalInvocationLogService, GettingStartedService gettingStartedService,
         IntegrationInstanceConfigurationService integrationInstanceConfigurationService,
-        IntegrationInstanceService integrationInstanceService, IntegrationService integrationService) {
+        IntegrationInstanceService integrationInstanceService, IntegrationService integrationService,
+        IntegrationWorkflowService integrationWorkflowService) {
 
         this.apiKeyService = apiKeyService;
         this.connectedUserService = connectedUserService;
@@ -73,6 +76,7 @@ public class EmbeddedGettingStartedFacadeImpl implements EmbeddedGettingStartedF
         this.integrationInstanceConfigurationService = integrationInstanceConfigurationService;
         this.integrationInstanceService = integrationInstanceService;
         this.integrationService = integrationService;
+        this.integrationWorkflowService = integrationWorkflowService;
     }
 
     @Override
@@ -99,7 +103,7 @@ public class EmbeddedGettingStartedFacadeImpl implements EmbeddedGettingStartedF
 
         return new EmbeddedGettingStartedDTO(
             embeddedGettingStartedDTO.apiKeyCreated(), embeddedGettingStartedDTO.integrationCreated(),
-            embeddedGettingStartedDTO.integrationPublished(),
+            embeddedGettingStartedDTO.integrationHasWorkflows(), embeddedGettingStartedDTO.integrationPublished(),
             embeddedGettingStartedDTO.integrationConfigurationCreated(),
             embeddedGettingStartedDTO.integrationConfigurationEnabled(), embeddedGettingStartedDTO.testUserAdded(),
             embeddedGettingStartedDTO.testUserConnected(), embeddedGettingStartedDTO.testUserExternalId(),
@@ -242,7 +246,8 @@ public class EmbeddedGettingStartedFacadeImpl implements EmbeddedGettingStartedF
             .orElseGet(() -> getLastEnabledConnectedUserId(environment));
 
         return new EmbeddedGettingStartedDTO(
-            hasApiKey(environment), !integrations.isEmpty(), !publishedIntegrationIds.isEmpty(),
+            hasApiKey(environment), !integrations.isEmpty(), hasIntegrationWorkflows(integrations, targetIntegrationId),
+            !publishedIntegrationIds.isEmpty(),
             !publishedIntegrationInstanceConfigurations.isEmpty(),
             isConfigurationEnabled(environment, publishedIntegrationIds), testUserId != null,
             testUserExternalId != null, testUserExternalId, firstCallMade, lastFailedCall, false, null,
@@ -273,6 +278,16 @@ public class EmbeddedGettingStartedFacadeImpl implements EmbeddedGettingStartedF
 
         return integrationInstanceConfigurationService.getIntegrationInstanceConfiguration(
             integrationInstance.getIntegrationInstanceConfigurationId());
+    }
+
+    private boolean hasIntegrationWorkflows(List<Integration> integrations, @Nullable Long integrationId) {
+        return integrations.stream()
+            .filter(integration -> Objects.equals(integration.getId(), integrationId))
+            .findFirst()
+            .map(integration -> !integrationWorkflowService
+                .getIntegrationWorkflowIds(integration.getId(), integration.getLastIntegrationVersion())
+                .isEmpty())
+            .orElse(false);
     }
 
     private static @Nullable Long getTargetIntegrationId(

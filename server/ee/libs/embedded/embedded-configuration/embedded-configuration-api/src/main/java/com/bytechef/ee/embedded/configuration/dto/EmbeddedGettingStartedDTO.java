@@ -15,7 +15,7 @@ import org.jspecify.annotations.Nullable;
  * @author Ivica Cardic
  */
 public record EmbeddedGettingStartedDTO(
-    boolean apiKeyCreated, boolean integrationCreated, boolean integrationPublished,
+    boolean apiKeyCreated, boolean integrationCreated, boolean integrationHasWorkflows, boolean integrationPublished,
     boolean integrationConfigurationCreated, boolean integrationConfigurationEnabled, boolean testUserAdded,
     boolean testUserConnected, @Nullable String testUserExternalId, boolean firstCallMade,
     @Nullable LastFailedCallDTO lastFailedCall, boolean completed, @Nullable String completionType,
