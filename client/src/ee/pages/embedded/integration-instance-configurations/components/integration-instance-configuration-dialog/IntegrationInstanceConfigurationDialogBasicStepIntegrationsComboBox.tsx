@@ -1,9 +1,10 @@
 import ComboBox, {ComboBoxItemType} from '@/components/ComboBox/ComboBox';
-import {Integration, IntegrationStatus} from '@/ee/shared/middleware/embedded/configuration';
+import {isIntegrationConfigurable} from '@/ee/pages/embedded/shared/integrationPublication';
+import {Integration} from '@/ee/shared/middleware/embedded/configuration';
 import {useGetComponentDefinitionsQuery} from '@/ee/shared/queries/embedded/componentDefinitions.queries';
 import {useGetIntegrationsQuery} from '@/ee/shared/queries/embedded/integrations.queries';
 import {ComponentDefinitionBasic} from '@/shared/middleware/platform/configuration';
-import {FocusEventHandler} from 'react';
+import {FocusEventHandler, useMemo} from 'react';
 import InlineSVG from 'react-inlinesvg';
 
 const IntegrationLabel = ({
@@ -37,15 +38,14 @@ const IntegrationInstanceConfigurationDialogBasicStepIntegrationsComboBox = ({
         connectionDefinitions: true,
     });
 
-    const {data: integrations} = useGetIntegrationsQuery({
-        includeAllFields: false,
-        status: IntegrationStatus.Published,
-    });
+    const {data: integrations} = useGetIntegrationsQuery({includeAllFields: true});
 
-    return integrations && componentDefinitions ? (
+    const configurableIntegrations = useMemo(() => integrations?.filter(isIntegrationConfigurable), [integrations]);
+
+    return configurableIntegrations && componentDefinitions ? (
         <ComboBox
-            emptyMessage="No published integrations found. Please publish an integration first."
-            items={integrations.map((integration) => {
+            emptyMessage="No integrations to configure found. Please publish an integration first."
+            items={configurableIntegrations.map((integration) => {
                 const componentDefinition = componentDefinitions.filter(
                     (componentDefinition) => componentDefinition.name === integration.componentName
                 )[0];

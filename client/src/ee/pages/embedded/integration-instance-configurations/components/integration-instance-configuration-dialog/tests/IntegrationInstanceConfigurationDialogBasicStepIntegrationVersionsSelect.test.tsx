@@ -50,7 +50,7 @@ describe('IntegrationInstanceConfigurationDialogBasicStepIntegrationVersionsSele
         expect(onChange).not.toHaveBeenCalled();
     });
 
-    it('selects nothing when no version is published', () => {
+    it('selects the draft when no version is published', () => {
         const onChange = vi.fn();
 
         hoisted.integrationVersions = [{status: 'DRAFT', version: 1}];
@@ -62,6 +62,25 @@ describe('IntegrationInstanceConfigurationDialogBasicStepIntegrationVersionsSele
             />
         );
 
-        expect(onChange).not.toHaveBeenCalled();
+        expect(onChange).toHaveBeenCalledWith(1);
+    });
+
+    it('does not offer the draft once a version is published', () => {
+        const onChange = vi.fn();
+
+        hoisted.integrationVersions = [
+            {status: 'PUBLISHED', version: 1},
+            {status: 'DRAFT', version: 2},
+        ];
+
+        render(
+            <IntegrationInstanceConfigurationDialogBasicStepIntegrationVersionsSelect
+                integrationId={1}
+                onChange={onChange}
+            />
+        );
+
+        expect(onChange).toHaveBeenCalledWith(1);
+        expect(onChange).not.toHaveBeenCalledWith(2);
     });
 });
