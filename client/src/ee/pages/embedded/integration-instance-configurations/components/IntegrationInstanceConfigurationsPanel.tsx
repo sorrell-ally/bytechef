@@ -3,6 +3,7 @@ import EmptyState from '@/components/EmptyState/EmptyState';
 import LoadingIcon from '@/components/LoadingIcon';
 import IntegrationInstanceConfigurationDialog from '@/ee/pages/embedded/integration-instance-configurations/components/integration-instance-configuration-dialog/IntegrationInstanceConfigurationDialog';
 import IntegrationInstanceConfigurationList from '@/ee/pages/embedded/integration-instance-configurations/components/integration-instance-configuration-list/IntegrationInstanceConfigurationList';
+import {isIntegrationConfigurable} from '@/ee/pages/embedded/shared/integrationPublication';
 import {Integration, IntegrationInstanceConfiguration} from '@/ee/shared/middleware/embedded/configuration';
 import {useGetComponentDefinitionsQuery} from '@/ee/shared/queries/embedded/componentDefinitions.queries';
 import {useGetIntegrationInstanceConfigurationTagsQuery} from '@/ee/shared/queries/embedded/integrationInstanceConfigurationTags.queries';
@@ -59,7 +60,7 @@ const IntegrationInstanceConfigurationsPanel = ({
         [integrationInstanceConfigurations]
     );
 
-    const isPublished = !!(integration.lastPublishedDate && integration.lastIntegrationVersion);
+    const isConfigurable = isIntegrationConfigurable(integration);
 
     const integrationInstanceConfigurationsLoadFailed =
         !!integrationInstanceConfigurationsError && integrationInstanceConfigurations === undefined;
@@ -99,7 +100,7 @@ const IntegrationInstanceConfigurationsPanel = ({
             {!integrationInstanceConfigurationsIsLoading &&
                 !integrationInstanceConfigurationsLoadFailed &&
                 sortedIntegrationInstanceConfigurations.length === 0 &&
-                (isPublished ? (
+                (isConfigurable ? (
                     <EmptyState
                         actions={
                             <IntegrationInstanceConfigurationDialog
