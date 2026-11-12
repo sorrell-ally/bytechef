@@ -6,7 +6,7 @@ import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
 import {act, cleanup, render, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {ReactNode} from 'react';
-import {MemoryRouter} from 'react-router-dom';
+import {MemoryRouter, Route, Routes} from 'react-router-dom';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
 import EmbeddedGettingStarted from '../EmbeddedGettingStarted';
@@ -17,7 +17,6 @@ const hoisted = vi.hoisted(() => ({
     dismissMutateMock: vi.fn(),
     useDismissEmbeddedGettingStartedMutationMock: vi.fn(),
     useEmbeddedGettingStartedQueryMock: vi.fn(),
-    useEnvironmentScopeNoteMock: vi.fn(),
 }));
 
 vi.mock('@/shared/middleware/graphql', () => ({
@@ -29,10 +28,6 @@ vi.mock('@/shared/middleware/graphql', () => ({
     useEmbeddedGettingStartedQuery: hoisted.useEmbeddedGettingStartedQueryMock,
     useEnvironmentsQuery: () => ({data: undefined}),
     useUpdateApiKeyMutation: vi.fn(),
-}));
-
-vi.mock('@/shared/hooks/useEnvironmentScopeNote', () => ({
-    useEnvironmentScopeNote: hoisted.useEnvironmentScopeNoteMock,
 }));
 
 vi.mock('@/ee/pages/embedded/integrations/components/IntegrationDialog', () => ({default: () => null}));
@@ -137,7 +132,6 @@ describe('EmbeddedGettingStarted', () => {
             mutate: hoisted.dismissMutateMock,
         });
         hoisted.useEmbeddedGettingStartedQueryMock.mockReset();
-        hoisted.useEnvironmentScopeNoteMock.mockReset();
 
         mockStatus(baseStatus);
 
@@ -163,8 +157,8 @@ describe('EmbeddedGettingStarted', () => {
         expect(steps[2]).not.toHaveAttribute('aria-current');
         expect(screen.getByText('Key created')).toBeInTheDocument();
         expect(hoisted.useEmbeddedGettingStartedQueryMock).toHaveBeenLastCalledWith(
-            {environmentId: '0'},
-            expect.anything()
+            {},
+            expect.objectContaining({enabled: true})
         );
     });
 
@@ -246,15 +240,25 @@ describe('EmbeddedGettingStarted', () => {
         );
     });
 
-    it('renders the environment scope as a note', () => {
-        hoisted.useEnvironmentScopeNoteMock.mockReturnValue(
-            "Setup steps are separate for each environment. You're viewing Development."
+    it('leaves for the configurations page outside Development', () => {
+        environmentStore.setState({currentEnvironmentId: 1});
+
+        render(
+            <QueryClientProvider client={queryClient}>
+                <MemoryRouter initialEntries={['/embedded/getting-started']}>
+                    <Routes>
+                        <Route element={<EmbeddedGettingStarted />} path="/embedded/getting-started" />
+
+                        <Route element={<div>Configurations page</div>} path="/embedded/configurations" />
+                    </Routes>
+                </MemoryRouter>
+            </QueryClientProvider>
         );
 
-        renderPage();
-
-        expect(screen.getByRole('note')).toHaveTextContent(
-            "Setup steps are separate for each environment. You're viewing Development."
+        expect(screen.getByText('Configurations page')).toBeInTheDocument();
+        expect(hoisted.useEmbeddedGettingStartedQueryMock).toHaveBeenLastCalledWith(
+            {},
+            expect.objectContaining({enabled: false})
         );
     });
 
@@ -320,7 +324,7 @@ describe('EmbeddedGettingStarted', () => {
         expect(screen.getByText('Publish a version')).toBeInTheDocument();
     });
 
-    it('shows the set-up title once the first call is made in this environment', async () => {
+    it('shows the set-up title once the first call is made', async () => {
         mockStatus({...readyStatus, completed: true, completionType: 'COMPLETED', firstCallMade: true});
 
         renderPage();
@@ -334,7 +338,7 @@ describe('EmbeddedGettingStarted', () => {
 
         expect(screen.getByTestId('call-received')).toHaveTextContent(
             'Call received' +
-                'Your first call succeeded in this environment. Setup is complete.' +
+                'Your first call succeeded in Development. Setup is complete.' +
                 'View external invocations'
         );
         expect(screen.queryByRole('button', {name: 'Dismiss'})).not.toBeInTheDocument();

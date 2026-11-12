@@ -7,9 +7,6 @@ import {describe, expect, it} from 'vitest';
 
 type StatusType = EmbeddedGettingStartedQuery['embeddedGettingStarted'];
 
-const DEVELOPMENT_ENVIRONMENT_ID = 0;
-const STAGING_ENVIRONMENT_ID = 1;
-
 const baseStatus: StatusType = {
     apiBaseUrl: null,
     apiKeyCreated: false,
@@ -34,7 +31,7 @@ const baseStatus: StatusType = {
 
 describe('getIntegrationSubSteps', () => {
     it('lists the four integration sub-steps in order, none done on an empty tenant', () => {
-        const subSteps = getIntegrationSubSteps(baseStatus, DEVELOPMENT_ENVIRONMENT_ID, 'Development');
+        const subSteps = getIntegrationSubSteps(baseStatus);
 
         expect(subSteps.map((subStep) => [subStep.id, subStep.label, subStep.done])).toEqual([
             ['create', 'Create an integration', false],
@@ -45,32 +42,28 @@ describe('getIntegrationSubSteps', () => {
     });
 
     it('leaves out publishing for an integration without workflows', () => {
-        const subSteps = getIntegrationSubSteps(
-            {...baseStatus, integrationCreated: true, integrationHasWorkflows: false},
-            DEVELOPMENT_ENVIRONMENT_ID,
-            'Development'
-        );
+        const subSteps = getIntegrationSubSteps({
+            ...baseStatus,
+            integrationCreated: true,
+            integrationHasWorkflows: false,
+        });
 
         expect(subSteps.map((subStep) => subStep.id)).toEqual(['create', 'configure', 'enable']);
     });
 
     it('marks each sub-step done from its own status field', () => {
-        const subSteps = getIntegrationSubSteps(
-            {
-                ...baseStatus,
-                integrationConfigurationCreated: true,
-                integrationCreated: true,
-                integrationPublished: true,
-            },
-            DEVELOPMENT_ENVIRONMENT_ID,
-            'Development'
-        );
+        const subSteps = getIntegrationSubSteps({
+            ...baseStatus,
+            integrationConfigurationCreated: true,
+            integrationCreated: true,
+            integrationPublished: true,
+        });
 
         expect(subSteps.map((subStep) => subStep.done)).toEqual([true, true, true, false]);
     });
 
-    it('points the configuration sub-steps at the integration list in Development', () => {
-        const subSteps = getIntegrationSubSteps(baseStatus, DEVELOPMENT_ENVIRONMENT_ID, 'Development');
+    it('points the configuration sub-steps at the integration list', () => {
+        const subSteps = getIntegrationSubSteps(baseStatus);
 
         expect(subSteps.map((subStep) => subStep.href)).toEqual([
             '/embedded/integrations',
@@ -80,16 +73,6 @@ describe('getIntegrationSubSteps', () => {
         ]);
         expect(subSteps[2].hint).toBe('Integration menu (⋮) → New Configuration');
         expect(subSteps[3].hint).toBe('Expand the integration → Configurations tab → switch it on');
-    });
-
-    it('points the configuration sub-steps at the configurations page outside Development', () => {
-        const subSteps = getIntegrationSubSteps(baseStatus, STAGING_ENVIRONMENT_ID, 'Staging');
-
-        expect(subSteps[2].label).toBe('Create a configuration in Staging');
-        expect(subSteps[2].href).toBe('/embedded/configurations');
-        expect(subSteps[2].hint).toBe('Configurations → New Configuration');
-        expect(subSteps[3].href).toBe('/embedded/configurations');
-        expect(subSteps[3].hint).toBe('Configurations → switch it on');
     });
 });
 

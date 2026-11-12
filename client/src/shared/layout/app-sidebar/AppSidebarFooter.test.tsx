@@ -77,7 +77,7 @@ vi.mock('@/shared/stores/useEnvironmentStore', () => ({
                 currentEnvironmentId: number | undefined;
                 setCurrentEnvironmentId: () => void;
             }) => unknown
-        ) => selector({currentEnvironmentId: undefined, setCurrentEnvironmentId: vi.fn()})
+        ) => selector({currentEnvironmentId: 0, setCurrentEnvironmentId: vi.fn()})
     ),
 }));
 

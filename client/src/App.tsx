@@ -219,12 +219,14 @@ function App() {
     const isEmbeddedPath = location.pathname.startsWith('/embedded/');
 
     const {data: embeddedGettingStartedCompletedData} = useEmbeddedGettingStartedCompletedQuery(undefined, {
-        enabled: isEmbeddedPath && isAdmin && edition === EditionType.EE,
+        enabled:
+            currentEnvironmentId === DEVELOPMENT_ENVIRONMENT && isEmbeddedPath && isAdmin && edition === EditionType.EE,
     });
 
     const showEmbeddedGettingStarted = shouldShowEmbeddedGettingStarted({
         completed: embeddedGettingStartedCompletedData?.embeddedGettingStartedCompleted,
         edition,
+        environmentId: currentEnvironmentId,
         isAdmin,
     });
 

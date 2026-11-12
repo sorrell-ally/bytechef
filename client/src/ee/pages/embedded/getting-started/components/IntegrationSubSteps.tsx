@@ -7,6 +7,7 @@ import {Integration, IntegrationInstanceConfiguration} from '@/ee/shared/middlew
 import {useEnableIntegrationInstanceConfigurationMutation} from '@/ee/shared/mutations/embedded/integrationInstanceConfigurations.mutations';
 import {IntegrationInstanceConfigurationKeys} from '@/ee/shared/queries/embedded/integrationInstanceConfigurations.queries';
 import {useGetIntegrationQuery} from '@/ee/shared/queries/embedded/integrations.queries';
+import {DEVELOPMENT_ENVIRONMENT} from '@/shared/constants';
 import {useAnalytics} from '@/shared/hooks/useAnalytics';
 import {EmbeddedGettingStartedQuery} from '@/shared/middleware/graphql';
 import {useQueryClient} from '@tanstack/react-query';
@@ -17,12 +18,10 @@ const STARTER_INTEGRATION = {componentName: 'httpClient', name: 'HTTP Client'} a
 type IntegrationDialogType = 'configure' | 'create' | 'publish';
 
 interface IntegrationSubStepsProps {
-    environmentId: number;
-    environmentLabel: string;
     status: EmbeddedGettingStartedQuery['embeddedGettingStarted'];
 }
 
-const IntegrationSubSteps = ({environmentId, environmentLabel, status}: IntegrationSubStepsProps) => {
+const IntegrationSubSteps = ({status}: IntegrationSubStepsProps) => {
     const [openDialog, setOpenDialog] = useState<IntegrationDialogType | null>(null);
 
     const {captureIntegrationInstanceConfigurationEnabled} = useAnalytics();
@@ -84,7 +83,7 @@ const IntegrationSubSteps = ({environmentId, environmentLabel, status}: Integrat
             <SubStepList
                 ariaLabel="Integration setup"
                 subStepActions={subStepActions}
-                subSteps={getIntegrationSubSteps(status, environmentId, environmentLabel)}
+                subSteps={getIntegrationSubSteps(status)}
             />
 
             {openDialog === 'create' && <IntegrationDialog integration={STARTER_INTEGRATION} onClose={closeDialog} />}
@@ -97,7 +96,7 @@ const IntegrationSubSteps = ({environmentId, environmentLabel, status}: Integrat
                 <IntegrationInstanceConfigurationDialog
                     integrationInstanceConfiguration={
                         {
-                            environmentId,
+                            environmentId: DEVELOPMENT_ENVIRONMENT,
                             integrationId,
                         } as IntegrationInstanceConfiguration
                     }

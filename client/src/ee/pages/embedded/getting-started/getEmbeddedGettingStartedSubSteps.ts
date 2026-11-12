@@ -1,4 +1,3 @@
-import {DEVELOPMENT_ENVIRONMENT} from '@/shared/constants';
 import {EmbeddedGettingStartedQuery} from '@/shared/middleware/graphql';
 
 type EmbeddedGettingStartedStatusType = EmbeddedGettingStartedQuery['embeddedGettingStarted'];
@@ -13,19 +12,14 @@ export interface EmbeddedGettingStartedSubStepI {
 
 const CONNECTED_USERS_HREF = '/embedded/connected-users';
 
-export function getIntegrationSubSteps(
-    status: EmbeddedGettingStartedStatusType,
-    environmentId: number,
-    environmentLabel: string
-): EmbeddedGettingStartedSubStepI[] {
-    const development = environmentId === DEVELOPMENT_ENVIRONMENT;
-    const href = development ? '/embedded/integrations' : '/embedded/configurations';
+const INTEGRATIONS_HREF = '/embedded/integrations';
 
+export function getIntegrationSubSteps(status: EmbeddedGettingStartedStatusType): EmbeddedGettingStartedSubStepI[] {
     return [
         {
             done: status.integrationCreated,
             hint: 'Integrations → New Integration → pick HTTP Client to try it out, or the app your users connect',
-            href,
+            href: INTEGRATIONS_HREF,
             id: 'create',
             label: 'Create an integration',
         },
@@ -34,7 +28,7 @@ export function getIntegrationSubSteps(
                   {
                       done: status.integrationPublished,
                       hint: 'Integration menu (⋮) → Publish',
-                      href,
+                      href: INTEGRATIONS_HREF,
                       id: 'publish',
                       label: 'Publish a version',
                   },
@@ -42,17 +36,15 @@ export function getIntegrationSubSteps(
             : []),
         {
             done: status.integrationConfigurationCreated,
-            hint: development ? 'Integration menu (⋮) → New Configuration' : 'Configurations → New Configuration',
-            href,
+            hint: 'Integration menu (⋮) → New Configuration',
+            href: INTEGRATIONS_HREF,
             id: 'configure',
-            label: `Create a configuration in ${environmentLabel}`,
+            label: 'Create a configuration in Development',
         },
         {
             done: status.integrationConfigurationEnabled,
-            hint: development
-                ? 'Expand the integration → Configurations tab → switch it on'
-                : 'Configurations → switch it on',
-            href,
+            hint: 'Expand the integration → Configurations tab → switch it on',
+            href: INTEGRATIONS_HREF,
             id: 'enable',
             label: 'Enable the configuration',
         },
