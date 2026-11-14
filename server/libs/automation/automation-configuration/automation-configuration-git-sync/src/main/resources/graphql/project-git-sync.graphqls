@@ -1,0 +1,81 @@
+extend type Query {
+    "Git sync settings and last sync state of a project, or null when not configured."
+    projectGitSync(projectId: ID!): ProjectGitSync
+    "Git sync settings of every configured project in a workspace."
+    workspaceProjectGitSyncs(workspaceId: ID!): [ProjectGitSync!]!
+}
+
+extend type Mutation {
+    deleteProjectGitSync(projectId: ID!): Boolean!
+    "Imports the configured branch into the project's draft version."
+    pullProjectGitSync(projectId: ID!): ProjectGitSyncPullResult!
+    "Pushes the latest published version again (e.g. to retry a failed push)."
+    pushProjectGitSync(projectId: ID!): ProjectGitSync!
+    "Creates or updates the settings; null fields keep their stored value."
+    saveProjectGitSync(projectId: ID!, input: ProjectGitSyncInput!): ProjectGitSync!
+    "Lists remote branches with the given settings merged over the stored ones."
+    testProjectGitSyncConnection(projectId: ID!, input: ProjectGitSyncInput): ProjectGitSyncConnectionTestResult!
+}
+
+enum ProjectGitSyncDirection {
+    PULL
+    PUSH
+}
+
+enum ProjectGitSyncStatus {
+    FAILED
+    NO_CHANGES
+    SKIPPED
+    SUCCESS
+}
+
+type ProjectGitSync {
+    "True when an access token is stored; the token itself is never returned."
+    accessTokenSet: Boolean!
+    branch: String!
+    enabled: Boolean!
+    lastPushedProjectVersion: Int
+    lastSyncCommitHash: String
+    lastSyncDate: String
+    lastSyncDirection: ProjectGitSyncDirection
+    lastSyncErrorMessage: String
+    lastSyncStatus: ProjectGitSyncStatus
+    projectId: ID!
+    repositoryUrl: String!
+    subDirectory: String
+    username: String
+}
+
+input ProjectGitSyncInput {
+    "Write-only. Null keeps the stored token, an empty string clears it. Required again when repositoryUrl changes."
+    accessToken: String
+    branch: String
+    enabled: Boolean
+    "HTTPS URL without credentials, query or fragment."
+    repositoryUrl: String
+    "Directory inside the repository holding project.json and workflows/; empty for the repository root."
+    subDirectory: String
+    username: String
+}
+
+type ProjectGitSyncConnectionTestResult {
+    branchExists: Boolean!
+    branches: [String!]!
+    errorMessage: String
+    success: Boolean!
+}
+
+type ProjectGitSyncPullWorkflow {
+    label: String
+    reason: String
+    uuid: String!
+}
+
+type ProjectGitSyncPullResult {
+    added: [ProjectGitSyncPullWorkflow!]!
+    commitHash: String!
+    notInGit: [ProjectGitSyncPullWorkflow!]!
+    skipped: [ProjectGitSyncPullWorkflow!]!
+    unchanged: [ProjectGitSyncPullWorkflow!]!
+    updated: [ProjectGitSyncPullWorkflow!]!
+}

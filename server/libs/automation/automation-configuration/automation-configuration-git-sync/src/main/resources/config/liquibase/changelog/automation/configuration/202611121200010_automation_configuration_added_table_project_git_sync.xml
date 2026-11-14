@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                   http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+    <changeSet id="202611121200010" author="ByteChef">
+        <createTable tableName="project_git_sync">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="project_id" type="BIGINT">
+                <constraints nullable="false" unique="true" uniqueConstraintName="uk_project_git_sync_project_id"/>
+            </column>
+            <column name="repository_url" type="VARCHAR(1024)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="branch" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="sub_directory" type="VARCHAR(255)"/>
+            <column name="username" type="VARCHAR(255)"/>
+            <column name="access_token" type="TEXT"/>
+            <column name="enabled" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_sync_commit_hash" type="VARCHAR(64)"/>
+            <column name="last_sync_date" type="TIMESTAMP"/>
+            <column name="last_sync_direction" type="INT"/>
+            <column name="last_sync_status" type="INT"/>
+            <column name="last_sync_error_message" type="TEXT"/>
+            <column name="last_pushed_project_version" type="INT"/>
+            <column name="created_date" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_by" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_modified_date" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_modified_by" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="version" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!-- ON DELETE CASCADE: settings and sync state belong to the project, and this lets the existing project
+             deletion path (which deletes the project row directly) clean them up without knowing about this table. -->
+        <addForeignKeyConstraint
+            baseTableName="project_git_sync"
+            baseColumnNames="project_id"
+            constraintName="fk_project_git_sync_project"
+            referencedTableName="project"
+            referencedColumnNames="id"
+            onDelete="CASCADE"/>
+    </changeSet>
+</databaseChangeLog>

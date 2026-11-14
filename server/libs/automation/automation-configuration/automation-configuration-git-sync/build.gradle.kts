@@ -1,0 +1,21 @@
+dependencies {
+    implementation(libs.org.eclipse.jgit.org.eclipse.jgit)
+    implementation("org.apache.commons:commons-lang3")
+    implementation("org.slf4j:slf4j-api")
+    implementation("org.springframework:spring-context")
+    implementation("org.springframework:spring-tx")
+    implementation("org.springframework.boot:spring-boot-autoconfigure")
+    implementation("org.springframework.data:spring-data-jdbc")
+    implementation("org.springframework.graphql:spring-graphql")
+    implementation("org.springframework.security:spring-security-core")
+    implementation(project(":server:libs:atlas:atlas-configuration:atlas-configuration-api"))
+    implementation(project(":server:libs:atlas:atlas-coordinator:atlas-coordinator-api"))
+    implementation(project(":server:libs:automation:automation-configuration:automation-configuration-api"))
+    implementation(project(":server:libs:core:commons:commons-util"))
+    implementation(project(":server:libs:core:encryption:encryption-api"))
+    implementation(project(":server:libs:core:tenant:tenant-api"))
+    implementation(project(":server:libs:platform:platform-api"))
+    implementation(project(":server:libs:platform:platform-workflow:platform-workflow-validator:platform-workflow-validator-api"))
+
+    testImplementation(project(":server:libs:test:test-support"))
+}

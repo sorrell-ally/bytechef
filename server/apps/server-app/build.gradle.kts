@@ -132,6 +132,7 @@ dependencies {
     implementation(project(":server:libs:automation:automation-ai:automation-ai-auto-memory:automation-ai-auto-memory-graphql"))
     implementation(project(":server:libs:automation:automation-ai:automation-ai-auto-memory:automation-ai-auto-memory-service"))
     implementation(project(":server:libs:automation:automation-ai:automation-ai-mcp-server"))
+    implementation(project(":server:libs:automation:automation-configuration:automation-configuration-git-sync"))
     implementation(project(":server:libs:automation:automation-configuration:automation-configuration-graphql"))
     implementation(project(":server:libs:automation:automation-configuration:automation-configuration-instance-impl"))
     implementation(project(":server:libs:automation:automation-configuration:automation-configuration-rest:automation-configuration-rest-impl"))
