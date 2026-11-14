@@ -20,16 +20,22 @@ import com.bytechef.platform.security.web.config.OAuth2LoginCustomizer;
 import com.bytechef.tenant.annotation.ConditionalOnSingleTenant;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.authentication.RememberMeServices;
 import org.springframework.stereotype.Component;
 
 /**
+ * Ordered first among {@link OAuth2LoginCustomizer}s: the single-sign-on customizer composes on top of this one (it
+ * reuses the social client registrations and OIDC user service as fallbacks), so it must run after it.
+ *
  * @author Ivica Cardic
  */
 @Component
 @ConditionalOnSingleTenant
 @ConditionalOnProperty(prefix = "bytechef.security.social-login", name = "enabled", havingValue = "true")
+@Order(Ordered.HIGHEST_PRECEDENCE)
 public class SingleTenantOAuth2LoginCustomizer implements OAuth2LoginCustomizer {
 
     private final CustomOAuth2UserService customOAuth2UserService;

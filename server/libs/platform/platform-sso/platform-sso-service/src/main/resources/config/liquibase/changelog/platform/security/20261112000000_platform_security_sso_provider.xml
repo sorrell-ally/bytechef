@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                   http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+    <changeSet id="20261112000000" author="ByteChef">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="sso_provider"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="sso_provider">
+            <column name="id" type="BIGINT" autoIncrement="true" startWith="1050">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(256)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="type" type="VARCHAR(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="vendor" type="VARCHAR(32)"/>
+            <column name="registration_id" type="VARCHAR(20)">
+                <constraints nullable="false" unique="true" uniqueConstraintName="uk_sso_provider_registration_id"/>
+            </column>
+            <column name="enabled" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="domains" type="TEXT"/>
+            <column name="enforce_sso" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="auto_provision" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="default_authority" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="issuer_uri" type="VARCHAR(2048)"/>
+            <column name="client_id" type="VARCHAR(512)"/>
+            <column name="scopes" type="VARCHAR(1024)"/>
+            <column name="secret_settings" type="TEXT"/>
+            <column name="metadata_url" type="VARCHAR(2048)"/>
+            <column name="metadata_xml" type="TEXT"/>
+            <column name="version" type="INT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_date" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_by" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_modified_date" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_modified_by" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+</databaseChangeLog>
