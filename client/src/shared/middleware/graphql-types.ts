@@ -1926,6 +1926,7 @@ export type Mutation = {
   deleteMcpProjectWorkflow?: Maybe<Scalars['Boolean']['output']>;
   deleteMcpServer?: Maybe<Scalars['Boolean']['output']>;
   deleteMcpTool?: Maybe<Scalars['Boolean']['output']>;
+  deleteProjectGitSync: Scalars['Boolean']['output'];
   deleteRegisteredClient: Scalars['Boolean']['output'];
   deleteSharedProject: Scalars['Boolean']['output'];
   deleteSharedWorkflow: Scalars['Boolean']['output'];
@@ -1958,6 +1959,10 @@ export type Mutation = {
   provisionConnectedUserMcpServer?: Maybe<Scalars['Boolean']['output']>;
   provisionConnectedUserProjectWorkflows?: Maybe<Scalars['Boolean']['output']>;
   publishAutomationProject: Scalars['Boolean']['output'];
+  /** Imports the configured branch into the project's draft version. */
+  pullProjectGitSync: ProjectGitSyncPullResult;
+  /** Pushes the latest published version again (e.g. to retry a failed push). */
+  pushProjectGitSync: ProjectGitSync;
   removeDataTableColumn: Scalars['Boolean']['output'];
   removeFileInSkill: AiSkill;
   renameDataTable: Scalars['Boolean']['output'];
@@ -1966,12 +1971,16 @@ export type Mutation = {
   revokeRegisteredClientGrants: Scalars['Boolean']['output'];
   saveClusterElementTestConfigurationConnection?: Maybe<Scalars['Boolean']['output']>;
   saveClusterElementTestOutput?: Maybe<WorkflowNodeTestOutputResult>;
+  /** Creates or updates the settings; null fields keep their stored value. */
+  saveProjectGitSync: ProjectGitSync;
   saveWorkflowTestConfigurationConnection?: Maybe<Scalars['Boolean']['output']>;
   startAiAgentEvalRun: AiAgentEvalRun;
   startDiscoverEndpoints: EndpointDiscoveryResult;
   startGenerateForEndpoints: GenerationJobStatus;
   startGenerateFromDocumentationPreview: GenerationJobStatus;
   testClusterElementScript: ScriptTestExecution;
+  /** Lists remote branches with the given settings merged over the stored ones. */
+  testProjectGitSyncConnection: ProjectGitSyncConnectionTestResult;
   testWorkflowNodeScript: ScriptTestExecution;
   updateA2aProject?: Maybe<A2aProject>;
   updateA2aProjectWorkflowEnabled?: Maybe<A2aProjectWorkflow>;
@@ -2424,6 +2433,11 @@ export type MutationDeleteMcpToolArgs = {
 };
 
 
+export type MutationDeleteProjectGitSyncArgs = {
+  projectId: Scalars['ID']['input'];
+};
+
+
 export type MutationDeleteRegisteredClientArgs = {
   id: Scalars['ID']['input'];
 };
@@ -2606,6 +2620,16 @@ export type MutationPublishAutomationProjectArgs = {
 };
 
 
+export type MutationPullProjectGitSyncArgs = {
+  projectId: Scalars['ID']['input'];
+};
+
+
+export type MutationPushProjectGitSyncArgs = {
+  projectId: Scalars['ID']['input'];
+};
+
+
 export type MutationRemoveDataTableColumnArgs = {
   input: RemoveColumnInput;
 };
@@ -2659,6 +2683,12 @@ export type MutationSaveClusterElementTestOutputArgs = {
 };
 
 
+export type MutationSaveProjectGitSyncArgs = {
+  input: ProjectGitSyncInput;
+  projectId: Scalars['ID']['input'];
+};
+
+
 export type MutationSaveWorkflowTestConfigurationConnectionArgs = {
   connectionId: Scalars['Long']['input'];
   environmentId: Scalars['Long']['input'];
@@ -2699,6 +2729,12 @@ export type MutationTestClusterElementScriptArgs = {
   inputParameters?: InputMaybe<Scalars['Map']['input']>;
   workflowId: Scalars['String']['input'];
   workflowNodeName: Scalars['String']['input'];
+};
+
+
+export type MutationTestProjectGitSyncConnectionArgs = {
+  input?: InputMaybe<ProjectGitSyncInput>;
+  projectId: Scalars['ID']['input'];
 };
 
 
@@ -3215,6 +3251,73 @@ export type ProjectDeploymentWorkflowConnection = {
   workflowNodeName: Scalars['String']['output'];
 };
 
+export type ProjectGitSync = {
+  __typename?: 'ProjectGitSync';
+  /** True when an access token is stored; the token itself is never returned. */
+  accessTokenSet: Scalars['Boolean']['output'];
+  branch: Scalars['String']['output'];
+  enabled: Scalars['Boolean']['output'];
+  lastPushedProjectVersion?: Maybe<Scalars['Int']['output']>;
+  lastSyncCommitHash?: Maybe<Scalars['String']['output']>;
+  lastSyncDate?: Maybe<Scalars['String']['output']>;
+  lastSyncDirection?: Maybe<ProjectGitSyncDirection>;
+  lastSyncErrorMessage?: Maybe<Scalars['String']['output']>;
+  lastSyncStatus?: Maybe<ProjectGitSyncStatus>;
+  projectId: Scalars['ID']['output'];
+  repositoryUrl: Scalars['String']['output'];
+  subDirectory?: Maybe<Scalars['String']['output']>;
+  username?: Maybe<Scalars['String']['output']>;
+};
+
+export type ProjectGitSyncConnectionTestResult = {
+  __typename?: 'ProjectGitSyncConnectionTestResult';
+  branchExists: Scalars['Boolean']['output'];
+  branches: Array<Scalars['String']['output']>;
+  errorMessage?: Maybe<Scalars['String']['output']>;
+  success: Scalars['Boolean']['output'];
+};
+
+export enum ProjectGitSyncDirection {
+  Pull = 'PULL',
+  Push = 'PUSH'
+}
+
+export type ProjectGitSyncInput = {
+  /** Write-only. Null keeps the stored token, an empty string clears it. Required again when repositoryUrl changes. */
+  accessToken?: InputMaybe<Scalars['String']['input']>;
+  branch?: InputMaybe<Scalars['String']['input']>;
+  enabled?: InputMaybe<Scalars['Boolean']['input']>;
+  /** HTTPS URL without credentials, query or fragment. */
+  repositoryUrl?: InputMaybe<Scalars['String']['input']>;
+  /** Directory inside the repository holding project.json and workflows/; empty for the repository root. */
+  subDirectory?: InputMaybe<Scalars['String']['input']>;
+  username?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type ProjectGitSyncPullResult = {
+  __typename?: 'ProjectGitSyncPullResult';
+  added: Array<ProjectGitSyncPullWorkflow>;
+  commitHash: Scalars['String']['output'];
+  notInGit: Array<ProjectGitSyncPullWorkflow>;
+  skipped: Array<ProjectGitSyncPullWorkflow>;
+  unchanged: Array<ProjectGitSyncPullWorkflow>;
+  updated: Array<ProjectGitSyncPullWorkflow>;
+};
+
+export type ProjectGitSyncPullWorkflow = {
+  __typename?: 'ProjectGitSyncPullWorkflow';
+  label?: Maybe<Scalars['String']['output']>;
+  reason?: Maybe<Scalars['String']['output']>;
+  uuid: Scalars['String']['output'];
+};
+
+export enum ProjectGitSyncStatus {
+  Failed = 'FAILED',
+  NoChanges = 'NO_CHANGES',
+  Skipped = 'SKIPPED',
+  Success = 'SUCCESS'
+}
+
 export type ProjectInfo = {
   __typename?: 'ProjectInfo';
   description?: Maybe<Scalars['String']['output']>;
@@ -3517,6 +3620,8 @@ export type Query = {
   preBuiltWorkflowTemplates: Array<WorkflowTemplate>;
   project?: Maybe<Project>;
   projectDeploymentWorkflow?: Maybe<ProjectDeploymentWorkflow>;
+  /** Git sync settings and last sync state of a project, or null when not configured. */
+  projectGitSync?: Maybe<ProjectGitSync>;
   projectTemplate?: Maybe<ProjectTemplate>;
   projectVersionWorkflowChange: VersionWorkflowChange;
   projectVersionWorkflowChanges: VersionWorkflowChanges;
@@ -3554,6 +3659,8 @@ export type Query = {
   workspaceMcpServerTags?: Maybe<Array<Maybe<Tag>>>;
   workspaceMcpServers?: Maybe<Array<Maybe<McpServer>>>;
   workspaceProjectDeployments: Array<ProjectDeployment>;
+  /** Git sync settings of every configured project in a workspace. */
+  workspaceProjectGitSyncs: Array<ProjectGitSync>;
 };
 
 
@@ -4269,6 +4376,11 @@ export type QueryProjectDeploymentWorkflowArgs = {
 };
 
 
+export type QueryProjectGitSyncArgs = {
+  projectId: Scalars['ID']['input'];
+};
+
+
 export type QueryProjectTemplateArgs = {
   id: Scalars['String']['input'];
   sharedProject: Scalars['Boolean']['input'];
@@ -4476,6 +4588,11 @@ export type QueryWorkspaceProjectDeploymentsArgs = {
   environmentId: Scalars['ID']['input'];
   projectId?: InputMaybe<Scalars['ID']['input']>;
   tagId?: InputMaybe<Scalars['ID']['input']>;
+  workspaceId: Scalars['ID']['input'];
+};
+
+
+export type QueryWorkspaceProjectGitSyncsArgs = {
   workspaceId: Scalars['ID']['input'];
 };
 

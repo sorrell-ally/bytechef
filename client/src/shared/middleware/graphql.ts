@@ -983,6 +983,57 @@ export type UpdateDataTableTagsMutationVariables = Exact<{
 
 export type UpdateDataTableTagsMutation = { updateDataTableTags: boolean };
 
+export type DeleteProjectGitSyncMutationVariables = Exact<{
+  projectId: string | number;
+}>;
+
+
+export type DeleteProjectGitSyncMutation = { deleteProjectGitSync: boolean };
+
+export type ProjectGitSyncQueryVariables = Exact<{
+  projectId: string | number;
+}>;
+
+
+export type ProjectGitSyncQuery = { projectGitSync: { accessTokenSet: boolean, branch: string, enabled: boolean, lastPushedProjectVersion: number | null, lastSyncCommitHash: string | null, lastSyncDate: string | null, lastSyncDirection: Types.ProjectGitSyncDirection | null, lastSyncErrorMessage: string | null, lastSyncStatus: Types.ProjectGitSyncStatus | null, projectId: string, repositoryUrl: string, subDirectory: string | null, username: string | null } | null };
+
+export type PullProjectGitSyncMutationVariables = Exact<{
+  projectId: string | number;
+}>;
+
+
+export type PullProjectGitSyncMutation = { pullProjectGitSync: { commitHash: string, added: Array<{ label: string | null, reason: string | null, uuid: string }>, notInGit: Array<{ label: string | null, reason: string | null, uuid: string }>, skipped: Array<{ label: string | null, reason: string | null, uuid: string }>, unchanged: Array<{ label: string | null, reason: string | null, uuid: string }>, updated: Array<{ label: string | null, reason: string | null, uuid: string }> } };
+
+export type PushProjectGitSyncMutationVariables = Exact<{
+  projectId: string | number;
+}>;
+
+
+export type PushProjectGitSyncMutation = { pushProjectGitSync: { accessTokenSet: boolean, branch: string, enabled: boolean, lastPushedProjectVersion: number | null, lastSyncCommitHash: string | null, lastSyncDate: string | null, lastSyncDirection: Types.ProjectGitSyncDirection | null, lastSyncErrorMessage: string | null, lastSyncStatus: Types.ProjectGitSyncStatus | null, projectId: string, repositoryUrl: string, subDirectory: string | null, username: string | null } };
+
+export type SaveProjectGitSyncMutationVariables = Exact<{
+  projectId: string | number;
+  input: Types.ProjectGitSyncInput;
+}>;
+
+
+export type SaveProjectGitSyncMutation = { saveProjectGitSync: { accessTokenSet: boolean, branch: string, enabled: boolean, lastPushedProjectVersion: number | null, lastSyncCommitHash: string | null, lastSyncDate: string | null, lastSyncDirection: Types.ProjectGitSyncDirection | null, lastSyncErrorMessage: string | null, lastSyncStatus: Types.ProjectGitSyncStatus | null, projectId: string, repositoryUrl: string, subDirectory: string | null, username: string | null } };
+
+export type TestProjectGitSyncConnectionMutationVariables = Exact<{
+  projectId: string | number;
+  input?: Types.ProjectGitSyncInput | null | undefined;
+}>;
+
+
+export type TestProjectGitSyncConnectionMutation = { testProjectGitSyncConnection: { branchExists: boolean, branches: Array<string>, errorMessage: string | null, success: boolean } };
+
+export type WorkspaceProjectGitSyncsQueryVariables = Exact<{
+  workspaceId: string | number;
+}>;
+
+
+export type WorkspaceProjectGitSyncsQuery = { workspaceProjectGitSyncs: Array<{ accessTokenSet: boolean, branch: string, enabled: boolean, lastPushedProjectVersion: number | null, lastSyncCommitHash: string | null, lastSyncDate: string | null, lastSyncDirection: Types.ProjectGitSyncDirection | null, lastSyncErrorMessage: string | null, lastSyncStatus: Types.ProjectGitSyncStatus | null, projectId: string, repositoryUrl: string, subDirectory: string | null, username: string | null }> };
+
 export type CreateKnowledgeBaseMutationVariables = Exact<{
   knowledgeBase: Types.KnowledgeBaseInput;
   environmentId: string | number;
@@ -5966,6 +6017,233 @@ export const useUpdateDataTableTagsMutation = <
       {
     mutationKey: ['updateDataTableTags'],
     mutationFn: (variables?: UpdateDataTableTagsMutationVariables) => fetcher<UpdateDataTableTagsMutation, UpdateDataTableTagsMutationVariables>(UpdateDataTableTagsDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const DeleteProjectGitSyncDocument = new TypedDocumentString(`
+    mutation deleteProjectGitSync($projectId: ID!) {
+  deleteProjectGitSync(projectId: $projectId)
+}
+    `);
+
+export const useDeleteProjectGitSyncMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<DeleteProjectGitSyncMutation, TError, DeleteProjectGitSyncMutationVariables, TContext>) => {
+    
+    return useMutation<DeleteProjectGitSyncMutation, TError, DeleteProjectGitSyncMutationVariables, TContext>(
+      {
+    mutationKey: ['deleteProjectGitSync'],
+    mutationFn: (variables?: DeleteProjectGitSyncMutationVariables) => fetcher<DeleteProjectGitSyncMutation, DeleteProjectGitSyncMutationVariables>(DeleteProjectGitSyncDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const ProjectGitSyncDocument = new TypedDocumentString(`
+    query projectGitSync($projectId: ID!) {
+  projectGitSync(projectId: $projectId) {
+    accessTokenSet
+    branch
+    enabled
+    lastPushedProjectVersion
+    lastSyncCommitHash
+    lastSyncDate
+    lastSyncDirection
+    lastSyncErrorMessage
+    lastSyncStatus
+    projectId
+    repositoryUrl
+    subDirectory
+    username
+  }
+}
+    `);
+
+export const useProjectGitSyncQuery = <
+      TData = ProjectGitSyncQuery,
+      TError = unknown
+    >(
+      variables: ProjectGitSyncQueryVariables,
+      options?: Omit<UseQueryOptions<ProjectGitSyncQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<ProjectGitSyncQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<ProjectGitSyncQuery, TError, TData>(
+      {
+    queryKey: ['projectGitSync', variables],
+    queryFn: fetcher<ProjectGitSyncQuery, ProjectGitSyncQueryVariables>(ProjectGitSyncDocument, variables),
+    ...options
+  }
+    )};
+
+export const PullProjectGitSyncDocument = new TypedDocumentString(`
+    mutation pullProjectGitSync($projectId: ID!) {
+  pullProjectGitSync(projectId: $projectId) {
+    added {
+      label
+      reason
+      uuid
+    }
+    commitHash
+    notInGit {
+      label
+      reason
+      uuid
+    }
+    skipped {
+      label
+      reason
+      uuid
+    }
+    unchanged {
+      label
+      reason
+      uuid
+    }
+    updated {
+      label
+      reason
+      uuid
+    }
+  }
+}
+    `);
+
+export const usePullProjectGitSyncMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<PullProjectGitSyncMutation, TError, PullProjectGitSyncMutationVariables, TContext>) => {
+    
+    return useMutation<PullProjectGitSyncMutation, TError, PullProjectGitSyncMutationVariables, TContext>(
+      {
+    mutationKey: ['pullProjectGitSync'],
+    mutationFn: (variables?: PullProjectGitSyncMutationVariables) => fetcher<PullProjectGitSyncMutation, PullProjectGitSyncMutationVariables>(PullProjectGitSyncDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const PushProjectGitSyncDocument = new TypedDocumentString(`
+    mutation pushProjectGitSync($projectId: ID!) {
+  pushProjectGitSync(projectId: $projectId) {
+    accessTokenSet
+    branch
+    enabled
+    lastPushedProjectVersion
+    lastSyncCommitHash
+    lastSyncDate
+    lastSyncDirection
+    lastSyncErrorMessage
+    lastSyncStatus
+    projectId
+    repositoryUrl
+    subDirectory
+    username
+  }
+}
+    `);
+
+export const usePushProjectGitSyncMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<PushProjectGitSyncMutation, TError, PushProjectGitSyncMutationVariables, TContext>) => {
+    
+    return useMutation<PushProjectGitSyncMutation, TError, PushProjectGitSyncMutationVariables, TContext>(
+      {
+    mutationKey: ['pushProjectGitSync'],
+    mutationFn: (variables?: PushProjectGitSyncMutationVariables) => fetcher<PushProjectGitSyncMutation, PushProjectGitSyncMutationVariables>(PushProjectGitSyncDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const SaveProjectGitSyncDocument = new TypedDocumentString(`
+    mutation saveProjectGitSync($projectId: ID!, $input: ProjectGitSyncInput!) {
+  saveProjectGitSync(projectId: $projectId, input: $input) {
+    accessTokenSet
+    branch
+    enabled
+    lastPushedProjectVersion
+    lastSyncCommitHash
+    lastSyncDate
+    lastSyncDirection
+    lastSyncErrorMessage
+    lastSyncStatus
+    projectId
+    repositoryUrl
+    subDirectory
+    username
+  }
+}
+    `);
+
+export const useSaveProjectGitSyncMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<SaveProjectGitSyncMutation, TError, SaveProjectGitSyncMutationVariables, TContext>) => {
+    
+    return useMutation<SaveProjectGitSyncMutation, TError, SaveProjectGitSyncMutationVariables, TContext>(
+      {
+    mutationKey: ['saveProjectGitSync'],
+    mutationFn: (variables?: SaveProjectGitSyncMutationVariables) => fetcher<SaveProjectGitSyncMutation, SaveProjectGitSyncMutationVariables>(SaveProjectGitSyncDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const TestProjectGitSyncConnectionDocument = new TypedDocumentString(`
+    mutation testProjectGitSyncConnection($projectId: ID!, $input: ProjectGitSyncInput) {
+  testProjectGitSyncConnection(projectId: $projectId, input: $input) {
+    branchExists
+    branches
+    errorMessage
+    success
+  }
+}
+    `);
+
+export const useTestProjectGitSyncConnectionMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<TestProjectGitSyncConnectionMutation, TError, TestProjectGitSyncConnectionMutationVariables, TContext>) => {
+    
+    return useMutation<TestProjectGitSyncConnectionMutation, TError, TestProjectGitSyncConnectionMutationVariables, TContext>(
+      {
+    mutationKey: ['testProjectGitSyncConnection'],
+    mutationFn: (variables?: TestProjectGitSyncConnectionMutationVariables) => fetcher<TestProjectGitSyncConnectionMutation, TestProjectGitSyncConnectionMutationVariables>(TestProjectGitSyncConnectionDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const WorkspaceProjectGitSyncsDocument = new TypedDocumentString(`
+    query workspaceProjectGitSyncs($workspaceId: ID!) {
+  workspaceProjectGitSyncs(workspaceId: $workspaceId) {
+    accessTokenSet
+    branch
+    enabled
+    lastPushedProjectVersion
+    lastSyncCommitHash
+    lastSyncDate
+    lastSyncDirection
+    lastSyncErrorMessage
+    lastSyncStatus
+    projectId
+    repositoryUrl
+    subDirectory
+    username
+  }
+}
+    `);
+
+export const useWorkspaceProjectGitSyncsQuery = <
+      TData = WorkspaceProjectGitSyncsQuery,
+      TError = unknown
+    >(
+      variables: WorkspaceProjectGitSyncsQueryVariables,
+      options?: Omit<UseQueryOptions<WorkspaceProjectGitSyncsQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<WorkspaceProjectGitSyncsQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<WorkspaceProjectGitSyncsQuery, TError, TData>(
+      {
+    queryKey: ['workspaceProjectGitSyncs', variables],
+    queryFn: fetcher<WorkspaceProjectGitSyncsQuery, WorkspaceProjectGitSyncsQueryVariables>(WorkspaceProjectGitSyncsDocument, variables),
     ...options
   }
     )};
