@@ -2455,6 +2455,33 @@ export type RevokeRegisteredClientGrantsMutationVariables = Exact<{
 
 export type RevokeRegisteredClientGrantsMutation = { revokeRegisteredClientGrants: boolean };
 
+export type CreateSsoProviderMutationVariables = Exact<{
+  input: Types.SsoProviderInput;
+}>;
+
+
+export type CreateSsoProviderMutation = { createSsoProvider: { id: string, name: string, type: Types.SsoProviderType, vendor: Types.SsoProviderVendor, enabled: boolean, domains: Array<string>, enforceSso: boolean, autoProvision: boolean, defaultAuthority: string, registrationId: string, loginPath: string, callbackPath: string, serviceProviderMetadataPath: string | null, issuerUri: string | null, clientId: string | null, clientSecretSet: boolean, scopes: Array<string>, metadataUrl: string | null, metadataXml: string | null } };
+
+export type DeleteSsoProviderMutationVariables = Exact<{
+  id: string | number;
+}>;
+
+
+export type DeleteSsoProviderMutation = { deleteSsoProvider: boolean };
+
+export type SsoProvidersQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type SsoProvidersQuery = { ssoProviders: Array<{ id: string, name: string, type: Types.SsoProviderType, vendor: Types.SsoProviderVendor, enabled: boolean, domains: Array<string>, enforceSso: boolean, autoProvision: boolean, defaultAuthority: string, registrationId: string, loginPath: string, callbackPath: string, serviceProviderMetadataPath: string | null, issuerUri: string | null, clientId: string | null, clientSecretSet: boolean, scopes: Array<string>, metadataUrl: string | null, metadataXml: string | null }> };
+
+export type UpdateSsoProviderMutationVariables = Exact<{
+  id: string | number;
+  input: Types.SsoProviderInput;
+}>;
+
+
+export type UpdateSsoProviderMutation = { updateSsoProvider: { id: string, name: string, type: Types.SsoProviderType, vendor: Types.SsoProviderVendor, enabled: boolean, domains: Array<string>, enforceSso: boolean, autoProvision: boolean, defaultAuthority: string, registrationId: string, loginPath: string, callbackPath: string, serviceProviderMetadataPath: string | null, issuerUri: string | null, clientId: string | null, clientSecretSet: boolean, scopes: Array<string>, metadataUrl: string | null, metadataXml: string | null } };
+
 export type AuthoritiesQueryVariables = Exact<{ [key: string]: never; }>;
 
 
@@ -11721,6 +11748,145 @@ export const useRevokeRegisteredClientGrantsMutation = <
       {
     mutationKey: ['revokeRegisteredClientGrants'],
     mutationFn: (variables?: RevokeRegisteredClientGrantsMutationVariables) => fetcher<RevokeRegisteredClientGrantsMutation, RevokeRegisteredClientGrantsMutationVariables>(RevokeRegisteredClientGrantsDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const CreateSsoProviderDocument = new TypedDocumentString(`
+    mutation createSsoProvider($input: SsoProviderInput!) {
+  createSsoProvider(input: $input) {
+    id
+    name
+    type
+    vendor
+    enabled
+    domains
+    enforceSso
+    autoProvision
+    defaultAuthority
+    registrationId
+    loginPath
+    callbackPath
+    serviceProviderMetadataPath
+    issuerUri
+    clientId
+    clientSecretSet
+    scopes
+    metadataUrl
+    metadataXml
+  }
+}
+    `);
+
+export const useCreateSsoProviderMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<CreateSsoProviderMutation, TError, CreateSsoProviderMutationVariables, TContext>) => {
+    
+    return useMutation<CreateSsoProviderMutation, TError, CreateSsoProviderMutationVariables, TContext>(
+      {
+    mutationKey: ['createSsoProvider'],
+    mutationFn: (variables?: CreateSsoProviderMutationVariables) => fetcher<CreateSsoProviderMutation, CreateSsoProviderMutationVariables>(CreateSsoProviderDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const DeleteSsoProviderDocument = new TypedDocumentString(`
+    mutation deleteSsoProvider($id: ID!) {
+  deleteSsoProvider(id: $id)
+}
+    `);
+
+export const useDeleteSsoProviderMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<DeleteSsoProviderMutation, TError, DeleteSsoProviderMutationVariables, TContext>) => {
+    
+    return useMutation<DeleteSsoProviderMutation, TError, DeleteSsoProviderMutationVariables, TContext>(
+      {
+    mutationKey: ['deleteSsoProvider'],
+    mutationFn: (variables?: DeleteSsoProviderMutationVariables) => fetcher<DeleteSsoProviderMutation, DeleteSsoProviderMutationVariables>(DeleteSsoProviderDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const SsoProvidersDocument = new TypedDocumentString(`
+    query ssoProviders {
+  ssoProviders {
+    id
+    name
+    type
+    vendor
+    enabled
+    domains
+    enforceSso
+    autoProvision
+    defaultAuthority
+    registrationId
+    loginPath
+    callbackPath
+    serviceProviderMetadataPath
+    issuerUri
+    clientId
+    clientSecretSet
+    scopes
+    metadataUrl
+    metadataXml
+  }
+}
+    `);
+
+export const useSsoProvidersQuery = <
+      TData = SsoProvidersQuery,
+      TError = unknown
+    >(
+      variables?: SsoProvidersQueryVariables,
+      options?: Omit<UseQueryOptions<SsoProvidersQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<SsoProvidersQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<SsoProvidersQuery, TError, TData>(
+      {
+    queryKey: variables === undefined ? ['ssoProviders'] : ['ssoProviders', variables],
+    queryFn: fetcher<SsoProvidersQuery, SsoProvidersQueryVariables>(SsoProvidersDocument, variables),
+    ...options
+  }
+    )};
+
+export const UpdateSsoProviderDocument = new TypedDocumentString(`
+    mutation updateSsoProvider($id: ID!, $input: SsoProviderInput!) {
+  updateSsoProvider(id: $id, input: $input) {
+    id
+    name
+    type
+    vendor
+    enabled
+    domains
+    enforceSso
+    autoProvision
+    defaultAuthority
+    registrationId
+    loginPath
+    callbackPath
+    serviceProviderMetadataPath
+    issuerUri
+    clientId
+    clientSecretSet
+    scopes
+    metadataUrl
+    metadataXml
+  }
+}
+    `);
+
+export const useUpdateSsoProviderMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<UpdateSsoProviderMutation, TError, UpdateSsoProviderMutationVariables, TContext>) => {
+    
+    return useMutation<UpdateSsoProviderMutation, TError, UpdateSsoProviderMutationVariables, TContext>(
+      {
+    mutationKey: ['updateSsoProvider'],
+    mutationFn: (variables?: UpdateSsoProviderMutationVariables) => fetcher<UpdateSsoProviderMutation, UpdateSsoProviderMutationVariables>(UpdateSsoProviderDocument, variables)(),
     ...options
   }
     )};
