@@ -15,6 +15,7 @@ import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip';
 import ProjectDeploymentDialog from '@/pages/automation/project-deployments/components/project-deployment-dialog/ProjectDeploymentDialog';
 import useOpenSavedProjectDeployment from '@/pages/automation/project-deployments/hooks/useOpenSavedProjectDeployment';
 import {ProjectShareDialog} from '@/pages/automation/project/components/ProjectShareDialog';
+import ProjectGitSyncDialog from '@/pages/automation/project/components/git-sync/ProjectGitSyncDialog';
 import {useConvertN8nToWorkflow} from '@/pages/automation/project/hooks/useConverterN8nToWorkflow';
 import handleImportN8nWorkflow from '@/pages/automation/project/utils/handleImportN8nWorkflow';
 import handleImportWorkflow from '@/pages/automation/project/utils/handleImportWorkflow';
@@ -30,6 +31,7 @@ import WorkflowDialog from '@/shared/components/workflow/WorkflowDialog';
 import {DEVELOPMENT_ENVIRONMENT} from '@/shared/constants';
 import EEVersion from '@/shared/edition/EEVersion';
 import {ProjectGitConfigurationI, getProjectGitApi} from '@/shared/edition/project-git/projectGitApi';
+import useCeEdition from '@/shared/edition/useCeEdition';
 import {useAnalytics} from '@/shared/hooks/useAnalytics';
 import {useHasEnabledAiProvider} from '@/shared/hooks/useHasEnabledAiProvider';
 import {Project, Tag} from '@/shared/middleware/automation/configuration';
@@ -94,6 +96,7 @@ const ProjectListItem = ({
     const [showEditDialog, setShowEditDialog] = useState(false);
     const [showProjectDeploymentDialog, setShowProjectDeploymentDialog] = useState(false);
     const [showProjectGitConfigurationDialog, setShowProjectGitConfigurationDialog] = useState(false);
+    const [showProjectGitSyncDialog, setShowProjectGitSyncDialog] = useState(false);
     const [showProjectShareDialog, setShowProjectShareDialog] = useState(false);
     const [showPublishProjectDialog, setShowPublishProjectDialog] = useState(false);
     const [showWorkflowDialog, setShowWorkflowDialog] = useState(false);
@@ -123,6 +126,8 @@ const ProjectListItem = ({
     );
 
     const ff_1039 = useFeatureFlagsStore()('ff-1039');
+
+    const ceEdition = useCeEdition();
 
     const queryClient = useQueryClient();
 
@@ -520,6 +525,19 @@ const ProjectListItem = ({
                                     </EEVersion>
                                 )}
 
+                                {ceEdition && (
+                                    <>
+                                        <DropdownMenuItem
+                                            aria-label="Git Sync"
+                                            icon={<GitBranchIcon />}
+                                            label="Git Sync"
+                                            onClick={() => setShowProjectGitSyncDialog(true)}
+                                        />
+
+                                        <DropdownMenuSeparator />
+                                    </>
+                                )}
+
                                 <DropdownMenuItem
                                     aria-label="Delete Project"
                                     icon={<Trash2Icon />}
@@ -691,6 +709,10 @@ const ProjectListItem = ({
                         />
                     </Suspense>
                 </EEVersion>
+            )}
+
+            {ceEdition && showProjectGitSyncDialog && !!project.id && (
+                <ProjectGitSyncDialog onClose={() => setShowProjectGitSyncDialog(false)} projectId={project.id} />
             )}
 
             {showProjectShareDialog && (

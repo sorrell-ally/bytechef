@@ -1,0 +1,3 @@
+mutation deleteProjectGitSync($projectId: ID!) {
+    deleteProjectGitSync(projectId: $projectId)
+}

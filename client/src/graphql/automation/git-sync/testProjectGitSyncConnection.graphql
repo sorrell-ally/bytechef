@@ -1,0 +1,8 @@
+mutation testProjectGitSyncConnection($projectId: ID!, $input: ProjectGitSyncInput) {
+    testProjectGitSyncConnection(projectId: $projectId, input: $input) {
+        branchExists
+        branches
+        errorMessage
+        success
+    }
+}

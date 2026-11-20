@@ -1,0 +1,17 @@
+query projectGitSync($projectId: ID!) {
+    projectGitSync(projectId: $projectId) {
+        accessTokenSet
+        branch
+        enabled
+        lastPushedProjectVersion
+        lastSyncCommitHash
+        lastSyncDate
+        lastSyncDirection
+        lastSyncErrorMessage
+        lastSyncStatus
+        projectId
+        repositoryUrl
+        subDirectory
+        username
+    }
+}

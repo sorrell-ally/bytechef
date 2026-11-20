@@ -43,12 +43,21 @@ const noopProjectGitApi: ProjectGitApiI = {
     useWorkspaceProjectGitConfigurationsQuery: () => ({data: undefined, error: null, isLoading: false}),
 };
 
-let projectGitApi: ProjectGitApiI = noopProjectGitApi;
+let ceProjectGitApi: ProjectGitApiI | undefined;
+let projectGitApi: ProjectGitApiI | undefined;
 
 export function registerProjectGitApi(api: ProjectGitApiI) {
     projectGitApi = api;
 }
 
+/**
+ * Registers the Community Edition implementation. It is only a fallback: an implementation registered through
+ * `registerProjectGitApi` always wins, whichever of the two was registered first.
+ */
+export function registerCeProjectGitApi(api: ProjectGitApiI) {
+    ceProjectGitApi = api;
+}
+
 export function getProjectGitApi(): ProjectGitApiI {
-    return projectGitApi;
+    return projectGitApi ?? ceProjectGitApi ?? noopProjectGitApi;
 }

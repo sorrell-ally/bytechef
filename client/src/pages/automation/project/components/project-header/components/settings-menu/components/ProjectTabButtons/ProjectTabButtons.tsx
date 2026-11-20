@@ -3,6 +3,7 @@ import Button from '@/components/Button/Button';
 import {Separator} from '@/components/ui/separator';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip';
 import EEVersion from '@/shared/edition/EEVersion';
+import useCeEdition from '@/shared/edition/useCeEdition';
 import {useApplicationInfoStore} from '@/shared/stores/useApplicationInfoStore';
 import {useFeatureFlagsStore} from '@/shared/stores/useFeatureFlagsStore';
 import {
@@ -33,6 +34,7 @@ const ProjectTabButtons = ({
     onShareProject,
     onShowEditProjectDialogClick,
     onShowProjectGitConfigurationDialog,
+    onShowProjectGitSyncDialog,
     onShowProjectVersionHistorySheet,
     projectGitConfigurationEnabled,
     projectId,
@@ -49,6 +51,7 @@ const ProjectTabButtons = ({
     onShowEditProjectDialogClick: () => void;
     onPullProjectFromGitClick: () => void;
     onShowProjectGitConfigurationDialog: () => void;
+    onShowProjectGitSyncDialog?: () => void;
     onShowProjectVersionHistorySheet: () => void;
     projectGitConfigurationEnabled: boolean;
     projectId: number;
@@ -56,6 +59,8 @@ const ProjectTabButtons = ({
     const templatesSubmissionForm = useApplicationInfoStore((state) => state.templatesSubmissionForm.projects);
 
     const ff_1039 = useFeatureFlagsStore()('ff-1039');
+
+    const ceEdition = useCeEdition();
 
     const handleButtonClick = (event: MouseEvent<HTMLDivElement>) => {
         if ((event.target as HTMLElement).tagName === 'BUTTON') {
@@ -186,6 +191,21 @@ const ProjectTabButtons = ({
 
                     <Separator />
                 </EEVersion>
+            )}
+
+            {ceEdition && onShowProjectGitSyncDialog && (
+                <>
+                    <Button
+                        aria-label="Git Sync"
+                        className="dropdown-menu-item"
+                        icon={<GitBranchIcon />}
+                        label="Git Sync"
+                        onClick={onShowProjectGitSyncDialog}
+                        variant="ghost"
+                    />
+
+                    <Separator />
+                </>
             )}
 
             <Button

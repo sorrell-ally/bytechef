@@ -1,0 +1,17 @@
+mutation saveProjectGitSync($projectId: ID!, $input: ProjectGitSyncInput!) {
+    saveProjectGitSync(projectId: $projectId, input: $input) {
+        accessTokenSet
+        branch
+        enabled
+        lastPushedProjectVersion
+        lastSyncCommitHash
+        lastSyncDate
+        lastSyncDirection
+        lastSyncErrorMessage
+        lastSyncStatus
+        projectId
+        repositoryUrl
+        subDirectory
+        username
+    }
+}

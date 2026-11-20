@@ -6,6 +6,7 @@ import LoadWorkflowVersionDialog from '@/pages/automation/project/components/Loa
 import {ProjectShareDialog} from '@/pages/automation/project/components/ProjectShareDialog';
 import ProjectVersionHistorySheet from '@/pages/automation/project/components/ProjectVersionHistorySheet';
 import {WorkflowShareDialog} from '@/pages/automation/project/components/WorkflowShareDialog';
+import ProjectGitSyncDialog from '@/pages/automation/project/components/git-sync/ProjectGitSyncDialog';
 import DeleteProjectAlertDialog from '@/pages/automation/project/components/project-header/components/settings-menu/components/DeleteProjectAlertDialog';
 import ProjectTabButtons from '@/pages/automation/project/components/project-header/components/settings-menu/components/ProjectTabButtons/ProjectTabButtons';
 import WorkflowTabButtons from '@/pages/automation/project/components/project-header/components/settings-menu/components/WorkflowTabButtons';
@@ -17,6 +18,7 @@ import useWorkflowEditorStore from '@/pages/platform/workflow-editor/stores/useW
 import DeleteWorkflowAlertDialog from '@/shared/components/DeleteWorkflowAlertDialog';
 import WorkflowDialog from '@/shared/components/workflow/WorkflowDialog';
 import EEVersion from '@/shared/edition/EEVersion';
+import useCeEdition from '@/shared/edition/useCeEdition';
 import {Project, Workflow} from '@/shared/middleware/automation/configuration';
 import {ProjectWorkflowKeys} from '@/shared/queries/automation/projectWorkflows.queries';
 import {useGetWorkflowQuery} from '@/shared/queries/automation/workflows.queries';
@@ -52,6 +54,7 @@ const SettingsMenu = ({
     const [showEditProjectDialog, setShowEditProjectDialog] = useState(false);
     const [showLoadWorkflowVersionDialog, setShowLoadWorkflowVersionDialog] = useState(false);
     const [showProjectGitConfigurationDialog, setShowProjectGitConfigurationDialog] = useState(false);
+    const [showProjectGitSyncDialog, setShowProjectGitSyncDialog] = useState(false);
     const [showProjectShareDialog, setShowProjectShareDialog] = useState(false);
     const [showProjectVersionHistorySheet, setShowProjectVersionHistorySheet] = useState(false);
     const [showWorkflowShareDialog, setShowWorkflowShareDialog] = useState(false);
@@ -73,6 +76,8 @@ const SettingsMenu = ({
         n8nWorkflowFileInputRef,
         workflowFileInputRef,
     } = useImportProjectWorkflow(project.id!);
+
+    const ceEdition = useCeEdition();
 
     const navigate = useNavigate();
     const queryClient = useQueryClient();
@@ -167,6 +172,7 @@ const SettingsMenu = ({
                                 onShareProject={() => setShowProjectShareDialog(true)}
                                 onShowEditProjectDialogClick={() => setShowEditProjectDialog(true)}
                                 onShowProjectGitConfigurationDialog={() => setShowProjectGitConfigurationDialog(true)}
+                                onShowProjectGitSyncDialog={() => setShowProjectGitSyncDialog(true)}
                                 onShowProjectVersionHistorySheet={() => setShowProjectVersionHistorySheet(true)}
                                 projectGitConfigurationEnabled={projectGitConfiguration?.enabled ?? false}
                                 projectId={project.id!}
@@ -256,6 +262,10 @@ const SettingsMenu = ({
                         />
                     </Suspense>
                 </EEVersion>
+            )}
+
+            {ceEdition && showProjectGitSyncDialog && (
+                <ProjectGitSyncDialog onClose={() => setShowProjectGitSyncDialog(false)} projectId={project.id!} />
             )}
 
             {showProjectShareDialog && (

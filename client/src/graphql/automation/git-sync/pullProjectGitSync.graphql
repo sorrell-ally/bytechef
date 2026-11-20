@@ -1,0 +1,30 @@
+mutation pullProjectGitSync($projectId: ID!) {
+    pullProjectGitSync(projectId: $projectId) {
+        added {
+            label
+            reason
+            uuid
+        }
+        commitHash
+        notInGit {
+            label
+            reason
+            uuid
+        }
+        skipped {
+            label
+            reason
+            uuid
+        }
+        unchanged {
+            label
+            reason
+            uuid
+        }
+        updated {
+            label
+            reason
+            uuid
+        }
+    }
+}

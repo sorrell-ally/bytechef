@@ -1,0 +1,17 @@
+query workspaceProjectGitSyncs($workspaceId: ID!) {
+    workspaceProjectGitSyncs(workspaceId: $workspaceId) {
+        accessTokenSet
+        branch
+        enabled
+        lastPushedProjectVersion
+        lastSyncCommitHash
+        lastSyncDate
+        lastSyncDirection
+        lastSyncErrorMessage
+        lastSyncStatus
+        projectId
+        repositoryUrl
+        subDirectory
+        username
+    }
+}

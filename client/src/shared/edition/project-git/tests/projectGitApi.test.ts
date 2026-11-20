@@ -1,6 +1,6 @@
 import {describe, expect, it, vi} from 'vitest';
 
-import {ProjectGitApiI, getProjectGitApi, registerProjectGitApi} from '../projectGitApi';
+import {ProjectGitApiI, getProjectGitApi, registerCeProjectGitApi, registerProjectGitApi} from '../projectGitApi';
 
 describe('projectGitApi', () => {
     it('returns empty data and ignores mutations until an edition registers an implementation', () => {
@@ -35,5 +35,15 @@ describe('projectGitApi', () => {
         registerProjectGitApi(registeredProjectGitApi);
 
         expect(getProjectGitApi()).toBe(registeredProjectGitApi);
+    });
+
+    it('prefers an implementation registered through registerProjectGitApi over the CE one in either order', () => {
+        const eeProjectGitApi = {} as ProjectGitApiI;
+        const ceProjectGitApi = {} as ProjectGitApiI;
+
+        registerProjectGitApi(eeProjectGitApi);
+        registerCeProjectGitApi(ceProjectGitApi);
+
+        expect(getProjectGitApi()).toBe(eeProjectGitApi);
     });
 });

@@ -56,6 +56,8 @@ async function renderApp() {
 
     if (applicationInfoStore.getState().application?.edition === 'EE') {
         await import('@/ee/shared/edition/registerEditionModules');
+    } else if (applicationInfoStore.getState().application?.edition === 'CE') {
+        await import('@/shared/edition/registerCeEditionModules');
     }
 
     const {helpHub, userGuiding} = applicationInfoStore.getState();
