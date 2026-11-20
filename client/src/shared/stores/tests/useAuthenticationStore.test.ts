@@ -340,6 +340,39 @@ describe('authenticationStore', () => {
             expect(authenticationStore.getState().authenticated).toBe(true);
         });
 
+        it('records an SSO requirement on a 403 sso_required response instead of a login error', async () => {
+            stubFetch().mockResolvedValueOnce(
+                new Response(
+                    JSON.stringify({
+                        error: 'sso_required',
+                        message: 'Your organization requires signing in with Acme.',
+                        providerName: 'Acme',
+                        redirectUrl: '/oauth2/authorization/sso-1',
+                    }),
+                    {status: 403}
+                )
+            );
+
+            const account = await authenticationStore.getState().login(LOGIN_EMAIL, LOGIN_CREDENTIAL, false);
+
+            const state = authenticationStore.getState();
+
+            expect(account).toBeUndefined();
+            expect(state.loginError).toBe(false);
+            expect(state.ssoRequired).toEqual({providerName: 'Acme', redirectUrl: '/oauth2/authorization/sso-1'});
+        });
+
+        it('treats a 403 without the sso_required body as a login error', async () => {
+            stubFetch().mockResolvedValueOnce(new Response(JSON.stringify({error: 'other'}), {status: 403}));
+
+            await authenticationStore.getState().login(LOGIN_EMAIL, LOGIN_CREDENTIAL, false);
+
+            const state = authenticationStore.getState();
+
+            expect(state.loginError).toBe(true);
+            expect(state.ssoRequired).toBeNull();
+        });
+
         it('requires MFA on 202 without fetching the account', async () => {
             const fetchMock = stubFetch().mockResolvedValueOnce(emptyResponse(202));
 

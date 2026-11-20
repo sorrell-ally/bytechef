@@ -5,6 +5,7 @@ import {getCookie} from '@/shared/util/cookie-utils';
 import {isMissingDefinitionLookup} from '@/shared/util/missingDefinitionLookup';
 import {isAccessDeniedProblemDetail, readProblemDetail} from '@/shared/util/problem-detail-utils';
 import recordWorkflowNodeLookupResult from '@/shared/util/recordWorkflowNodeLookupResult';
+import {isSsoDisabledGraphQlError} from '@/shared/util/ssoDisabledErrors';
 import {isInlineTestOutputGraphQlError, isInlineTestOutputUrl} from '@/shared/util/testOutputInlineErrors';
 import fetchIntercept from 'fetch-intercept';
 import {useEffect, useRef} from 'react';
@@ -35,6 +36,10 @@ function handlesErrorInline(url: string): boolean {
     return (
         url.includes('/approval-form/') ||
         isInlineTestOutputUrl(url) ||
+        // SSO discovery fails silently (the endpoints are absent unless SSO is enabled) and the login
+        // page renders the sso_required 403 from password login itself.
+        url.includes('/api/sso/discover') ||
+        url.endsWith('/api/authentication') ||
         url.includes('/ai/chat/ai_hub/status') ||
         /\/ai\/chat\/ai_hub\/[^/]+\/presence/.test(url)
     );
@@ -208,7 +213,12 @@ export default function useFetchInterceptor() {
                                 return;
                             }
 
-                            if (errors.length && errors.every(isInlineTestOutputGraphQlError)) {
+                            if (
+                                errors.length &&
+                                errors.every(
+                                    (error) => isInlineTestOutputGraphQlError(error) || isSsoDisabledGraphQlError(error)
+                                )
+                            ) {
                                 return;
                             }
 

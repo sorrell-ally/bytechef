@@ -379,7 +379,7 @@ describe('SSO discovery', () => {
         document.cookie = 'XSRF-TOKEN=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
     });
 
-    it('should not look up an SSO provider when the email field loses focus in the Community edition', async () => {
+    it('should look up an SSO provider when the email field loses focus in the Community edition', async () => {
         mockApplicationInfoStore({edition: 'CE'});
 
         renderLoginPageAt('/login');
@@ -387,7 +387,40 @@ describe('SSO discovery', () => {
         await userEvent.type(screen.getByLabelText('Email'), 'user@example.com');
         await userEvent.tab();
 
-        expect(ssoDiscoveryCalls()).toHaveLength(0);
+        await waitFor(() => expect(ssoDiscoveryCalls()).toHaveLength(1));
+    });
+
+    it('should offer the SSO button when the Community edition lookup finds a provider', async () => {
+        mockApplicationInfoStore({edition: 'CE'});
+
+        fetchSpy.mockResolvedValue(
+            new Response(JSON.stringify({providerName: 'Acme', redirectUrl: '/oauth2/authorization/sso-1'}), {
+                status: 200,
+            })
+        );
+
+        renderLoginPageAt('/login');
+
+        await userEvent.type(screen.getByLabelText('Email'), 'user@acme.com');
+        await userEvent.tab();
+
+        expect(await screen.findByRole('button', {name: 'Continue with Acme'})).toBeInTheDocument();
+    });
+
+    it('should stay silent when the SSO endpoints are missing (404)', async () => {
+        mockApplicationInfoStore({edition: 'CE'});
+
+        fetchSpy.mockResolvedValue(new Response(null, {status: 404}));
+
+        renderLoginPageAt('/login');
+
+        await userEvent.type(screen.getByLabelText('Email'), 'user@example.com');
+        await userEvent.tab();
+
+        await waitFor(() => expect(ssoDiscoveryCalls()).toHaveLength(1));
+
+        expect(screen.queryByText('Your organization uses SSO for authentication.')).not.toBeInTheDocument();
+        expect(screen.getByText('Welcome back')).toBeInTheDocument();
     });
 
     it('should look up an SSO provider by company name in the Enterprise edition', async () => {
@@ -398,11 +431,49 @@ describe('SSO discovery', () => {
         await waitFor(() => expect(ssoDiscoveryCalls()).toHaveLength(1));
     });
 
-    it('should not look up an SSO provider by company name in the Community edition', () => {
+    it('should look up an SSO provider by company name in the Community edition', async () => {
         mockApplicationInfoStore({edition: 'CE'});
 
         renderLoginPageAt('/login?company=acme');
 
-        expect(ssoDiscoveryCalls()).toHaveLength(0);
+        await waitFor(() => expect(ssoDiscoveryCalls()).toHaveLength(1));
+    });
+});
+
+describe('SSO sign-in errors', () => {
+    const renderWithRoutes = (initialEntry: string) =>
+        render(
+            <MemoryRouter initialEntries={[initialEntry]}>
+                <Routes>
+                    <Route element={<Login />} path="/login" />
+
+                    <Route element={<AccountErrorPage />} path="/account-error" />
+                </Routes>
+            </MemoryRouter>
+        );
+
+    it('should explain a known SSO failure reason on the account-error page', async () => {
+        renderWithRoutes('/login?error=sso&reason=sso_guest_account_not_allowed');
+
+        expect(
+            await screen.findByText(/Guest \(external\) accounts of your Microsoft Entra tenant/)
+        ).toBeInTheDocument();
+    });
+
+    it('should fall back to a generic message for an unknown SSO failure reason', async () => {
+        renderWithRoutes('/login?error=sso&reason=sso_something_new');
+
+        expect(await screen.findByText('Failed to sign in with single sign-on. Please try again.')).toBeInTheDocument();
+    });
+
+    it('should show the SSO button and explanation when password login answers sso_required', async () => {
+        mockAuthenticationStore({
+            ssoRequired: {providerName: 'Acme', redirectUrl: '/oauth2/authorization/sso-1'},
+        });
+
+        renderWithRoutes('/login');
+
+        expect(screen.getByText(/requires single sign-on/)).toBeInTheDocument();
+        expect(screen.getByRole('button', {name: 'Continue with Acme'})).toBeInTheDocument();
     });
 });

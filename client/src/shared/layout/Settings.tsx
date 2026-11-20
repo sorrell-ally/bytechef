@@ -1,3 +1,5 @@
+import useCeEdition from '@/shared/edition/useCeEdition';
+import {useIsTenantAdmin} from '@/shared/hooks/useIsTenantAdmin';
 import Header from '@/shared/layout/Header';
 import LayoutContainer from '@/shared/layout/LayoutContainer';
 import {LeftSidebarNav, LeftSidebarNavItem} from '@/shared/layout/LeftSidebarNav';
@@ -29,6 +31,8 @@ interface SettingsProps {
 const Settings = ({sidebarNavItems, title = 'Settings'}: SettingsProps) => {
     const billingEnabled = useApplicationInfoStore((state) => state.billing.enabled);
     const isFeatureFlagEnabled = useFeatureFlagsStore();
+    const ceEdition = useCeEdition();
+    const isAdmin = useIsTenantAdmin();
 
     const location = useLocation();
 
@@ -55,6 +59,10 @@ const Settings = ({sidebarNavItems, title = 'Settings'}: SettingsProps) => {
 
         if (navItem.href === 'identity-providers') {
             return isFeatureFlagEnabled('ff-1040');
+        }
+
+        if (navItem.href === 'single-sign-on') {
+            return ceEdition && isAdmin;
         }
 
         if (navItem.href === 'billing') {

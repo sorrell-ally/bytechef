@@ -8,6 +8,11 @@ import {devtools} from 'zustand/middleware';
 
 import type {ExtractState} from 'zustand/vanilla';
 
+export interface SsoRequiredI {
+    providerName: string;
+    redirectUrl: string;
+}
+
 export interface AuthenticationI {
     account: UserI | undefined;
     authenticated: boolean;
@@ -16,6 +21,7 @@ export interface AuthenticationI {
     mfaRequired: boolean;
     sessionHasBeenFetched: boolean;
     showLogin: boolean;
+    ssoRequired: SsoRequiredI | null;
     clearAuthentication: () => void;
     getAccount: () => Promise<UserI | undefined>;
     login: (email: string, password: string, rememberMe: boolean) => Promise<UserI | undefined>;
@@ -32,6 +38,7 @@ const initialState = {
     mfaRequired: false,
     sessionHasBeenFetched: false,
     showLogin: false,
+    ssoRequired: null,
 } satisfies Partial<AuthenticationI>;
 
 let accountRequest: Promise<UserI | undefined> | undefined;
@@ -57,6 +64,24 @@ const fetchGetAccount = async (signal: AbortSignal): Promise<Response> => {
         method: 'GET',
         signal,
     }).then((response) => response);
+};
+
+const readSsoRequired = async (response: Response): Promise<SsoRequiredI | null> => {
+    if (response.status !== 403) {
+        return null;
+    }
+
+    try {
+        const body = await response.clone().json();
+
+        if (body?.error === 'sso_required' && typeof body.redirectUrl === 'string') {
+            return {providerName: body.providerName || 'single sign-on', redirectUrl: body.redirectUrl};
+        }
+    } catch {
+        // not a JSON body: treat as an ordinary login failure
+    }
+
+    return null;
 };
 
 const fetchLogout = async (): Promise<Response> => {
@@ -170,7 +195,21 @@ export const authenticationStore = createStore<AuthenticationI>()(
                 login: async (email: string, password: string, rememberMe: boolean): Promise<UserI | undefined> => {
                     const data = `username=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}&remember-me=${rememberMe}&submit=Login`;
 
-                    return fetchAuthenticate(data).then((response) => {
+                    return fetchAuthenticate(data).then(async (response) => {
+                        const ssoRequired = await readSsoRequired(response);
+
+                        if (ssoRequired) {
+                            invalidateAccountRequest();
+
+                            setAuthenticationState({
+                                ...initialState,
+                                showLogin: true,
+                                ssoRequired,
+                            });
+
+                            return undefined;
+                        }
+
                         if (response.status === 200) {
                             invalidateAccountRequest();
 

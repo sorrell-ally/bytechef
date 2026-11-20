@@ -1,0 +1,3 @@
+mutation deleteSsoProvider($id: ID!) {
+    deleteSsoProvider(id: $id)
+}

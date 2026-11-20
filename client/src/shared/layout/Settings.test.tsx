@@ -6,7 +6,9 @@ import {beforeEach, describe, expect, it, vi} from 'vitest';
 import Settings, {SettingsNavItemI} from './Settings';
 
 const hoisted = vi.hoisted(() => ({
+    edition: 'EE' as string,
     enabledFeatureFlags: [] as string[],
+    isAdmin: true,
 }));
 
 vi.mock('@/shared/layout/Header', () => ({
@@ -18,7 +20,13 @@ vi.mock('@/shared/layout/LayoutContainer', () => ({
 }));
 
 vi.mock('@/shared/stores/useApplicationInfoStore', () => ({
-    useApplicationInfoStore: () => false,
+    EditionType: {CE: 'CE', EE: 'EE'},
+    useApplicationInfoStore: (selector: (state: unknown) => unknown) =>
+        selector({application: {edition: hoisted.edition}, billing: {enabled: false}}),
+}));
+
+vi.mock('@/shared/hooks/useIsTenantAdmin', () => ({
+    useIsTenantAdmin: () => hoisted.isAdmin,
 }));
 
 vi.mock('@/shared/stores/useFeatureFlagsStore', () => ({
@@ -42,7 +50,36 @@ const aiNavGroup: SettingsNavItemI = {
 
 describe('Settings', () => {
     beforeEach(() => {
+        hoisted.edition = 'EE';
         hoisted.enabledFeatureFlags = [];
+        hoisted.isAdmin = true;
+    });
+
+    describe('Single Sign-On entry', () => {
+        const singleSignOnNavItems: SettingsNavItemI[] = [{href: 'single-sign-on', title: 'Single Sign-On'}];
+
+        it('is shown to administrators of the Community edition', () => {
+            hoisted.edition = 'CE';
+
+            renderSettings(singleSignOnNavItems);
+
+            expect(screen.getByText('Single Sign-On')).toBeInTheDocument();
+        });
+
+        it('is hidden in the Enterprise edition', () => {
+            renderSettings(singleSignOnNavItems);
+
+            expect(screen.queryByText('Single Sign-On')).not.toBeInTheDocument();
+        });
+
+        it('is hidden from users who are not administrators', () => {
+            hoisted.edition = 'CE';
+            hoisted.isAdmin = false;
+
+            renderSettings(singleSignOnNavItems);
+
+            expect(screen.queryByText('Single Sign-On')).not.toBeInTheDocument();
+        });
     });
 
     it('hides a section heading when every item below it is hidden by a feature flag', () => {

@@ -5,7 +5,6 @@ import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card';
 import {Checkbox} from '@/components/ui/checkbox';
 import {Form, FormControl, FormField, FormItem, FormLabel, FormMessage} from '@/components/ui/form';
 import {getLoginRedirect, rememberLoginRedirect, requiresFullPageLoad} from '@/shared/auth/login-redirect-utils';
-import useCeEdition from '@/shared/edition/useCeEdition';
 import {useAnalytics} from '@/shared/hooks/useAnalytics';
 import PublicLayoutContainer from '@/shared/layout/PublicLayoutContainer';
 import {useAuthenticationStore} from '@/shared/stores/useAuthenticationStore';
@@ -29,6 +28,28 @@ const formSchema = z.object({
     rememberMe: z.boolean(),
 });
 
+const SSO_FAILURE_MESSAGES: Record<string, string> = {
+    sso_account_disabled: 'Your ByteChef account is deactivated. Contact your administrator.',
+    sso_account_linked_elsewhere:
+        'The ByteChef account with your email address is already linked to a different identity. Contact your administrator.',
+    sso_account_not_provisioned:
+        'No ByteChef account exists for your identity and automatic account creation is turned off. Contact your administrator.',
+    sso_authentication_failed: 'The response from your identity provider could not be verified. Please try again.',
+    sso_email_domain_not_allowed:
+        'Your email domain is not served by this single sign-on provider. Contact your administrator.',
+    sso_email_missing: 'Your identity provider did not supply an email address. Contact your administrator.',
+    sso_email_not_verified:
+        'Your identity provider did not confirm that your email address is verified. Contact your administrator.',
+    sso_guest_account_not_allowed:
+        'Guest (external) accounts of your Microsoft Entra tenant cannot sign in. Use a member account of the tenant.',
+    sso_invalid_identity: 'Your identity provider did not supply a usable user identifier. Contact your administrator.',
+    sso_provider_unavailable: 'The single sign-on provider is disabled or misconfigured. Contact your administrator.',
+    sso_provisioning_failed: 'Your ByteChef account could not be created. Contact your administrator.',
+    sso_tenant_mismatch: 'The sign-in was issued for a different Microsoft Entra tenant than the one configured.',
+};
+
+const DEFAULT_SSO_FAILURE_MESSAGE = 'Failed to sign in with single sign-on. Please try again.';
+
 interface SsoRedirectI {
     providerName: string;
     url: string;
@@ -40,20 +61,19 @@ const Login = () => {
     const lastCheckedEmailRef = useRef<string>('');
     const abortControllerRef = useRef<AbortController | null>(null);
 
-    const {authenticated, login, loginError, mfaRequired, reset, verifyMfa} = useAuthenticationStore(
+    const {authenticated, login, loginError, mfaRequired, reset, ssoRequired, verifyMfa} = useAuthenticationStore(
         useShallow((state) => ({
             authenticated: state.authenticated,
             login: state.login,
             loginError: state.loginError,
             mfaRequired: state.mfaRequired,
             reset: state.reset,
+            ssoRequired: state.ssoRequired,
             verifyMfa: state.verifyMfa,
         }))
     );
 
     const ff_1874 = useFeatureFlagsStore()('ff-1874');
-
-    const ceEdition = useCeEdition();
 
     const analytics = useAnalytics();
 
@@ -98,10 +118,6 @@ const Login = () => {
     };
 
     const handleEmailBlur = useCallback(async () => {
-        if (ceEdition) {
-            return;
-        }
-
         const email = form.getValues('email');
         const atIndex = email?.indexOf('@') ?? -1;
 
@@ -145,18 +161,22 @@ const Login = () => {
         } catch {
             setSsoRedirect(null);
         }
-    }, [ceEdition, form]);
+    }, [form]);
 
     const {from} = pageLocation.state || {
         from: getLoginRedirect(pageLocation.search) ?? {pathname: '/', search: pageLocation.search},
     };
+
+    const activeSsoRedirect: SsoRedirectI | null = ssoRequired
+        ? {providerName: ssoRequired.providerName, url: ssoRequired.redirectUrl}
+        : ssoRedirect;
 
     const fullPageRedirect = authenticated && typeof from === 'string' && requiresFullPageLoad(from) ? from : undefined;
 
     useEffect(() => {
         const company = searchParams.get('company');
 
-        if (!ceEdition && company) {
+        if (company) {
             fetch(`/api/sso/discover-by-name?company=${encodeURIComponent(company)}`)
                 .then((response) => {
                     if (response.ok) {
@@ -174,13 +194,26 @@ const Login = () => {
                     // fall back to normal login
                 });
         }
-    }, [ceEdition, pageLocation.search, searchParams]);
+    }, [pageLocation.search, searchParams]);
 
     useEffect(() => {
         if (searchParams.get('error') === 'oauth2') {
             void navigate('/account-error', {
                 state: {
                     error: 'Failed to sign in with social provider. Please try again or use email/password.',
+                    fromInternalFlow: true,
+                },
+            });
+        }
+    }, [navigate, searchParams]);
+
+    useEffect(() => {
+        if (searchParams.get('error') === 'sso') {
+            const reason = searchParams.get('reason');
+
+            void navigate('/account-error', {
+                state: {
+                    error: (reason && SSO_FAILURE_MESSAGES[reason]) || DEFAULT_SSO_FAILURE_MESSAGE,
                     fromInternalFlow: true,
                 },
             });
@@ -301,20 +334,22 @@ const Login = () => {
                                     )}
                                 />
 
-                                {ssoRedirect && (
+                                {activeSsoRedirect && (
                                     <div className="rounded-lg border border-stroke-brand-secondary bg-surface-brand-secondary p-3">
-                                        <p className="mb-2 text-sm text-content-brand-primary">
-                                            Your organization uses SSO for authentication.
+                                        <p className="mb-2 text-sm text-content-brand-primary" role="status">
+                                            {ssoRequired
+                                                ? 'Your organization requires single sign-on. Password sign-in is not available for your account.'
+                                                : 'Your organization uses SSO for authentication.'}
                                         </p>
 
                                         <Button
                                             className="w-full"
                                             icon={<ShieldCheckIcon className="size-4" />}
-                                            label={`Continue with ${ssoRedirect.providerName}`}
+                                            label={`Continue with ${activeSsoRedirect.providerName}`}
                                             onClick={() => {
                                                 rememberLoginRedirect(getLoginRedirect(pageLocation.search));
 
-                                                window.location.href = ssoRedirect.url;
+                                                window.location.href = activeSsoRedirect.url;
                                             }}
                                             size="lg"
                                             variant="outline"

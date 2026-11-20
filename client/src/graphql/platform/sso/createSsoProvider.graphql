@@ -1,0 +1,23 @@
+mutation createSsoProvider($input: SsoProviderInput!) {
+    createSsoProvider(input: $input) {
+        id
+        name
+        type
+        vendor
+        enabled
+        domains
+        enforceSso
+        autoProvision
+        defaultAuthority
+        registrationId
+        loginPath
+        callbackPath
+        serviceProviderMetadataPath
+        issuerUri
+        clientId
+        clientSecretSet
+        scopes
+        metadataUrl
+        metadataXml
+    }
+}

@@ -1,0 +1,23 @@
+mutation updateSsoProvider($id: ID!, $input: SsoProviderInput!) {
+    updateSsoProvider(id: $id, input: $input) {
+        id
+        name
+        type
+        vendor
+        enabled
+        domains
+        enforceSso
+        autoProvision
+        defaultAuthority
+        registrationId
+        loginPath
+        callbackPath
+        serviceProviderMetadataPath
+        issuerUri
+        clientId
+        clientSecretSet
+        scopes
+        metadataUrl
+        metadataXml
+    }
+}

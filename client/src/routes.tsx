@@ -74,6 +74,7 @@ const Chats = lazy(() => import('@/pages/automation/chats/Chats'));
 const WorkflowTemplate = lazy(() => import('@/pages/automation/template/workflow-template/WorkflowTemplate'));
 const WorkflowTemplates = lazy(() => import('@/pages/automation/templates/workflow-templates/WorkflowTemplates'));
 
+const SingleSignOn = lazy(() => import('@/pages/settings/platform/sso/SingleSignOn'));
 const AiProviders = lazy(() => import('@/pages/settings/platform/ai-providers/AiProviders'));
 const ApiClients = lazy(() => import('@/ee/pages/automation/api-platform/api-clients/ApiClients'));
 const ApiCollections = lazy(() => import('@/ee/pages/automation/api-platform/api-collections/ApiCollections'));
@@ -263,6 +264,16 @@ const platformSettingsRoutes = {
             element: (
                 <PrivateRoute hasAnyAuthorities={[AUTHORITIES.ADMIN]}>
                     <LazyLoadWrapper>
+                        <SingleSignOn />
+                    </LazyLoadWrapper>
+                </PrivateRoute>
+            ),
+            path: 'single-sign-on',
+        },
+        {
+            element: (
+                <PrivateRoute hasAnyAuthorities={[AUTHORITIES.ADMIN]}>
+                    <LazyLoadWrapper>
                         <AiSkills />
                     </LazyLoadWrapper>
                 </PrivateRoute>
@@ -431,6 +442,10 @@ const platformSettingsRoutes = {
         {
             href: 'billing',
             title: 'Billing',
+        },
+        {
+            href: 'single-sign-on',
+            title: 'Single Sign-On',
         },
         {
             items: [
