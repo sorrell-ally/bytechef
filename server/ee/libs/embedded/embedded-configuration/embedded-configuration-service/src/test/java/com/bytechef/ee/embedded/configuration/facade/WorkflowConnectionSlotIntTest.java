@@ -20,10 +20,13 @@ import com.bytechef.atlas.execution.service.JobService;
 import com.bytechef.atlas.execution.service.TaskExecutionService;
 import com.bytechef.automation.configuration.facade.WorkspaceConnectionFacade;
 import com.bytechef.automation.configuration.facade.WorkspaceFacade;
+import com.bytechef.ee.embedded.ai.mcp.facade.McpAutomationRowFacade;
+import com.bytechef.ee.embedded.ai.mcp.facade.McpIntegrationInstanceRowFacade;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationComponentService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceConfigurationService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceConfigurationWorkflowService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceToolService;
+import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceWorkflowService;
 import com.bytechef.ee.embedded.configuration.security.EmbeddedPermissionEvaluator;
 import com.bytechef.platform.component.facade.ActionDefinitionFacade;
 import com.bytechef.platform.component.facade.TriggerDefinitionFacade;
@@ -94,6 +97,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
     JobFacade.class, JobService.class, McpComponentService.class, McpIntegrationComponentService.class,
     McpIntegrationInstanceConfigurationService.class,
     McpIntegrationInstanceConfigurationWorkflowService.class, McpIntegrationInstanceToolService.class,
+    McpIntegrationInstanceWorkflowService.class, McpAutomationRowFacade.class, McpIntegrationInstanceRowFacade.class,
     McpServerService.class, McpToolService.class, OAuth2ParametersFacade.class, OAuth2Service.class,
     PrincipalJobFacade.class, PrincipalJobService.class,
     TaskDispatcherDefinitionService.class, TaskExecutionService.class,
@@ -163,6 +167,55 @@ class WorkflowConnectionSlotIntTest {
             .containsExactly(
                 tuple("slack", "newMessage1"),
                 tuple("jira", "createIssue1"));
+    }
+
+    @Test
+    void testGetSlotsSkipsDisabledTasksAndTasksNestedInsideThem() {
+        Workflow workflow = workflowService.create(
+            """
+                {
+                  "label": "Disabled",
+                  "tasks": [
+                    {"name": "createIssue1", "type": "jira/v1/createIssue", "parameters": {"summary": "s"}},
+                    {
+                      "name": "createIssue2",
+                      "type": "jira/v1/createIssue",
+                      "disabled": true,
+                      "parameters": {"summary": "s"}
+                    },
+                    {
+                      "name": "condition1",
+                      "type": "condition/v1",
+                      "disabled": true,
+                      "parameters": {
+                        "rawExpression": true,
+                        "caseTrue": [
+                          {"name": "createIssue3", "type": "jira/v1/createIssue", "parameters": {"summary": "s"}}
+                        ],
+                        "caseFalse": []
+                      }
+                    }
+                  ]
+                }
+                """,
+            Workflow.Format.JSON, Workflow.SourceType.JDBC);
+
+        when(componentConnectionFacade.getComponentConnections(any(WorkflowTask.class)))
+            .thenAnswer(invocation -> {
+                WorkflowTask workflowTask = invocation.getArgument(0);
+
+                String workflowTaskName = workflowTask.getName();
+
+                return workflowTaskName.startsWith("createIssue")
+                    ? List.of(new ComponentConnection("jira", 1, workflowTaskName, "jira", true))
+                    : List.of();
+            });
+
+        List<ComponentConnection> slots = workflowConnectionSlot.getSlots(workflow.getId());
+
+        assertThat(slots)
+            .extracting(ComponentConnection::workflowNodeName)
+            .containsExactly("createIssue1");
     }
 
     @Configuration

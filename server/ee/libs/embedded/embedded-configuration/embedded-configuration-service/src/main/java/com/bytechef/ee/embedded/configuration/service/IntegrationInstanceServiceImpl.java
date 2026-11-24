@@ -89,6 +89,11 @@ public class IntegrationInstanceServiceImpl implements IntegrationInstanceServic
     }
 
     @Override
+    public Optional<IntegrationInstance> fetchFirstRunnableIntegrationInstance(Environment environment) {
+        return integrationInstanceRepository.findFirstRunnableIntegrationInstance(environment.ordinal());
+    }
+
+    @Override
     public Optional<IntegrationInstance> fetchIntegrationInstanceByIntegrationId(
         long connectedUserId, long integrationId, Environment environment) {
 
@@ -225,6 +230,15 @@ public class IntegrationInstanceServiceImpl implements IntegrationInstanceServic
     public List<IntegrationInstance> getIntegrationInstances(long integrationInstanceConfigurationId) {
         return integrationInstanceRepository.findAllByIntegrationInstanceConfigurationId(
             integrationInstanceConfigurationId);
+    }
+
+    @Override
+    public void updateConnectionId(long id, long connectionId) {
+        IntegrationInstance integrationInstance = getIntegrationInstance(id);
+
+        integrationInstance.setConnectionId(connectionId);
+
+        integrationInstanceRepository.save(integrationInstance);
     }
 
     @Override

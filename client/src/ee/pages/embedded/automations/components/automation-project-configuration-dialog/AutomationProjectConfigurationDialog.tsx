@@ -3,12 +3,9 @@ import Button from '@/components/Button/Button';
 import ComboBox, {ComboBoxItemType} from '@/components/ComboBox/ComboBox';
 import {
     Dialog,
-    DialogBody,
     DialogCancelButton,
     DialogContent,
     DialogFooter,
-    DialogHeader,
-    DialogMain,
     DialogNextButton,
     DialogPreviousButton,
     type DialogStepI,
@@ -22,30 +19,32 @@ import {Input} from '@/components/ui/input';
 import {Label} from '@/components/ui/label';
 import {Textarea} from '@/components/ui/textarea';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip';
+import ConfigurationDialogTabs, {ConfigurationDialogTabType} from '@/ee/pages/embedded/shared/ConfigurationDialogTabs';
 import {useGetComponentDefinitionsQuery} from '@/ee/shared/queries/embedded/componentDefinitions.queries';
 import {
     AutomationProjectConfigurationsQuery,
     AutomationProjectsQuery,
     useAutomationProjectConfigurationVersionImpactQuery,
     useAutomationProjectConfigurationsQuery,
-    useAutomationProjectVersionWorkflowChangesQuery,
+    useAutomationProjectVersionWorkflowsQuery,
     useAutomationProjectVersionsQuery,
     useCreateAutomationProjectConfigurationMutation,
     useEnableAutomationProjectConfigurationWorkflowMutation,
     useUpdateAutomationProjectConfigurationMutation,
     useUpdateAutomationProjectConfigurationWorkflowMutation,
 } from '@/shared/middleware/graphql';
-import {WorkflowChangeType} from '@/shared/middleware/graphql-types';
+import {GraphQLResponseError} from '@/shared/middleware/graphqlFetcher';
 import {useGetEnvironmentsQuery} from '@/shared/queries/platform/environments.queries';
 import {useEnvironmentStore} from '@/shared/stores/useEnvironmentStore';
 import {useQueryClient} from '@tanstack/react-query';
-import {InfoIcon, SlidersHorizontalIcon} from 'lucide-react';
+import {InfoIcon, Settings2Icon} from 'lucide-react';
 import {ReactNode, useMemo, useState} from 'react';
 
 import AutomationProjectConfigurationDialogWorkflowsStep from './AutomationProjectConfigurationDialogWorkflowsStep';
 import {
     ConfigurationDialogWorkflowI,
     WorkflowDraftI,
+    WorkflowEnableChangeI,
     getWorkflowChanges,
 } from './automationProjectConfigurationDialog-utils';
 
@@ -92,30 +91,40 @@ const ConfigurationDialogFooter = ({canSave, isSaving, onSave}: ConfigurationDia
 interface AutomationProjectConfigurationDialogProps {
     configuration?: AutomationProjectConfigurationType;
     onClose: () => void;
+    onSuccess?: (configurationId: string) => void;
     project?: AutomationProjectType;
     projects?: AutomationProjectType[];
+    showTabs?: boolean;
     updateProjectVersion?: boolean;
 }
 
 const AutomationProjectConfigurationDialog = ({
-    configuration,
+    configuration: configurationProp,
     onClose,
+    onSuccess,
     project: fixedProject,
     projects = [],
-    updateProjectVersion = false,
+    showTabs = false,
+    updateProjectVersion: updateProjectVersionProp = false,
 }: AutomationProjectConfigurationDialogProps) => {
-    const [automationHubVisible, setAutomationHubVisible] = useState(configuration?.automationHubVisible ?? true);
+    const [automationHubVisible, setAutomationHubVisible] = useState(configurationProp?.automationHubVisible ?? true);
+    const [basicStepTab, setBasicStepTab] = useState<ConfigurationDialogTabType | undefined>();
     const [chosenProjectVersion, setChosenProjectVersion] = useState(
-        (updateProjectVersion ? fixedProject?.lastPublishedVersion : configuration?.projectVersion)?.toString() ?? ''
+        (updateProjectVersionProp
+            ? fixedProject?.lastPublishedVersion
+            : configurationProp?.projectVersion
+        )?.toString() ?? ''
     );
     const [createdConfigurationId, setCreatedConfigurationId] = useState<string | undefined>();
-    const [enteredName, setEnteredName] = useState<string | undefined>(configuration?.name);
+    const [enteredName, setEnteredName] = useState<string | undefined>(configurationProp?.name);
     const [isSaving, setIsSaving] = useState(false);
-    const [permissionExpression, setPermissionExpression] = useState(configuration?.permissionExpression ?? '');
+    const [permissionExpression, setPermissionExpression] = useState(configurationProp?.permissionExpression ?? '');
+    const [selectedExistingConfigurationId, setSelectedExistingConfigurationId] = useState<string | undefined>();
     const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>(
-        fixedProject?.id ?? configuration?.projectId
+        fixedProject?.id ?? configurationProp?.projectId
     );
     const [workflowChangesFailed, setWorkflowChangesFailed] = useState(false);
+    const [workflowChangeErrorMessages, setWorkflowChangeErrorMessages] = useState<string[]>([]);
     const [workflowDrafts, setWorkflowDrafts] = useState<Record<string, WorkflowDraftI>>({});
 
     const currentEnvironmentId = useEnvironmentStore((state) => state.currentEnvironmentId);
@@ -128,18 +137,42 @@ const AutomationProjectConfigurationDialog = ({
 
     const projectVersion = chosenProjectVersion || project?.lastPublishedVersion?.toString() || '';
 
-    const isWizard = !updateProjectVersion;
-
     const {data: configurationsData} = useAutomationProjectConfigurationsQuery(
         {projectId: project?.id ?? ''},
         {enabled: !!project}
     );
+
+    const dialogEnvironmentId = configurationProp?.environmentId ?? String(currentEnvironmentId);
+
+    const environmentConfigurations = useMemo(
+        () =>
+            (configurationsData?.automationProjectConfigurations ?? []).filter(
+                (existingConfiguration) => existingConfiguration.environmentId === dialogEnvironmentId
+            ),
+        [configurationsData, dialogEnvironmentId]
+    );
+
+    const isChangeVersionTab = showTabs && basicStepTab === 'change-version';
+
+    const selectedExistingConfiguration = isChangeVersionTab
+        ? environmentConfigurations.find(
+              (existingConfiguration) => existingConfiguration.id === selectedExistingConfigurationId
+          ) || (environmentConfigurations.length === 1 ? environmentConfigurations[0] : undefined)
+        : undefined;
+
+    const configuration = configurationProp ?? selectedExistingConfiguration;
+
+    const updateProjectVersion = updateProjectVersionProp || isChangeVersionTab;
+
+    if (showTabs && !basicStepTab && configurationsData) {
+        setBasicStepTab(environmentConfigurations.length > 0 ? 'change-version' : 'new-configuration');
+    }
+
     const {data: versionsData} = useAutomationProjectVersionsQuery({id: project?.id ?? ''}, {enabled: !!project});
-    const {data: versionWorkflowChangesData, isLoading: versionWorkflowsLoading} =
-        useAutomationProjectVersionWorkflowChangesQuery(
-            {id: project?.id ?? '', projectVersion: Number(projectVersion)},
-            {enabled: isWizard && !configuration && !!project && projectVersion !== ''}
-        );
+    const {data: versionWorkflowsData, isLoading: versionWorkflowsLoading} = useAutomationProjectVersionWorkflowsQuery(
+        {id: project?.id ?? '', projectVersion: Number(projectVersion)},
+        {enabled: (updateProjectVersionProp || !configuration) && !!project && projectVersion !== ''}
+    );
 
     const changesVersion =
         !!configuration && projectVersion !== '' && Number(projectVersion) !== configuration.projectVersion;
@@ -155,7 +188,7 @@ const AutomationProjectConfigurationDialog = ({
     const updateConfigurationMutation = useUpdateAutomationProjectConfigurationMutation();
     const updateWorkflowMutation = useUpdateAutomationProjectConfigurationWorkflowMutation();
 
-    const environmentId = configuration?.environmentId ?? String(currentEnvironmentId);
+    const environmentId = configuration?.environmentId ?? dialogEnvironmentId;
 
     const publishedVersions = useMemo(
         () =>
@@ -183,22 +216,49 @@ const AutomationProjectConfigurationDialog = ({
         );
     };
 
-    const prefilledName = !configuration && project && !isNameTaken(project.name) ? project.name : '';
+    const getAvailableName = (baseName: string) => {
+        let candidateName = baseName;
+
+        for (let suffix = 2; isNameTaken(candidateName); suffix++) {
+            candidateName = `${baseName} ${suffix}`;
+        }
+
+        return candidateName;
+    };
+
+    const prefilledName = !configuration && project ? getAvailableName(project.name) : '';
 
     const name = enteredName ?? prefilledName;
 
     const trimmedName = name.trim();
 
-    const nameTaken = isNameTaken(name);
+    const nameTaken = !updateProjectVersion && isNameTaken(name);
 
     const basicFieldsLocked = !!createdConfigurationId;
 
-    const canSave = !isSaving && !nameTaken && !!project && !!projectVersion && (updateProjectVersion || !!trimmedName);
+    const canSave =
+        !isSaving &&
+        !nameTaken &&
+        !!project &&
+        !!projectVersion &&
+        (updateProjectVersion ? !!configuration : !!trimmedName) &&
+        (!showTabs || !!basicStepTab);
 
     const movesToOlderVersion =
         !!configuration && projectVersion !== '' && Number(projectVersion) < configuration.projectVersion;
 
     const dialogWorkflows = useMemo<ConfigurationDialogWorkflowI[]>(() => {
+        if (configuration && updateProjectVersionProp) {
+            return (versionWorkflowsData?.automationProjectVersionWorkflows ?? []).map((versionWorkflow) => ({
+                enabled:
+                    configuration.workflows.find(
+                        (configurationWorkflow) => configurationWorkflow.workflowUuid === versionWorkflow.workflowUuid
+                    )?.enabled ?? true,
+                label: versionWorkflow.label || versionWorkflow.workflowUuid,
+                workflowUuid: versionWorkflow.workflowUuid,
+            }));
+        }
+
         if (configuration) {
             return configuration.workflows.map((configurationWorkflow) => ({
                 enabled: configurationWorkflow.enabled,
@@ -207,14 +267,12 @@ const AutomationProjectConfigurationDialog = ({
             }));
         }
 
-        return (versionWorkflowChangesData?.automationProjectVersionWorkflowChanges.workflows ?? [])
-            .filter((versionWorkflow) => versionWorkflow.changeType !== WorkflowChangeType.Removed)
-            .map((versionWorkflow) => ({
-                enabled: true,
-                label: versionWorkflow.label || versionWorkflow.workflowUuid,
-                workflowUuid: versionWorkflow.workflowUuid,
-            }));
-    }, [configuration, versionWorkflowChangesData]);
+        return (versionWorkflowsData?.automationProjectVersionWorkflows ?? []).map((versionWorkflow) => ({
+            enabled: true,
+            label: versionWorkflow.label || versionWorkflow.workflowUuid,
+            workflowUuid: versionWorkflow.workflowUuid,
+        }));
+    }, [configuration, updateProjectVersionProp, versionWorkflowsData]);
 
     const impactWarnings = useMemo(() => {
         if (!changesVersion) {
@@ -246,10 +304,20 @@ const AutomationProjectConfigurationDialog = ({
                     text: `Version ${projectVersion} adds a required ${componentTitle} connection to ${impactWorkflow.label}: connected users without a ${componentTitle} integration will pause.`,
                 });
             }
+
+            if (
+                impactWorkflow.awaitsConfiguration &&
+                !workflowDrafts[impactWorkflow.workflowUuid]?.requiredInternalOnlyInputsProvided
+            ) {
+                warnings.push({
+                    key: `${impactWorkflow.workflowUuid}-awaits-configuration`,
+                    text: `Version ${projectVersion} leaves ${impactWorkflow.label} disabled until this configuration sets its internal-only inputs: ${impactWorkflow.affectedConnectedUserCount} connected users will pause.`,
+                });
+            }
         }
 
         return warnings;
-    }, [changesVersion, componentDefinitions, impactData, projectVersion]);
+    }, [changesVersion, componentDefinitions, impactData, projectVersion, workflowDrafts]);
 
     const projectItems = useMemo<ComboBoxItemType[]>(
         () =>
@@ -262,12 +330,35 @@ const AutomationProjectConfigurationDialog = ({
     );
 
     const steps = useMemo<DialogStepI[]>(
-        () => [
-            {canProceed: canSave, id: 'basic', label: 'Basic'},
-            {canProceed: canSave, id: 'workflows', label: 'Workflows'},
-        ],
-        [canSave]
+        () =>
+            isChangeVersionTab
+                ? [{canProceed: canSave, id: 'basic', label: 'Basic'}]
+                : [
+                      {canProceed: canSave, id: 'basic', label: 'Basic'},
+                      {canProceed: canSave, id: 'workflows', label: 'Workflows'},
+                  ],
+        [canSave, isChangeVersionTab]
     );
+
+    const configurationItems = useMemo(
+        () =>
+            environmentConfigurations.map((existingConfiguration) => ({
+                label: existingConfiguration.name,
+                value: existingConfiguration.id,
+            })),
+        [environmentConfigurations]
+    );
+
+    const handleBasicStepTabChange = (tab: ConfigurationDialogTabType) => {
+        setBasicStepTab(tab);
+        setSelectedExistingConfigurationId(undefined);
+        setWorkflowDrafts({});
+    };
+
+    const handleExistingConfigurationSelect = (configurationId: string) => {
+        setSelectedExistingConfigurationId(configurationId);
+        setWorkflowDrafts({});
+    };
 
     const handleSelectProject = (item?: ComboBoxItemType) => {
         if (!item) {
@@ -294,22 +385,32 @@ const AutomationProjectConfigurationDialog = ({
     const saveWorkflowChanges = async (configurationId: string) => {
         const {enableChanges, providedValuesChanges} = getWorkflowChanges(dialogWorkflows, workflowDrafts);
 
-        const results = await Promise.allSettled([
-            ...enableChanges.map((enableChange) =>
-                enableWorkflowMutation.mutateAsync({
-                    enable: enableChange.enable,
-                    id: configurationId,
-                    workflowUuid: enableChange.workflowUuid,
-                })
-            ),
-            ...providedValuesChanges.map((providedValuesChange) =>
+        const saveEnableChanges = (workflowEnableChanges: WorkflowEnableChangeI[]) =>
+            Promise.allSettled(
+                workflowEnableChanges.map((enableChange) =>
+                    enableWorkflowMutation.mutateAsync({
+                        enable: enableChange.enable,
+                        id: configurationId,
+                        workflowUuid: enableChange.workflowUuid,
+                    })
+                )
+            );
+
+        const disableResults = await saveEnableChanges(enableChanges.filter((enableChange) => !enableChange.enable));
+
+        const providedValuesResults = await Promise.allSettled(
+            providedValuesChanges.map((providedValuesChange) =>
                 updateWorkflowMutation.mutateAsync({
                     id: configurationId,
                     ...providedValuesChange.providedValuesPayload,
                     workflowUuid: providedValuesChange.workflowUuid,
                 })
-            ),
-        ]);
+            )
+        );
+
+        const enableResults = await saveEnableChanges(enableChanges.filter((enableChange) => enableChange.enable));
+
+        const results = [...disableResults, ...providedValuesResults, ...enableResults];
 
         if (providedValuesChanges.length > 0) {
             void queryClient.invalidateQueries({
@@ -317,7 +418,17 @@ const AutomationProjectConfigurationDialog = ({
             });
         }
 
-        return results.every((result) => result.status === 'fulfilled');
+        const errorMessages = results
+            .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+            .map((rejectedResult) =>
+                rejectedResult.reason instanceof GraphQLResponseError ? rejectedResult.reason.message : ''
+            )
+            .filter((errorMessage) => !!errorMessage.trim());
+
+        return {
+            errorMessages: [...new Set(errorMessages)],
+            saved: results.every((result) => result.status === 'fulfilled'),
+        };
     };
 
     const saveConfiguration = async (): Promise<string | undefined> => {
@@ -327,11 +438,13 @@ const AutomationProjectConfigurationDialog = ({
 
         if (configuration) {
             await updateConfigurationMutation.mutateAsync({
-                automationHubVisible,
+                automationHubVisible: updateProjectVersion ? configuration.automationHubVisible : automationHubVisible,
                 enabled: configuration.enabled,
                 id: configuration.id,
                 name: updateProjectVersion ? configuration.name : trimmedName,
-                permissionExpression: permissionExpression.trim() || null,
+                permissionExpression: updateProjectVersion
+                    ? configuration.permissionExpression
+                    : permissionExpression.trim() || null,
                 projectVersion: Number(projectVersion),
             });
 
@@ -371,18 +484,22 @@ const AutomationProjectConfigurationDialog = ({
                 return;
             }
 
-            const workflowChangesSaved = await saveWorkflowChanges(configurationId);
+            const {errorMessages, saved: workflowChangesSaved} = await saveWorkflowChanges(configurationId);
 
             void queryClient.invalidateQueries({queryKey: ['automationProjectConfigurations']});
             void queryClient.invalidateQueries({queryKey: ['automationProjects']});
 
             setWorkflowChangesFailed(!workflowChangesSaved);
+            setWorkflowChangeErrorMessages(errorMessages);
 
             if (workflowChangesSaved) {
+                onSuccess?.(configurationId);
+
                 onClose();
             }
         } catch {
             setWorkflowChangesFailed(false);
+            setWorkflowChangeErrorMessages([]);
         } finally {
             setIsSaving(false);
         }
@@ -482,7 +599,7 @@ const AutomationProjectConfigurationDialog = ({
             <Select
                 disabled={!project || basicFieldsLocked}
                 onValueChange={handleSelectProjectVersion}
-                value={chosenProjectVersion}
+                value={projectVersion}
             >
                 <SelectTrigger aria-label="Version">
                     <SelectValue placeholder={project ? latestPublishedVersionPlaceholder : 'Select a project first'} />
@@ -542,14 +659,24 @@ const AutomationProjectConfigurationDialog = ({
     );
 
     const workflowChangesFailedMessage = workflowChangesFailed && (
-        <p className="text-sm text-content-destructive-primary" role="alert">
-            {configuration
-                ? 'The configuration was saved, but some workflow settings could not be saved. Save to retry them.'
-                : 'The configuration was created, but some workflow settings could not be saved. Save to retry them, or Cancel to keep the configuration with the remaining workflow defaults.'}
-        </p>
+        <div className="text-sm text-content-destructive-primary" role="alert">
+            <p>
+                {configuration
+                    ? 'The configuration was saved, but some workflow settings could not be saved. Save to retry them.'
+                    : 'The configuration was created, but some workflow settings could not be saved. Save to retry them, or Cancel to keep the configuration with the remaining workflow defaults.'}
+            </p>
+
+            {workflowChangeErrorMessages.length > 0 && (
+                <ul className="mt-1 list-disc pl-5">
+                    {workflowChangeErrorMessages.map((workflowChangeErrorMessage) => (
+                        <li key={workflowChangeErrorMessage}>{workflowChangeErrorMessage}</li>
+                    ))}
+                </ul>
+            )}
+        </div>
     );
 
-    const basicStepContent = (
+    const newConfigurationContent = (
         <>
             {workflowChangesFailedMessage}
 
@@ -567,25 +694,68 @@ const AutomationProjectConfigurationDialog = ({
         </>
     );
 
+    const basicStepContent = showTabs ? (
+        basicStepTab && (
+            <ConfigurationDialogTabs
+                activeTab={basicStepTab}
+                changeVersionContent={
+                    <>
+                        {environmentBadgeFieldset}
+
+                        {versionFieldset}
+                    </>
+                }
+                configurationItems={configurationItems}
+                emptyTitle="No configurations for this project yet"
+                newConfigurationContent={newConfigurationContent}
+                onConfigurationSelect={handleExistingConfigurationSelect}
+                onTabChange={handleBasicStepTabChange}
+                selectedConfigurationValue={selectedExistingConfiguration?.id}
+            />
+        )
+    ) : updateProjectVersionProp ? (
+        <>
+            {environmentBadgeFieldset}
+
+            {versionFieldset}
+        </>
+    ) : (
+        newConfigurationContent
+    );
+
     const workflowsStepContent = (
         <>
             {workflowChangesFailedMessage}
 
             <AutomationProjectConfigurationDialogWorkflowsStep
                 configurationId={configuration?.id}
-                isLoading={!configuration && versionWorkflowsLoading}
+                description={
+                    updateProjectVersionProp
+                        ? `Choose which workflows of V${projectVersion} this configuration runs. Connections and inputs set here are used by every connected user and cannot be changed by them.`
+                        : undefined
+                }
+                environmentId={environmentId}
+                isLoading={(updateProjectVersionProp || !configuration) && versionWorkflowsLoading}
                 onWorkflowDraftChange={handleWorkflowDraftChange}
+                projectId={project?.id}
+                projectVersion={
+                    (updateProjectVersionProp || !configuration) && projectVersion ? Number(projectVersion) : undefined
+                }
                 workflowDrafts={workflowDrafts}
                 workflows={dialogWorkflows}
             />
         </>
     );
 
-    const wizardTitle = `${configuration ? 'Edit' : 'New'} Project Configuration`;
+    const wizardTitle = updateProjectVersion
+        ? 'Change Project Version'
+        : `${configuration ? 'Edit' : 'New'} Configuration`;
 
-    const wizardDescription = configuration
-        ? 'Change how this configuration runs the project for connected users.'
-        : 'Run a published project version for connected users.';
+    const wizardDescription = updateProjectVersion
+        ? 'Move this configuration to another project version.'
+        : configuration
+          ? 'Change how this configuration runs the project for connected users.'
+          : 'Run a published project version for connected users.';
 
     return (
         <Dialog
@@ -598,55 +768,28 @@ const AutomationProjectConfigurationDialog = ({
         >
             <DialogContent
                 aria-label="Configuration Dialog"
-                hasSidebar={isWizard}
+                hasSidebar
                 onInteractOutside={(event) => event.preventDefault()}
             >
-                {isWizard ? (
-                    <DialogWizard
-                        description={wizardDescription}
-                        footer={
-                            <ConfigurationDialogFooter
-                                canSave={canSave}
-                                isSaving={isSaving}
-                                onSave={() => void handleSubmit()}
-                            />
-                        }
-                        icon={<SlidersHorizontalIcon />}
-                        onComplete={handleSubmit}
-                        steps={steps}
-                        title={wizardTitle}
-                    >
-                        <ConfigurationDialogStepContent
-                            basicStepContent={basicStepContent}
-                            workflowsStepContent={workflowsStepContent}
+                <DialogWizard
+                    description={wizardDescription}
+                    footer={
+                        <ConfigurationDialogFooter
+                            canSave={canSave}
+                            isSaving={isSaving}
+                            onSave={() => void handleSubmit()}
                         />
-                    </DialogWizard>
-                ) : (
-                    <DialogMain>
-                        <form
-                            className="flex min-h-0 flex-1 flex-col"
-                            onSubmit={(event) => {
-                                event.preventDefault();
-
-                                void handleSubmit();
-                            }}
-                        >
-                            <DialogHeader title="Upgrade Project Version" />
-
-                            <DialogBody>
-                                {versionFieldset}
-
-                                {environmentBadgeFieldset}
-                            </DialogBody>
-
-                            <DialogFooter>
-                                <DialogCancelButton />
-
-                                <Button disabled={!canSave} label="Save" type="submit" />
-                            </DialogFooter>
-                        </form>
-                    </DialogMain>
-                )}
+                    }
+                    icon={<Settings2Icon />}
+                    onComplete={handleSubmit}
+                    steps={steps}
+                    title={wizardTitle}
+                >
+                    <ConfigurationDialogStepContent
+                        basicStepContent={basicStepContent}
+                        workflowsStepContent={workflowsStepContent}
+                    />
+                </DialogWizard>
             </DialogContent>
         </Dialog>
     );

@@ -92,7 +92,10 @@ export interface WorkflowReadOnlyStateI {
 
 export interface WorkflowEditorStateI extends WorkflowReadOnlyStateI {
     ConnectionKeys: ConnectionKeysI;
+    automationProjectId?: string;
     cancelWorkflowQueries: () => void;
+    codeWorkflow?: boolean;
+    codeWorkflowLanguage?: string;
     deleteClusterElementParameterMutation: UseMutationResult<
         DeleteClusterElementParameter200Response,
         Error,
@@ -105,6 +108,7 @@ export interface WorkflowEditorStateI extends WorkflowReadOnlyStateI {
         DeleteWorkflowNodeParameterRequest,
         unknown
     >;
+    includeComponents?: string[];
     invalidateWorkflowQueries: () => void;
     platformType: PlatformType;
     updateWorkflowMutation: UpdateWorkflowMutationType;

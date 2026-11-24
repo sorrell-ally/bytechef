@@ -49,7 +49,7 @@
       "type": "STRING"
     }, {
       "advancedOption": false,
-      "description": null,
+      "description": "The records to insert, as an object with a values array holding one object per record that maps column names to values: {\"values\": [{\"<column>\": <value>}, ...]}. A plain array or a flat object of column values is not accepted.",
       "displayCondition": null,
       "dynamicPropertiesDataSource": {
         "properties": { },
@@ -437,6 +437,10 @@
               "description": null,
               "label": "Contains",
               "value": "CONTAINS"
+            }, {
+              "description": null,
+              "label": "Contains Ignore Case",
+              "value": "CONTAINS_IGNORE_CASE"
             }, {
               "description": null,
               "label": "Not Contains",
@@ -833,6 +837,10 @@
               "value": "CONTAINS"
             }, {
               "description": null,
+              "label": "Contains Ignore Case",
+              "value": "CONTAINS_IGNORE_CASE"
+            }, {
+              "description": null,
               "label": "Not Contains",
               "value": "NOT_CONTAINS"
             }, {
@@ -1082,6 +1090,52 @@
       "placeholder": null,
       "required": true,
       "type": "INTEGER"
+    }, {
+      "advancedOption": false,
+      "controlType": "MULTI_SELECT",
+      "defaultValue": null,
+      "description": "Link columns to replace with the linked record. An expanded link holds the id, externalId and values of the record it points to, or null when empty.",
+      "displayCondition": null,
+      "exampleValue": null,
+      "expressionEnabled": true,
+      "hidden": false,
+      "items": [ {
+        "advancedOption": false,
+        "controlType": "TEXT",
+        "defaultValue": null,
+        "description": null,
+        "displayCondition": null,
+        "exampleValue": null,
+        "expressionEnabled": true,
+        "hidden": false,
+        "label": null,
+        "languageId": null,
+        "maxLength": null,
+        "metadata": { },
+        "minLength": null,
+        "name": null,
+        "options": [ ],
+        "optionsDataSource": null,
+        "optionsLoadedDynamically": false,
+        "placeholder": null,
+        "regex": null,
+        "required": false,
+        "type": "STRING"
+      } ],
+      "label": "Expand",
+      "maxItems": null,
+      "metadata": { },
+      "minItems": null,
+      "multipleValues": true,
+      "name": "expand",
+      "options": [ ],
+      "optionsDataSource": {
+        "options": { },
+        "optionsLookupDependsOn": [ "table" ]
+      },
+      "placeholder": null,
+      "required": false,
+      "type": "ARRAY"
     } ],
     "resumePerform": null,
     "title": "Get Record",
@@ -1225,6 +1279,10 @@
               "description": null,
               "label": "Contains",
               "value": "CONTAINS"
+            }, {
+              "description": null,
+              "label": "Contains Ignore Case",
+              "value": "CONTAINS_IGNORE_CASE"
             }, {
               "description": null,
               "label": "Not Contains",
@@ -1447,6 +1505,52 @@
       "type": "STRING"
     }, {
       "advancedOption": false,
+      "controlType": "MULTI_SELECT",
+      "defaultValue": null,
+      "description": "Link columns to replace with the linked record. An expanded link holds the id, externalId and values of the record it points to, or null when empty.",
+      "displayCondition": null,
+      "exampleValue": null,
+      "expressionEnabled": true,
+      "hidden": false,
+      "items": [ {
+        "advancedOption": false,
+        "controlType": "TEXT",
+        "defaultValue": null,
+        "description": null,
+        "displayCondition": null,
+        "exampleValue": null,
+        "expressionEnabled": true,
+        "hidden": false,
+        "label": null,
+        "languageId": null,
+        "maxLength": null,
+        "metadata": { },
+        "minLength": null,
+        "name": null,
+        "options": [ ],
+        "optionsDataSource": null,
+        "optionsLoadedDynamically": false,
+        "placeholder": null,
+        "regex": null,
+        "required": false,
+        "type": "STRING"
+      } ],
+      "label": "Expand",
+      "maxItems": null,
+      "metadata": { },
+      "minItems": null,
+      "multipleValues": true,
+      "name": "expand",
+      "options": [ ],
+      "optionsDataSource": {
+        "options": { },
+        "optionsLookupDependsOn": [ "table" ]
+      },
+      "placeholder": null,
+      "required": false,
+      "type": "ARRAY"
+    }, {
+      "advancedOption": false,
       "controlType": "INTEGER",
       "defaultValue": 100,
       "description": "Maximum number of records to return",
@@ -1663,7 +1767,7 @@
       "type": "STRING"
     }, {
       "advancedOption": false,
-      "description": null,
+      "description": "The records to insert, as an object with a values array holding one object per record that maps column names to values: {\"values\": [{\"<column>\": <value>}, ...]}. A plain array or a flat object of column values is not accepted.",
       "displayCondition": null,
       "dynamicPropertiesDataSource": {
         "properties": { },
@@ -2048,6 +2152,10 @@
               "description": null,
               "label": "Contains",
               "value": "CONTAINS"
+            }, {
+              "description": null,
+              "label": "Contains Ignore Case",
+              "value": "CONTAINS_IGNORE_CASE"
             }, {
               "description": null,
               "label": "Not Contains",
@@ -2438,6 +2546,10 @@
               "value": "CONTAINS"
             }, {
               "description": null,
+              "label": "Contains Ignore Case",
+              "value": "CONTAINS_IGNORE_CASE"
+            }, {
+              "description": null,
               "label": "Not Contains",
               "value": "NOT_CONTAINS"
             }, {
@@ -2684,6 +2796,52 @@
       "placeholder": null,
       "required": true,
       "type": "INTEGER"
+    }, {
+      "advancedOption": false,
+      "controlType": "MULTI_SELECT",
+      "defaultValue": null,
+      "description": "Link columns to replace with the linked record. An expanded link holds the id, externalId and values of the record it points to, or null when empty.",
+      "displayCondition": null,
+      "exampleValue": null,
+      "expressionEnabled": true,
+      "hidden": false,
+      "items": [ {
+        "advancedOption": false,
+        "controlType": "TEXT",
+        "defaultValue": null,
+        "description": null,
+        "displayCondition": null,
+        "exampleValue": null,
+        "expressionEnabled": true,
+        "hidden": false,
+        "label": null,
+        "languageId": null,
+        "maxLength": null,
+        "metadata": { },
+        "minLength": null,
+        "name": null,
+        "options": [ ],
+        "optionsDataSource": null,
+        "optionsLoadedDynamically": false,
+        "placeholder": null,
+        "regex": null,
+        "required": false,
+        "type": "STRING"
+      } ],
+      "label": "Expand",
+      "maxItems": null,
+      "metadata": { },
+      "minItems": null,
+      "multipleValues": true,
+      "name": "expand",
+      "options": [ ],
+      "optionsDataSource": {
+        "options": { },
+        "optionsLookupDependsOn": [ "table" ]
+      },
+      "placeholder": null,
+      "required": false,
+      "type": "ARRAY"
     } ],
     "title": "Get Record",
     "type": {
@@ -2824,6 +2982,10 @@
               "description": null,
               "label": "Contains",
               "value": "CONTAINS"
+            }, {
+              "description": null,
+              "label": "Contains Ignore Case",
+              "value": "CONTAINS_IGNORE_CASE"
             }, {
               "description": null,
               "label": "Not Contains",
@@ -3044,6 +3206,52 @@
       "regex": null,
       "required": false,
       "type": "STRING"
+    }, {
+      "advancedOption": false,
+      "controlType": "MULTI_SELECT",
+      "defaultValue": null,
+      "description": "Link columns to replace with the linked record. An expanded link holds the id, externalId and values of the record it points to, or null when empty.",
+      "displayCondition": null,
+      "exampleValue": null,
+      "expressionEnabled": true,
+      "hidden": false,
+      "items": [ {
+        "advancedOption": false,
+        "controlType": "TEXT",
+        "defaultValue": null,
+        "description": null,
+        "displayCondition": null,
+        "exampleValue": null,
+        "expressionEnabled": true,
+        "hidden": false,
+        "label": null,
+        "languageId": null,
+        "maxLength": null,
+        "metadata": { },
+        "minLength": null,
+        "name": null,
+        "options": [ ],
+        "optionsDataSource": null,
+        "optionsLoadedDynamically": false,
+        "placeholder": null,
+        "regex": null,
+        "required": false,
+        "type": "STRING"
+      } ],
+      "label": "Expand",
+      "maxItems": null,
+      "metadata": { },
+      "minItems": null,
+      "multipleValues": true,
+      "name": "expand",
+      "options": [ ],
+      "optionsDataSource": {
+        "options": { },
+        "optionsLookupDependsOn": [ "table" ]
+      },
+      "placeholder": null,
+      "required": false,
+      "type": "ARRAY"
     }, {
       "advancedOption": false,
       "controlType": "INTEGER",
@@ -3294,6 +3502,7 @@
     "webhookEnable": { },
     "webhookRawBody": false,
     "webhookRequest": { },
+    "webhookResponse": null,
     "webhookValidate": null,
     "webhookValidateOnEnable": null,
     "workflowNodeDescription": null,
@@ -3353,6 +3562,7 @@
     "webhookEnable": { },
     "webhookRawBody": false,
     "webhookRequest": { },
+    "webhookResponse": null,
     "webhookValidate": null,
     "webhookValidateOnEnable": null,
     "workflowNodeDescription": null,
@@ -3412,6 +3622,7 @@
     "webhookEnable": { },
     "webhookRawBody": false,
     "webhookRequest": { },
+    "webhookResponse": null,
     "webhookValidate": null,
     "webhookValidateOnEnable": null,
     "workflowNodeDescription": null,

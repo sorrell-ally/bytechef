@@ -1,3 +1,4 @@
+import {IntegrationInstanceConfiguration} from '@/ee/shared/middleware/embedded/configuration';
 import {render, resetAll, screen, userEvent, waitFor, windowResizeObserver} from '@/shared/util/test-utils';
 import {Control, FieldValues, useController} from 'react-hook-form';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
@@ -5,16 +6,27 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import IntegrationInstanceConfigurationDialog from '../IntegrationInstanceConfigurationDialog';
 
 const hoisted = vi.hoisted(() => ({
-    connectionDefinition: undefined as {authorizations: {title: string; type: string}[]} | undefined,
+    configurations: undefined as IntegrationInstanceConfiguration[] | undefined,
+    configurationsQuery: vi.fn(),
+    connectionDefinition: undefined as
+        {authorizationRequired?: boolean; authorizations: {title: string; type: string}[]} | undefined,
     createMutate: vi.fn(),
-    integration: undefined as {componentName: string} | undefined,
+    createMutationOnSuccess: {current: undefined as ((createdId: number) => void) | undefined},
+    findTestConnectionId: vi.fn(),
+    integration: undefined as {componentName: string; name?: string} | undefined,
+    readIntegrationId: undefined as unknown,
+    readName: undefined as unknown,
     updateCredentialsMutate: vi.fn(),
     updateMutate: vi.fn(),
-    workflows: [] as {id: string; workflowUuid: string}[],
+    workflows: [] as {id: string; tasks?: unknown[]; triggers?: unknown[]; workflowUuid: string}[],
 }));
 
 vi.mock('@/ee/shared/mutations/embedded/integrationInstanceConfigurations.mutations', () => ({
-    useCreateIntegrationInstanceConfigurationMutation: () => ({mutate: hoisted.createMutate, reset: vi.fn()}),
+    useCreateIntegrationInstanceConfigurationMutation: (mutationProps?: {onSuccess?: (createdId: number) => void}) => {
+        hoisted.createMutationOnSuccess.current = mutationProps?.onSuccess;
+
+        return {mutate: hoisted.createMutate, reset: vi.fn()};
+    },
     useUpdateIntegrationInstanceConfigurationCredentialsMutation: () => ({
         isPending: false,
         mutate: hoisted.updateCredentialsMutate,
@@ -24,6 +36,11 @@ vi.mock('@/ee/shared/mutations/embedded/integrationInstanceConfigurations.mutati
 
 vi.mock('@/ee/shared/queries/embedded/integrationInstanceConfigurations.queries', () => ({
     IntegrationInstanceConfigurationKeys: {integrationInstanceConfigurations: ['integrationInstanceConfigurations']},
+    useGetIntegrationInstanceConfigurationsQuery: (filters: unknown, enabled: boolean) => {
+        hoisted.configurationsQuery(filters, enabled);
+
+        return {data: enabled ? hoisted.configurations : undefined, isFetching: false};
+    },
 }));
 
 vi.mock('@/ee/shared/queries/embedded/integrationInstanceConfigurationTags.queries', () => ({
@@ -32,10 +49,15 @@ vi.mock('@/ee/shared/queries/embedded/integrationInstanceConfigurationTags.queri
 
 vi.mock('@/ee/shared/queries/embedded/integrationWorkflows.queries', () => ({
     useGetIntegrationVersionWorkflowsQuery: () => ({data: hoisted.workflows, isPending: false}),
+    useGetIntegrationWorkflowsQuery: () => ({data: hoisted.workflows}),
+}));
+
+vi.mock('@/shared/hooks/useWorkflowTestConfigurationConnections', () => ({
+    default: () => ({findConnectionId: hoisted.findTestConnectionId, isFetched: true}),
 }));
 
 vi.mock('@/ee/shared/queries/embedded/integrations.queries', () => ({
-    IntegrationKeys: {integrations: ['integrations']},
+    IntegrationKeys: {filteredIntegrations: () => ['integrations', 'filtered'], integrations: ['integrations']},
     useGetIntegrationQuery: () => ({data: hoisted.integration}),
 }));
 
@@ -64,17 +86,25 @@ vi.mock('../IntegrationInstanceConfigurationDialogBasicStep', () => ({
     default: ({
         authorizations,
         getValues,
+        integrationInstanceConfiguration,
         setCurIntegrationId,
         setCurIntegrationVersion,
         setValue,
+        updateIntegrationVersion,
     }: {
         authorizations?: {type: string}[];
         getValues: (name: string) => unknown;
+        integrationInstanceConfiguration?: {name?: string};
         setCurIntegrationId: (integrationId: number) => void;
         setCurIntegrationVersion: (integrationVersion: number) => void;
         setValue: (name: string, value: unknown) => void;
+        updateIntegrationVersion?: boolean;
     }) => (
         <div data-testid="basic-step">
+            <span data-testid="basic-step-mode">
+                {`${updateIntegrationVersion ? 'update' : 'create'}:${integrationInstanceConfiguration?.name ?? ''}`}
+            </span>
+
             <span data-testid="basic-step-authorizations">
                 {authorizations?.map((authorization) => authorization.type).join(',')}
             </span>
@@ -83,8 +113,24 @@ vi.mock('../IntegrationInstanceConfigurationDialogBasicStep', () => ({
                 {String(getValues('permissionExpression') ?? '')}
             </span>
 
+            <button onClick={() => (hoisted.readName = getValues('name'))} type="button">
+                Read Name
+            </button>
+
+            <button onClick={() => (hoisted.readIntegrationId = getValues('integrationId'))} type="button">
+                Read Integration
+            </button>
+
             <button onClick={() => setValue('authorizationType', 'API_KEY')} type="button">
                 Use API Key
+            </button>
+
+            <button onClick={() => setValue('authorizationType', 'OAUTH2_AUTHORIZATION_CODE')} type="button">
+                Use OAuth2
+            </button>
+
+            <button onClick={() => setValue('authorizationType', 'NONE')} type="button">
+                Use None
             </button>
 
             <button
@@ -140,18 +186,78 @@ afterEach(() => {
     resetAll();
     vi.clearAllMocks();
 
+    hoisted.configurations = undefined;
     hoisted.connectionDefinition = undefined;
     hoisted.integration = undefined;
+    hoisted.readName = undefined;
+    hoisted.readIntegrationId = undefined;
     hoisted.workflows = [];
 });
 
 describe('IntegrationInstanceConfigurationDialog', () => {
     describe('create mode', () => {
+        it('should keep the preselected integration when the dialog is opened again after closing', async () => {
+            render(
+                <IntegrationInstanceConfigurationDialog
+                    integrationInstanceConfiguration={{integrationId: 2} as IntegrationInstanceConfiguration}
+                    onClose={onClose}
+                    triggerNode={<button type="button">Open Dialog</button>}
+                />
+            );
+
+            await userEvent.click(screen.getByRole('button', {name: 'Open Dialog'}));
+            await userEvent.click(screen.getByRole('button', {name: 'Close'}));
+
+            await waitFor(() => expect(onClose).toHaveBeenCalled(), {interval: 5, timeout: 5000});
+
+            await userEvent.click(screen.getByRole('button', {name: 'Open Dialog'}));
+            await userEvent.click(screen.getByRole('button', {name: 'Read Integration'}));
+
+            expect(hoisted.readIntegrationId).toBe(2);
+        });
+
         it('should title the dialog for a new configuration and name the current step', () => {
             render(<IntegrationInstanceConfigurationDialog onClose={onClose} />);
 
-            expect(screen.getByRole('dialog', {name: 'New Instance Configuration - Basic'})).toBeInTheDocument();
-            expect(screen.getByRole('heading', {name: 'New Instance Configuration - Basic'})).toBeInTheDocument();
+            expect(screen.getByRole('dialog', {name: 'New Configuration - Basic'})).toBeInTheDocument();
+            expect(screen.getByRole('heading', {name: 'New Configuration - Basic'})).toBeInTheDocument();
+        });
+
+        it('should name a new configuration after its preselected integration', async () => {
+            hoisted.integration = {componentName: 'httpClient', name: 'HTTP Client'};
+
+            render(
+                <IntegrationInstanceConfigurationDialog
+                    integrationInstanceConfiguration={{integrationId: 2} as IntegrationInstanceConfiguration}
+                    onClose={onClose}
+                />
+            );
+
+            await userEvent.click(screen.getByRole('button', {name: 'Read Name'}));
+
+            expect(hoisted.readName).toBe('HTTP Client');
+        });
+
+        it('should name a new configuration after its integration again when the dialog is reopened', async () => {
+            hoisted.integration = {componentName: 'httpClient', name: 'HTTP Client'};
+
+            render(
+                <IntegrationInstanceConfigurationDialog
+                    integrationInstanceConfiguration={{integrationId: 2} as IntegrationInstanceConfiguration}
+                    onClose={onClose}
+                    triggerNode={<button type="button">Open Dialog</button>}
+                />
+            );
+
+            await userEvent.click(screen.getByRole('button', {name: 'Open Dialog'}));
+            await userEvent.click(screen.getByRole('button', {name: 'Close'}));
+
+            await waitFor(() => expect(onClose).toHaveBeenCalled(), {interval: 5, timeout: 5000});
+
+            await userEvent.click(screen.getByRole('button', {name: 'Open Dialog'}));
+            await userEvent.click(screen.getByRole('button', {name: 'Read Name'}));
+
+            expect(hoisted.readName).toBe('HTTP Client');
         });
 
         it('should show the wizard header with the subtitle, the steps and the step progress', () => {
@@ -159,7 +265,7 @@ describe('IntegrationInstanceConfigurationDialog', () => {
 
             render(<IntegrationInstanceConfigurationDialog onClose={onClose} />);
 
-            expect(screen.getByText('New Instance Configuration')).toBeInTheDocument();
+            expect(screen.getByText('New Configuration')).toBeInTheDocument();
             expect(screen.getAllByText('Run an integration version for connected users.').length).toBeGreaterThan(0);
             expect(screen.getByRole('navigation', {name: 'Steps'})).toHaveTextContent('BasicWorkflows');
             expect(screen.getByRole('progressbar', {name: 'Step 1 of 2'})).toBeInTheDocument();
@@ -198,7 +304,7 @@ describe('IntegrationInstanceConfigurationDialog', () => {
 
             expect(await screen.findByTestId('workflows-step')).toBeInTheDocument();
             expect(screen.getByRole('progressbar', {name: 'Step 2 of 2'})).toBeInTheDocument();
-            expect(screen.getByRole('heading', {name: 'New Instance Configuration - Workflows'})).toBeInTheDocument();
+            expect(screen.getByRole('heading', {name: 'New Configuration - Workflows'})).toBeInTheDocument();
 
             await user.click(screen.getByRole('button', {name: 'Previous'}));
 
@@ -241,12 +347,23 @@ describe('IntegrationInstanceConfigurationDialog', () => {
             );
         });
 
-        it('should default to the OAuth2 authorization and offer the OAuth2 step', async () => {
+        it('should leave the authorization unselected when the connection offers several', async () => {
             const user = userEvent.setup();
 
             render(<IntegrationInstanceConfigurationDialog onClose={onClose} />);
 
-            expect(screen.queryByRole('button', {name: 'Save'})).not.toBeInTheDocument();
+            await user.click(screen.getByRole('button', {name: 'Pick Integration'}));
+
+            expect(screen.getByRole('navigation', {name: 'Steps'})).toHaveTextContent(/^Basic$/);
+            expect(screen.getByRole('button', {name: 'Save'})).toBeDisabled();
+        });
+
+        it('should offer the OAuth2 step once the OAuth2 authorization is selected', async () => {
+            const user = userEvent.setup();
+
+            render(<IntegrationInstanceConfigurationDialog onClose={onClose} />);
+
+            await user.click(screen.getByRole('button', {name: 'Use OAuth2'}));
 
             expect(screen.getByRole('navigation', {name: 'Steps'})).toHaveTextContent('BasicOAuth2 Connection');
 
@@ -256,17 +373,14 @@ describe('IntegrationInstanceConfigurationDialog', () => {
             expect(screen.getByRole('button', {name: 'Save'})).toBeInTheDocument();
         });
 
-        it('should fall back to the first authorization when the connection has no OAuth2 authorization', async () => {
+        it('should select the authorization when the connection offers only one', async () => {
             const user = userEvent.setup();
 
-            hoisted.connectionDefinition = {
-                authorizations: [
-                    {title: 'Basic Auth', type: 'BASIC_AUTH'},
-                    {title: 'API Key', type: 'API_KEY'},
-                ],
-            };
+            hoisted.connectionDefinition = {authorizations: [{title: 'Basic Auth', type: 'BASIC_AUTH'}]};
 
             render(<IntegrationInstanceConfigurationDialog onClose={onClose} />);
+
+            await user.click(screen.getByRole('button', {name: 'Pick Integration'}));
 
             await user.click(await screen.findByRole('button', {name: 'Save'}));
 
@@ -277,14 +391,102 @@ describe('IntegrationInstanceConfigurationDialog', () => {
             );
         });
 
-        it('should re-apply the default authorization when the integration changes', async () => {
+        it('should report the id of the created configuration', async () => {
+            const onSuccess = vi.fn();
+            const user = userEvent.setup();
+
+            hoisted.connectionDefinition = {authorizations: [{title: 'Basic Auth', type: 'BASIC_AUTH'}]};
+            hoisted.createMutate.mockImplementationOnce(() => hoisted.createMutationOnSuccess.current?.(42));
+
+            render(<IntegrationInstanceConfigurationDialog onClose={onClose} onSuccess={onSuccess} />);
+
+            await user.click(screen.getByRole('button', {name: 'Pick Integration'}));
+
+            await user.click(await screen.findByRole('button', {name: 'Save'}));
+
+            await waitFor(() => expect(onSuccess).toHaveBeenCalledWith(42), {interval: 5, timeout: 5000});
+
+            await waitFor(() => expect(onClose).toHaveBeenCalled(), {interval: 5, timeout: 5000});
+        });
+
+        it('should create the configuration in the environment it was opened for', async () => {
+            const user = userEvent.setup();
+
+            hoisted.connectionDefinition = {authorizations: [{title: 'Basic Auth', type: 'BASIC_AUTH'}]};
+
+            render(
+                <IntegrationInstanceConfigurationDialog
+                    integrationInstanceConfiguration={{environmentId: 0} as IntegrationInstanceConfiguration}
+                    onClose={onClose}
+                />
+            );
+
+            await user.click(screen.getByRole('button', {name: 'Pick Integration'}));
+            await user.click(await screen.findByRole('button', {name: 'Save'}));
+
+            await waitFor(() =>
+                expect(hoisted.createMutate).toHaveBeenCalledWith(expect.objectContaining({environmentId: 0}))
+            );
+        });
+
+        it('should leave the authorization unselected when the connection offers one optional authorization', async () => {
+            const user = userEvent.setup();
+
+            hoisted.connectionDefinition = {
+                authorizationRequired: false,
+                authorizations: [{title: 'API Key', type: 'API_KEY'}],
+            };
+
+            render(<IntegrationInstanceConfigurationDialog onClose={onClose} />);
+
+            await user.click(screen.getByRole('button', {name: 'Pick Integration'}));
+
+            expect(screen.getByRole('button', {name: 'Save'})).toBeDisabled();
+        });
+
+        it('should save no authorization when None is selected', async () => {
+            const user = userEvent.setup();
+
+            hoisted.connectionDefinition = {
+                authorizationRequired: false,
+                authorizations: [{title: 'API Key', type: 'API_KEY'}],
+            };
+
+            render(<IntegrationInstanceConfigurationDialog onClose={onClose} />);
+
+            await user.click(screen.getByRole('button', {name: 'Pick Integration'}));
+            await user.click(screen.getByRole('button', {name: 'Use None'}));
+            await user.click(await screen.findByRole('button', {name: 'Save'}));
+
+            await waitFor(() => expect(hoisted.createMutate).toHaveBeenCalled());
+
+            expect(hoisted.createMutate.mock.calls[0][0].authorizationType).toBeUndefined();
+        });
+
+        it('should select None when the connection has no authorizations and does not require one', async () => {
+            const user = userEvent.setup();
+
+            hoisted.connectionDefinition = {authorizationRequired: false, authorizations: []};
+
+            render(<IntegrationInstanceConfigurationDialog onClose={onClose} />);
+
+            await user.click(screen.getByRole('button', {name: 'Pick Integration'}));
+            await user.click(await screen.findByRole('button', {name: 'Save'}));
+
+            await waitFor(() => expect(hoisted.createMutate).toHaveBeenCalled());
+
+            expect(hoisted.createMutate.mock.calls[0][0].authorizationType).toBeUndefined();
+        });
+
+        it('should clear the selected authorization when the integration changes', async () => {
             const user = userEvent.setup();
 
             const {rerender} = render(<IntegrationInstanceConfigurationDialog onClose={onClose} />);
 
+            await user.click(screen.getByRole('button', {name: 'Pick Integration'}));
             await user.click(screen.getByRole('button', {name: 'Use API Key'}));
 
-            expect(await screen.findByRole('button', {name: 'Save'})).toBeInTheDocument();
+            await waitFor(() => expect(screen.getByRole('button', {name: 'Save'})).toBeEnabled());
 
             hoisted.connectionDefinition = {
                 authorizations: [
@@ -296,9 +498,7 @@ describe('IntegrationInstanceConfigurationDialog', () => {
 
             rerender(<IntegrationInstanceConfigurationDialog onClose={onClose} />);
 
-            await waitFor(() => expect(screen.queryByRole('button', {name: 'Save'})).not.toBeInTheDocument());
-
-            expect(screen.getByRole('button', {name: 'Next'})).toBeInTheDocument();
+            await waitFor(() => expect(screen.getByRole('button', {name: 'Save'})).toBeDisabled());
         });
 
         it('should keep Next disabled until the connection authorizations are loaded', async () => {
@@ -338,6 +538,27 @@ describe('IntegrationInstanceConfigurationDialog', () => {
     });
 
     describe('edit mode', () => {
+        it('should keep the name of an existing configuration', async () => {
+            hoisted.integration = {componentName: 'httpClient', name: 'HTTP Client'};
+
+            render(
+                <IntegrationInstanceConfigurationDialog
+                    integrationInstanceConfiguration={{
+                        id: 1,
+                        integrationId: 2,
+                        integrationVersion: 1,
+                        name: 'Existing',
+                    }}
+                    onClose={onClose}
+                    updateIntegrationVersion
+                />
+            );
+
+            await userEvent.click(screen.getByRole('button', {name: 'Read Name'}));
+
+            expect(hoisted.readName).toBe('Existing');
+        });
+
         it('should title the dialog for an existing configuration', () => {
             render(
                 <IntegrationInstanceConfigurationDialog
@@ -351,7 +572,7 @@ describe('IntegrationInstanceConfigurationDialog', () => {
                 />
             );
 
-            expect(screen.getByRole('heading', {name: 'Edit Instance Configuration'})).toBeInTheDocument();
+            expect(screen.getByRole('heading', {name: 'Edit Configuration'})).toBeInTheDocument();
             expect(screen.queryByRole('navigation', {name: 'Steps'})).not.toBeInTheDocument();
             expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
             expect(screen.queryByRole('button', {name: 'Next'})).not.toBeInTheDocument();
@@ -447,7 +668,7 @@ describe('IntegrationInstanceConfigurationDialog', () => {
         it('should title the dialog for a version upgrade', () => {
             render(<IntegrationInstanceConfigurationDialog onClose={onClose} updateIntegrationVersion />);
 
-            expect(screen.getByRole('heading', {name: 'Upgrade Integration Version - Basic'})).toBeInTheDocument();
+            expect(screen.getByRole('heading', {name: 'Change Version - Basic'})).toBeInTheDocument();
             expect(
                 screen.getAllByText('Move this configuration to another integration version.').length
             ).toBeGreaterThan(0);
@@ -463,6 +684,7 @@ describe('IntegrationInstanceConfigurationDialog', () => {
                 ],
             };
             hoisted.integration = {componentName: 'httpClient'};
+            hoisted.workflows = [{id: 'workflow-1', workflowUuid: 'workflow-uuid-1'}];
 
             render(
                 <IntegrationInstanceConfigurationDialog
@@ -494,6 +716,28 @@ describe('IntegrationInstanceConfigurationDialog', () => {
             );
 
             expect(hoisted.createMutate).not.toHaveBeenCalled();
+        });
+
+        it('should skip the workflows step when the chosen version has no workflows', () => {
+            hoisted.connectionDefinition = {authorizations: [{title: 'API Key', type: 'API_KEY'}]};
+            hoisted.integration = {componentName: 'httpClient'};
+
+            render(
+                <IntegrationInstanceConfigurationDialog
+                    integrationInstanceConfiguration={{
+                        authorizationType: 'API_KEY',
+                        id: 1,
+                        integrationId: 2,
+                        integrationVersion: 1,
+                        name: 'Existing',
+                    }}
+                    onClose={onClose}
+                    updateIntegrationVersion
+                />
+            );
+
+            expect(screen.getByRole('navigation', {name: 'Steps'})).toHaveTextContent(/^Basic$/);
+            expect(screen.getByRole('button', {name: 'Save'})).toBeInTheDocument();
         });
     });
 
@@ -643,6 +887,256 @@ describe('IntegrationInstanceConfigurationDialog', () => {
             );
 
             expect(screen.queryByRole('button', {name: 'Update credentials'})).not.toBeInTheDocument();
+        });
+    });
+
+    describe('workflow editor connections', () => {
+        const gmailWorkflow = {
+            id: 'workflow-v1',
+            tasks: [
+                {
+                    connections: [
+                        {componentName: 'httpClient', key: 'httpClient', workflowNodeName: 'httpClient_1'},
+                        {
+                            componentName: 'googleMail',
+                            key: 'googleMail',
+                            required: true,
+                            workflowNodeName: 'googleMail_1',
+                        },
+                    ],
+                    name: 'googleMail_1',
+                    type: 'googleMail/v1/getEmail',
+                },
+            ],
+            triggers: [],
+            workflowUuid: 'workflow-uuid',
+        };
+
+        const renderAndSave = async (
+            connections: {connectionId: number; workflowConnectionKey: string; workflowNodeName: string}[],
+            updateIntegrationVersion = true
+        ) => {
+            const user = userEvent.setup();
+
+            hoisted.connectionDefinition = {authorizations: [{title: 'API Key', type: 'API_KEY'}]};
+            hoisted.integration = {componentName: 'httpClient'};
+            hoisted.workflows = [gmailWorkflow];
+
+            render(
+                <IntegrationInstanceConfigurationDialog
+                    integrationInstanceConfiguration={{
+                        authorizationType: 'API_KEY',
+                        id: 1,
+                        integrationId: 2,
+                        integrationInstanceConfigurationWorkflows: [
+                            {connections, enabled: true, workflowId: 'workflow-v0', workflowUuid: 'workflow-uuid'},
+                        ],
+                        integrationVersion: 1,
+                        name: 'Existing',
+                    }}
+                    onClose={onClose}
+                    updateIntegrationVersion={updateIntegrationVersion}
+                />
+            );
+
+            if (updateIntegrationVersion) {
+                await user.click(screen.getByRole('button', {name: 'Next'}));
+            }
+
+            await user.click(await screen.findByRole('button', {name: 'Save'}));
+
+            await waitFor(() => expect(hoisted.updateMutate).toHaveBeenCalledTimes(1));
+
+            return hoisted.updateMutate.mock.calls[0][0];
+        };
+
+        it('should preselect the connection picked in the workflow editor Connection tab', async () => {
+            hoisted.findTestConnectionId.mockReturnValue(42);
+
+            const submittedConfiguration = await renderAndSave([]);
+
+            expect(hoisted.findTestConnectionId).toHaveBeenCalledWith('workflow-uuid', 'googleMail_1', 'googleMail');
+            expect(hoisted.findTestConnectionId).not.toHaveBeenCalledWith(
+                'workflow-uuid',
+                'httpClient_1',
+                'httpClient'
+            );
+            expect(submittedConfiguration.integrationInstanceConfigurationWorkflows).toEqual([
+                expect.objectContaining({
+                    connections: [expect.objectContaining({connectionId: 42, workflowNodeName: 'googleMail_1'})],
+                    enabled: true,
+                }),
+            ]);
+        });
+
+        it('should prefer the editor connection over the stored one when upgrading the version', async () => {
+            hoisted.findTestConnectionId.mockReturnValue(42);
+
+            const submittedConfiguration = await renderAndSave([
+                {connectionId: 7, workflowConnectionKey: 'googleMail', workflowNodeName: 'googleMail_1'},
+            ]);
+
+            expect(hoisted.findTestConnectionId).toHaveBeenCalledWith('workflow-uuid', 'googleMail_1', 'googleMail');
+            expect(submittedConfiguration.integrationInstanceConfigurationWorkflows).toEqual([
+                expect.objectContaining({
+                    connections: [expect.objectContaining({connectionId: 42, workflowNodeName: 'googleMail_1'})],
+                }),
+            ]);
+        });
+
+        it('should keep the stored connection when the editor has no connection for it', async () => {
+            hoisted.findTestConnectionId.mockReturnValue(undefined);
+
+            const submittedConfiguration = await renderAndSave([
+                {connectionId: 7, workflowConnectionKey: 'googleMail', workflowNodeName: 'googleMail_1'},
+            ]);
+
+            expect(submittedConfiguration.integrationInstanceConfigurationWorkflows).toEqual([
+                expect.objectContaining({
+                    connections: [expect.objectContaining({connectionId: 7, workflowNodeName: 'googleMail_1'})],
+                }),
+            ]);
+        });
+
+        it('should keep the stored connection when editing a configuration without upgrading its version', async () => {
+            hoisted.findTestConnectionId.mockReturnValue(42);
+
+            const submittedConfiguration = await renderAndSave(
+                [{connectionId: 7, workflowConnectionKey: 'googleMail', workflowNodeName: 'googleMail_1'}],
+                false
+            );
+
+            expect(hoisted.findTestConnectionId).not.toHaveBeenCalled();
+            expect(submittedConfiguration.integrationInstanceConfigurationWorkflows).toEqual([
+                expect.objectContaining({
+                    connections: [expect.objectContaining({connectionId: 7, workflowNodeName: 'googleMail_1'})],
+                }),
+            ]);
+        });
+    });
+
+    describe('tabs', () => {
+        const developmentConfigurations = [
+            {
+                authorizationType: 'API_KEY',
+                id: 7,
+                integrationId: 2,
+                integrationVersion: 1,
+                name: 'Beta Users',
+            },
+            {
+                authorizationType: 'API_KEY',
+                id: 8,
+                integrationId: 2,
+                integrationVersion: 2,
+                name: 'Everyone',
+            },
+        ] as IntegrationInstanceConfiguration[];
+
+        it('should not show the tabs or load configurations without showTabs', () => {
+            hoisted.configurations = developmentConfigurations;
+
+            render(
+                <IntegrationInstanceConfigurationDialog
+                    integrationInstanceConfiguration={{integrationId: 2} as IntegrationInstanceConfiguration}
+                    onClose={onClose}
+                />
+            );
+
+            expect(screen.queryByRole('tab', {name: 'Change Version'})).not.toBeInTheDocument();
+            expect(hoisted.configurationsQuery).toHaveBeenCalledWith({environmentId: 0, integrationId: 2}, false);
+        });
+
+        it('should open on the New tab when the integration has no configurations', async () => {
+            hoisted.configurations = [];
+
+            render(
+                <IntegrationInstanceConfigurationDialog
+                    integrationInstanceConfiguration={{integrationId: 2} as IntegrationInstanceConfiguration}
+                    onClose={onClose}
+                    showTabs
+                />
+            );
+
+            expect(await screen.findByRole('tab', {name: 'New', selected: true})).toBeInTheDocument();
+            expect(screen.getByTestId('basic-step-mode')).toHaveTextContent('create:');
+            expect(screen.getByRole('heading', {name: 'New Configuration - Basic'})).toBeInTheDocument();
+            expect(hoisted.configurationsQuery).toHaveBeenCalledWith({environmentId: 0, integrationId: 2}, true);
+        });
+
+        it('should open on Change Version and block the basic step when no configuration is picked', async () => {
+            hoisted.configurations = developmentConfigurations;
+
+            render(
+                <IntegrationInstanceConfigurationDialog
+                    integrationInstanceConfiguration={{integrationId: 2} as IntegrationInstanceConfiguration}
+                    onClose={onClose}
+                    showTabs
+                />
+            );
+
+            expect(await screen.findByRole('tab', {name: 'Change Version', selected: true})).toBeInTheDocument();
+            expect(screen.getByRole('heading', {name: 'Change Version - Basic'})).toBeInTheDocument();
+            expect(screen.queryByTestId('basic-step')).not.toBeInTheDocument();
+            expect(screen.getByRole('button', {name: 'Save'})).toBeDisabled();
+        });
+
+        it('should switch to the version update of the configuration picked on Change Version', async () => {
+            const user = userEvent.setup();
+
+            Element.prototype.hasPointerCapture = vi.fn();
+            Element.prototype.scrollIntoView = vi.fn();
+
+            hoisted.connectionDefinition = {authorizations: [{title: 'API Key', type: 'API_KEY'}]};
+            hoisted.configurations = developmentConfigurations;
+            hoisted.integration = {componentName: 'httpClient'};
+            hoisted.workflows = [{id: 'workflow-1', workflowUuid: 'workflow-uuid-1'}];
+
+            render(
+                <IntegrationInstanceConfigurationDialog
+                    integrationInstanceConfiguration={{integrationId: 2} as IntegrationInstanceConfiguration}
+                    onClose={onClose}
+                    showTabs
+                />
+            );
+
+            await user.click(await screen.findByRole('combobox', {name: 'Configuration'}));
+            await user.click(await screen.findByRole('option', {name: 'Everyone'}));
+
+            expect(screen.getByTestId('basic-step-mode')).toHaveTextContent('update:Everyone');
+
+            await user.click(screen.getByRole('button', {name: 'Next'}));
+
+            expect(await screen.findByTestId('workflows-step')).toBeInTheDocument();
+
+            await user.click(screen.getByRole('button', {name: 'Save'}));
+
+            await waitFor(() =>
+                expect(hoisted.updateMutate).toHaveBeenCalledWith(expect.objectContaining({id: 8, name: 'Everyone'}))
+            );
+
+            expect(hoisted.createMutate).not.toHaveBeenCalled();
+        });
+
+        it('should pick the only configuration and return to a new configuration on the New tab', async () => {
+            const user = userEvent.setup();
+
+            hoisted.configurations = [developmentConfigurations[0]];
+
+            render(
+                <IntegrationInstanceConfigurationDialog
+                    integrationInstanceConfiguration={{integrationId: 2} as IntegrationInstanceConfiguration}
+                    onClose={onClose}
+                    showTabs
+                />
+            );
+
+            await waitFor(() => expect(screen.getByTestId('basic-step-mode')).toHaveTextContent('update:Beta Users'));
+
+            await user.click(screen.getByRole('tab', {name: 'New'}));
+
+            expect(screen.getByTestId('basic-step-mode')).toHaveTextContent('create:');
+            expect(screen.getByRole('heading', {name: 'New Configuration - Basic'})).toBeInTheDocument();
         });
     });
 });

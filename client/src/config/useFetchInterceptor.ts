@@ -1,5 +1,6 @@
 import {useWorkspaceStore} from '@/pages/automation/stores/useWorkspaceStore';
 import {buildLoginPath} from '@/shared/auth/login-redirect-utils';
+import {BILLING_SETTINGS_PATH} from '@/shared/navigation/settingsPaths';
 import {useAuthenticationStore} from '@/shared/stores/useAuthenticationStore';
 import {getCookie} from '@/shared/util/cookie-utils';
 import {isMissingDefinitionLookup} from '@/shared/util/missingDefinitionLookup';
@@ -35,6 +36,7 @@ function isCsrfProtectedUrl(url: string): boolean {
 function handlesErrorInline(url: string): boolean {
     return (
         url.includes('/approval-form/') ||
+        url.includes('/component-operations/') ||
         isInlineTestOutputUrl(url) ||
         // SSO discovery fails silently (the endpoints are absent unless SSO is enabled) and the login
         // page renders the sso_required 403 from password login itself.
@@ -158,8 +160,8 @@ export default function useFetchInterceptor() {
                 }
 
                 if (response.status === 402) {
-                    if (!window.location.pathname.startsWith('/automation/settings/billing')) {
-                        void navigate('/automation/settings/billing');
+                    if (!window.location.pathname.startsWith(BILLING_SETTINGS_PATH)) {
+                        void navigate(BILLING_SETTINGS_PATH);
                     }
 
                     return response;

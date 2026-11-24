@@ -1,5 +1,5 @@
 import {TooltipProvider} from '@/components/ui/tooltip';
-import {AutomationProjectTagsQuery, AutomationProjectsQuery} from '@/shared/middleware/graphql';
+import {AutomationProjectTagsQuery, AutomationProjectsQuery, CodeWorkflowLanguage} from '@/shared/middleware/graphql';
 import {createTestQueryClientWrapper, screen, userEvent} from '@/shared/util/test-utils';
 import {render} from '@testing-library/react';
 import {ReactElement, ReactNode} from 'react';
@@ -17,6 +17,21 @@ vi.mock('@/shared/middleware/graphql', async (importOriginal) => ({
     useAutomationProjectConfigurationsQuery: () => ({
         data: {automationProjectConfigurations: []},
     }),
+}));
+
+vi.mock('../components/automation-project-configuration-dialog/AutomationProjectConfigurationDialog', () => ({
+    default: ({onClose, onSuccess}: {onClose: () => void; onSuccess?: (configurationId: string) => void}) => (
+        <button
+            onClick={() => {
+                onSuccess?.('configuration-9');
+
+                onClose();
+            }}
+            type="button"
+        >
+            Save Configuration
+        </button>
+    ),
 }));
 
 const renderWithProviders = (ui: ReactElement, initialEntries = ['/embedded/automations']) => {
@@ -40,6 +55,9 @@ const makeProject = (
     overrides: Partial<AutomationProjectType> & Pick<AutomationProjectType, 'id' | 'name'>
 ): AutomationProjectType => ({
     categoryId: null,
+    codeWorkflowDraftPublishable: null,
+    codeWorkflowLanguage: null,
+    codeWorkflowProject: false,
     configurationCount: 0,
     description: null,
     lastPublishedDate: null,
@@ -47,6 +65,7 @@ const makeProject = (
     permissionExpression: null,
     published: false,
     tagIds: [],
+    unpublishedChanges: false,
     version: 1,
     workflowTemplates: [],
     ...overrides,
@@ -54,12 +73,11 @@ const makeProject = (
 
 describe('AutomationProjectList', () => {
     const onCreateWorkflow = vi.fn();
-    const onDeleteProject = vi.fn();
     const onDeleteWorkflow = vi.fn();
     const onEditProject = vi.fn();
+    const onEditProjectSource = vi.fn();
     const onEditWorkflow = vi.fn();
     const onImportWorkflow = vi.fn();
-    const onPublishProject = vi.fn();
     const onSelectWorkflow = vi.fn();
     const onUpdateTags = vi.fn();
 
@@ -67,12 +85,11 @@ describe('AutomationProjectList', () => {
 
     const defaultProps = {
         onCreateWorkflow,
-        onDeleteProject,
         onDeleteWorkflow,
         onEditProject,
+        onEditProjectSource,
         onEditWorkflow,
         onImportWorkflow,
-        onPublishProject,
         onSelectWorkflow,
         onUpdateTags,
         tags,
@@ -80,12 +97,11 @@ describe('AutomationProjectList', () => {
 
     beforeEach(() => {
         onCreateWorkflow.mockReset();
-        onDeleteProject.mockReset();
         onDeleteWorkflow.mockReset();
         onEditProject.mockReset();
+        onEditProjectSource.mockReset();
         onEditWorkflow.mockReset();
         onImportWorkflow.mockReset();
-        onPublishProject.mockReset();
         onSelectWorkflow.mockReset();
         onUpdateTags.mockReset();
     });
@@ -97,6 +113,22 @@ describe('AutomationProjectList', () => {
 
         expect(screen.getByText('Alpha Project')).toBeInTheDocument();
         expect(screen.getByText('DRAFT')).toBeInTheDocument();
+    });
+
+    it('renders the code language badge for a code project', () => {
+        const projects = [
+            makeProject({
+                codeWorkflowLanguage: CodeWorkflowLanguage.Javascript,
+                codeWorkflowProject: true,
+                id: 'p1',
+                name: 'Code Project',
+            }),
+            makeProject({id: 'p2', name: 'Visual Project'}),
+        ];
+
+        renderWithProviders(<AutomationProjectList {...defaultProps} projects={projects} />);
+
+        expect(screen.getAllByText('JavaScript')).toHaveLength(1);
     });
 
     it('renders a published badge with the published version', () => {
@@ -163,10 +195,27 @@ describe('AutomationProjectList', () => {
         expect(onUpdateTags.mock.calls[0][1]).toContain('sales');
     });
 
-    it('calls onPublishProject when Publish is selected', async () => {
+    it('opens the publish dialog when Publish is selected', async () => {
         const user = userEvent.setup();
 
-        const projects = [makeProject({id: 'project-7', name: 'My Project'})];
+        const projects = [
+            makeProject({
+                id: 'project-7',
+                name: 'My Project',
+                workflowTemplates: [
+                    {
+                        components: [],
+                        description: null,
+                        label: 'Sync',
+                        lastModifiedDate: null,
+                        permissionExpression: null,
+                        triggers: [],
+                        workflowId: 'draft-wf-7',
+                        workflowUuid: 'wf-uuid-7',
+                    },
+                ],
+            }),
+        ];
 
         renderWithProviders(<AutomationProjectList {...defaultProps} projects={projects} />);
 
@@ -174,7 +223,104 @@ describe('AutomationProjectList', () => {
 
         await user.click(await screen.findByRole('menuitem', {name: /publish/i}));
 
-        expect(onPublishProject).toHaveBeenCalledWith('project-7');
+        expect(await screen.findByRole('dialog', {name: 'Publish Project My Project'})).toBeInTheDocument();
+        expect(screen.getByLabelText('Description')).toBeInTheDocument();
+    });
+
+    it('calls onEditProjectSource from the Edit Source item of a code project', async () => {
+        const user = userEvent.setup();
+
+        const projects = [
+            makeProject({
+                codeWorkflowLanguage: CodeWorkflowLanguage.Javascript,
+                codeWorkflowProject: true,
+                id: 'project-9',
+                name: 'Code Project',
+            }),
+        ];
+
+        renderWithProviders(<AutomationProjectList {...defaultProps} projects={projects} />);
+
+        await user.click(screen.getByTestId('project-9-moreProjectActionsButton'));
+
+        await user.click(await screen.findByRole('menuitem', {name: /edit source/i}));
+
+        expect(onEditProjectSource).toHaveBeenCalledWith('project-9');
+    });
+
+    it('does not show Edit Source for a Java code project', async () => {
+        const user = userEvent.setup();
+
+        const projects = [
+            makeProject({
+                codeWorkflowLanguage: CodeWorkflowLanguage.Java,
+                codeWorkflowProject: true,
+                id: 'project-10',
+                name: 'Java Project',
+            }),
+        ];
+
+        renderWithProviders(<AutomationProjectList {...defaultProps} projects={projects} />);
+
+        await user.click(screen.getByTestId('project-10-moreProjectActionsButton'));
+
+        await screen.findByRole('menuitem', {name: 'Usage'});
+
+        expect(screen.queryByRole('menuitem', {name: /edit source/i})).not.toBeInTheDocument();
+    });
+
+    it('disables Publish for a code project whose draft has no source of its own', async () => {
+        const user = userEvent.setup();
+
+        const projects = [
+            makeProject({
+                codeWorkflowDraftPublishable: false,
+                codeWorkflowLanguage: CodeWorkflowLanguage.Python,
+                codeWorkflowProject: true,
+                id: 'project-11',
+                name: 'Unpublishable Project',
+            }),
+        ];
+
+        renderWithProviders(<AutomationProjectList {...defaultProps} projects={projects} />);
+
+        await user.click(screen.getByTestId('project-11-moreProjectActionsButton'));
+
+        expect(await screen.findByRole('menuitem', {name: /publish/i})).toHaveAttribute('data-disabled');
+    });
+
+    it('enables Publish for a code project whose draft is publishable', async () => {
+        const user = userEvent.setup();
+
+        const projects = [
+            makeProject({
+                codeWorkflowDraftPublishable: true,
+                codeWorkflowLanguage: CodeWorkflowLanguage.Python,
+                codeWorkflowProject: true,
+                id: 'project-12',
+                name: 'Publishable Project',
+            }),
+        ];
+
+        renderWithProviders(<AutomationProjectList {...defaultProps} projects={projects} />);
+
+        await user.click(screen.getByTestId('project-12-moreProjectActionsButton'));
+
+        expect(await screen.findByRole('menuitem', {name: /publish/i})).not.toHaveAttribute('data-disabled');
+    });
+
+    it('does not show Edit Source for a visual project', async () => {
+        const user = userEvent.setup();
+
+        const projects = [makeProject({id: 'project-8', name: 'Visual Project'})];
+
+        renderWithProviders(<AutomationProjectList {...defaultProps} projects={projects} />);
+
+        await user.click(screen.getByTestId('project-8-moreProjectActionsButton'));
+
+        await screen.findByRole('menuitem', {name: /publish/i});
+
+        expect(screen.queryByRole('menuitem', {name: /edit source/i})).not.toBeInTheDocument();
     });
 
     it('calls onCreateWorkflow from the New Workflow button next to the Workflows heading', async () => {
@@ -241,6 +387,24 @@ describe('AutomationProjectList', () => {
         expect(onImportWorkflow).toHaveBeenCalledWith('project-4');
     });
 
+    it('imports a workflow from the empty Workflows tab of a project', async () => {
+        const user = userEvent.setup();
+
+        const projects = [makeProject({id: 'project-8', name: 'Empty Project'})];
+
+        renderWithProviders(<AutomationProjectList {...defaultProps} projects={projects} />);
+
+        await user.click(screen.getByText('0 workflows'));
+
+        expect(await screen.findByText('No Workflows')).toBeInTheDocument();
+
+        await user.click(screen.getByRole('button', {name: 'More Workflow Creation Actions'}));
+
+        await user.click(await screen.findByRole('menuitem', {name: 'Import Workflow'}));
+
+        expect(onImportWorkflow).toHaveBeenCalledWith('project-8');
+    });
+
     it('offers configuration creation only once the project is published and has configurations', async () => {
         const user = userEvent.setup();
 
@@ -263,7 +427,7 @@ describe('AutomationProjectList', () => {
         await user.click(screen.getByRole('tab', {name: 'Configurations'}));
 
         expect(await screen.findByText('Publish the project to configure it')).toBeInTheDocument();
-        expect(screen.queryByRole('button', {name: 'New Configuration'})).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', {name: 'Create Configuration'})).not.toBeInTheDocument();
 
         await user.click(liveTrigger);
 
@@ -271,7 +435,38 @@ describe('AutomationProjectList', () => {
 
         await user.click(liveTabs[liveTabs.length - 1]);
 
-        expect(await screen.findByRole('button', {name: 'New Configuration'})).toBeEnabled();
+        expect(await screen.findByRole('button', {name: 'Create Configuration'})).toBeEnabled();
+    });
+
+    it('opens the publish dialog from Publish on the Configurations tab of a draft project', async () => {
+        const user = userEvent.setup();
+
+        const projects = [
+            makeProject({
+                id: 'draft',
+                name: 'Draft Project',
+                workflowTemplates: [
+                    {
+                        components: [],
+                        description: null,
+                        label: 'Sync',
+                        lastModifiedDate: null,
+                        permissionExpression: null,
+                        triggers: [],
+                        workflowId: 'draft-wf-1',
+                        workflowUuid: 'wf-uuid-1',
+                    },
+                ],
+            }),
+        ];
+
+        renderWithProviders(<AutomationProjectList {...defaultProps} projects={projects} />, [
+            '/embedded/automations?projectId=draft&tab=configurations',
+        ]);
+
+        await user.click(await screen.findByRole('button', {name: 'Publish'}));
+
+        expect(await screen.findByRole('dialog', {name: 'Publish Project Draft Project'})).toBeInTheDocument();
     });
 
     it('opens the project on its Configurations tab from the projectId and tab parameters', () => {
@@ -294,7 +489,7 @@ describe('AutomationProjectList', () => {
 
         expect(configurationsTabs).toHaveLength(1);
         expect(configurationsTabs[0]).toHaveAttribute('aria-selected', 'true');
-        expect(screen.getByRole('button', {name: 'New Configuration'})).toBeInTheDocument();
+        expect(screen.getByRole('button', {name: 'Create Configuration'})).toHaveTextContent('New Configuration');
     });
 
     it('expands a project to show its workflows and navigates on click', async () => {
@@ -328,5 +523,135 @@ describe('AutomationProjectList', () => {
         await user.click(workflowItem);
 
         expect(onSelectWorkflow).toHaveBeenCalledWith('wf-uuid-5');
+    });
+
+    it('opens the project on its Configurations tab after a configuration is created from the project menu', async () => {
+        const user = userEvent.setup();
+
+        const projects = [
+            makeProject({
+                configurationCount: 0,
+                id: 'live',
+                lastPublishedVersion: 1,
+                name: 'Live Project',
+                published: true,
+            }),
+        ];
+
+        renderWithProviders(<AutomationProjectList {...defaultProps} projects={projects} />);
+
+        expect(screen.queryByRole('tab', {name: 'Configurations'})).not.toBeInTheDocument();
+
+        await user.click(screen.getByTestId('live-moreProjectActionsButton'));
+
+        await user.click(await screen.findByRole('menuitem', {name: 'New Configuration'}));
+
+        await user.click(await screen.findByRole('button', {name: 'Save Configuration'}));
+
+        expect(await screen.findByRole('tab', {name: 'Configurations'})).toHaveAttribute('aria-selected', 'true');
+        expect(screen.queryByRole('button', {name: 'Save Configuration'})).not.toBeInTheDocument();
+    });
+
+    describe('code projects', () => {
+        const workflowTemplate = {
+            components: [],
+            description: null,
+            label: 'Sync Contacts',
+            lastModifiedDate: null,
+            permissionExpression: null,
+            triggers: [],
+            workflowId: 'draft-wf-uuid-6',
+            workflowUuid: 'wf-uuid-6',
+        };
+
+        it('does not offer workflow creation or import on a code project', async () => {
+            const user = userEvent.setup();
+
+            const projects = [
+                makeProject({
+                    codeWorkflowLanguage: CodeWorkflowLanguage.Javascript,
+                    codeWorkflowProject: true,
+                    id: 'project-10',
+                    name: 'Code Project',
+                    workflowTemplates: [workflowTemplate],
+                }),
+            ];
+
+            renderWithProviders(<AutomationProjectList {...defaultProps} projects={projects} />);
+
+            await user.click(screen.getByText('1 workflow'));
+
+            await screen.findByText(workflowTemplate.label);
+
+            expect(screen.queryByRole('button', {name: /create workflow/i})).not.toBeInTheDocument();
+            expect(screen.queryByRole('button', {name: /more workflow creation actions/i})).not.toBeInTheDocument();
+
+            await user.click(screen.getByTestId('project-10-moreProjectActionsButton'));
+
+            await screen.findByRole('menuitem', {name: /edit source/i});
+
+            expect(screen.getByRole('menuitem', {name: 'Usage'})).toBeInTheDocument();
+            expect(screen.getByRole('menuitem', {name: /publish/i})).toBeInTheDocument();
+            expect(screen.getByRole('menuitem', {name: /edit project/i})).toBeInTheDocument();
+            expect(screen.getByRole('menuitem', {name: /delete project/i})).toBeInTheDocument();
+            expect(screen.queryByRole('menuitem', {name: /new workflow/i})).not.toBeInTheDocument();
+            expect(screen.queryByRole('menuitem', {name: /import workflow/i})).not.toBeInTheDocument();
+        });
+
+        it('shows no workflow actions menu on the workflow rows of a code project', async () => {
+            const user = userEvent.setup();
+
+            const projects = [
+                makeProject({
+                    codeWorkflowProject: true,
+                    id: 'project-11',
+                    name: 'Code Project',
+                    workflowTemplates: [workflowTemplate],
+                }),
+            ];
+
+            renderWithProviders(<AutomationProjectList {...defaultProps} projects={projects} />);
+
+            await user.click(screen.getByText('1 workflow'));
+
+            await screen.findByText(workflowTemplate.label);
+
+            expect(screen.queryByRole('button', {name: /workflow actions/i})).not.toBeInTheDocument();
+        });
+
+        it('still offers workflow creation and import on a visual project', async () => {
+            const user = userEvent.setup();
+
+            const projects = [
+                makeProject({id: 'project-12', name: 'Visual Project', workflowTemplates: [workflowTemplate]}),
+            ];
+
+            renderWithProviders(<AutomationProjectList {...defaultProps} projects={projects} />);
+
+            await user.click(screen.getByText('1 workflow'));
+
+            expect(await screen.findByRole('button', {name: /create workflow/i})).toBeInTheDocument();
+
+            await user.click(screen.getByTestId('project-12-moreProjectActionsButton'));
+
+            expect(await screen.findByRole('menuitem', {name: /new workflow/i})).toBeInTheDocument();
+            expect(screen.getByRole('menuitem', {name: /import workflow/i})).toBeInTheDocument();
+            expect(screen.getByRole('menuitem', {name: 'Usage'})).toBeInTheDocument();
+        });
+
+        it('still offers Delete Workflow on the workflow rows of a visual project', async () => {
+            const user = userEvent.setup();
+
+            const projects = [
+                makeProject({id: 'project-13', name: 'Visual Project', workflowTemplates: [workflowTemplate]}),
+            ];
+
+            renderWithProviders(<AutomationProjectList {...defaultProps} projects={projects} />);
+
+            await user.click(screen.getByText('1 workflow'));
+            await user.click(await screen.findByRole('button', {name: 'Workflow actions for Sync Contacts'}));
+
+            expect(await screen.findByRole('menuitem', {name: 'Delete'})).toBeInTheDocument();
+        });
     });
 });

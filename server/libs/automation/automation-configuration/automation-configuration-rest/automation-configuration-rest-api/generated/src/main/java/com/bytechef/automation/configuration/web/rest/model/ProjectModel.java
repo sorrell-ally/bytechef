@@ -61,11 +61,17 @@ public class ProjectModel {
 
   private @Nullable CategoryModel category;
 
+  private @Nullable Boolean codeWorkflow;
+
+  private @Nullable String codeWorkflowLanguage;
+
   private @Nullable Integer developmentDeploymentCount;
 
   private List<Long> projectWorkflowIds = new ArrayList<>();
 
   private List<@Valid TagModel> tags = new ArrayList<>();
+
+  private @Nullable Boolean unpublishedChanges;
 
   private Long workspaceId;
 
@@ -335,6 +341,48 @@ public class ProjectModel {
     this.category = category;
   }
 
+  public ProjectModel codeWorkflow(@Nullable Boolean codeWorkflow) {
+    this.codeWorkflow = codeWorkflow;
+    return this;
+  }
+
+  /**
+   * Whether the project is backed by a code workflow.
+   * @return codeWorkflow
+   */
+  
+  @Schema(name = "codeWorkflow", accessMode = Schema.AccessMode.READ_ONLY, description = "Whether the project is backed by a code workflow.", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+  @JsonProperty("codeWorkflow")
+  public @Nullable Boolean getCodeWorkflow() {
+    return codeWorkflow;
+  }
+
+  @JsonProperty("codeWorkflow")
+  public void setCodeWorkflow(@Nullable Boolean codeWorkflow) {
+    this.codeWorkflow = codeWorkflow;
+  }
+
+  public ProjectModel codeWorkflowLanguage(@Nullable String codeWorkflowLanguage) {
+    this.codeWorkflowLanguage = codeWorkflowLanguage;
+    return this;
+  }
+
+  /**
+   * The programming language of the code workflow, if the project is code-backed.
+   * @return codeWorkflowLanguage
+   */
+  
+  @Schema(name = "codeWorkflowLanguage", accessMode = Schema.AccessMode.READ_ONLY, description = "The programming language of the code workflow, if the project is code-backed.", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+  @JsonProperty("codeWorkflowLanguage")
+  public @Nullable String getCodeWorkflowLanguage() {
+    return codeWorkflowLanguage;
+  }
+
+  @JsonProperty("codeWorkflowLanguage")
+  public void setCodeWorkflowLanguage(@Nullable String codeWorkflowLanguage) {
+    this.codeWorkflowLanguage = codeWorkflowLanguage;
+  }
+
   public ProjectModel developmentDeploymentCount(@Nullable Integer developmentDeploymentCount) {
     this.developmentDeploymentCount = developmentDeploymentCount;
     return this;
@@ -414,6 +462,27 @@ public class ProjectModel {
     this.tags = tags;
   }
 
+  public ProjectModel unpublishedChanges(@Nullable Boolean unpublishedChanges) {
+    this.unpublishedChanges = unpublishedChanges;
+    return this;
+  }
+
+  /**
+   * If the project's draft version differs from its last published version. Computed only by the project list endpoints; false in every other response.
+   * @return unpublishedChanges
+   */
+  
+  @Schema(name = "unpublishedChanges", accessMode = Schema.AccessMode.READ_ONLY, description = "If the project's draft version differs from its last published version. Computed only by the project list endpoints; false in every other response.", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+  @JsonProperty("unpublishedChanges")
+  public @Nullable Boolean getUnpublishedChanges() {
+    return unpublishedChanges;
+  }
+
+  @JsonProperty("unpublishedChanges")
+  public void setUnpublishedChanges(@Nullable Boolean unpublishedChanges) {
+    this.unpublishedChanges = unpublishedChanges;
+  }
+
   public ProjectModel workspaceId(Long workspaceId) {
     this.workspaceId = workspaceId;
     return this;
@@ -477,16 +546,19 @@ public class ProjectModel {
         Objects.equals(this.lastProjectVersion, project.lastProjectVersion) &&
         Objects.equals(this.uuid, project.uuid) &&
         Objects.equals(this.category, project.category) &&
+        Objects.equals(this.codeWorkflow, project.codeWorkflow) &&
+        Objects.equals(this.codeWorkflowLanguage, project.codeWorkflowLanguage) &&
         Objects.equals(this.developmentDeploymentCount, project.developmentDeploymentCount) &&
         Objects.equals(this.projectWorkflowIds, project.projectWorkflowIds) &&
         Objects.equals(this.tags, project.tags) &&
+        Objects.equals(this.unpublishedChanges, project.unpublishedChanges) &&
         Objects.equals(this.workspaceId, project.workspaceId) &&
         Objects.equals(this.version, project.version);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(createdBy, createdDate, description, id, lastModifiedBy, lastModifiedDate, name, lastPublishedDate, lastStatus, lastProjectVersion, uuid, category, developmentDeploymentCount, projectWorkflowIds, tags, workspaceId, version);
+    return Objects.hash(createdBy, createdDate, description, id, lastModifiedBy, lastModifiedDate, name, lastPublishedDate, lastStatus, lastProjectVersion, uuid, category, codeWorkflow, codeWorkflowLanguage, developmentDeploymentCount, projectWorkflowIds, tags, unpublishedChanges, workspaceId, version);
   }
 
   @Override
@@ -505,9 +577,12 @@ public class ProjectModel {
     sb.append("    lastProjectVersion: ").append(toIndentedString(lastProjectVersion)).append("\n");
     sb.append("    uuid: ").append(toIndentedString(uuid)).append("\n");
     sb.append("    category: ").append(toIndentedString(category)).append("\n");
+    sb.append("    codeWorkflow: ").append(toIndentedString(codeWorkflow)).append("\n");
+    sb.append("    codeWorkflowLanguage: ").append(toIndentedString(codeWorkflowLanguage)).append("\n");
     sb.append("    developmentDeploymentCount: ").append(toIndentedString(developmentDeploymentCount)).append("\n");
     sb.append("    projectWorkflowIds: ").append(toIndentedString(projectWorkflowIds)).append("\n");
     sb.append("    tags: ").append(toIndentedString(tags)).append("\n");
+    sb.append("    unpublishedChanges: ").append(toIndentedString(unpublishedChanges)).append("\n");
     sb.append("    workspaceId: ").append(toIndentedString(workspaceId)).append("\n");
     sb.append("    version: ").append(toIndentedString(version)).append("\n");
     sb.append("}");

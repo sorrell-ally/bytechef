@@ -6,10 +6,13 @@ All URIs are relative to */api/embedded/internal*
 |------------- | ------------- | -------------|
 | [**createConnectedUserConnection**](ConnectionApi.md#createconnecteduserconnection) | **POST** /connected-users/{connectedUserId}/connections | Create a new connection for the connected user |
 | [**createConnection**](ConnectionApi.md#createconnection) | **POST** /connections | Create a new connection |
+| [**deleteConnectedUserConnection**](ConnectionApi.md#deleteconnecteduserconnection) | **DELETE** /connected-users/{connectedUserId}/connections/{connectionId} | Deletes a connection of a connected user |
 | [**deleteConnection**](ConnectionApi.md#deleteconnection) | **DELETE** /connections/{id} | Delete a connection |
+| [**getAllConnectedUserConnections**](ConnectionApi.md#getallconnecteduserconnections) | **GET** /connected-users/{connectedUserId}/connections | Get all connections a connected user can use |
 | [**getConnectedUserConnections**](ConnectionApi.md#getconnecteduserconnections) | **GET** /connected-users/{connectedUserId}/components/{componentName}/connections | Get all connected user\&#39;s connections |
 | [**getConnection**](ConnectionApi.md#getconnection) | **GET** /connections/{id} | Get a connection by id |
 | [**getConnections**](ConnectionApi.md#getconnections) | **GET** /connections | Get all connections |
+| [**updateConnectedUserConnectionCredentials**](ConnectionApi.md#updateconnecteduserconnectioncredentials) | **PUT** /connected-users/{connectedUserId}/connections/{connectionId}/credentials | Replaces the credentials of a provisioned connected user connection |
 | [**updateConnection**](ConnectionApi.md#updateconnectionoperation) | **PATCH** /connections/{id} | Update an existing connection |
 | [**updateConnectionCredentials**](ConnectionApi.md#updateconnectioncredentialsoperation) | **PUT** /connections/{id}/credentials | Replaces the credentials of an existing connection |
 
@@ -152,6 +155,76 @@ No authorization required
 [[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
 
 
+## deleteConnectedUserConnection
+
+> deleteConnectedUserConnection(connectedUserId, connectionId)
+
+Deletes a connection of a connected user
+
+Deletes a connection a connected user created or a tenant admin provisioned for them.
+
+### Example
+
+```ts
+import {
+  Configuration,
+  ConnectionApi,
+} from '';
+import type { DeleteConnectedUserConnectionRequest } from '';
+
+async function example() {
+  console.log("🚀 Testing  SDK...");
+  const api = new ConnectionApi();
+
+  const body = {
+    // number | The id of a connected user.
+    connectedUserId: 789,
+    // number | The id of a connection.
+    connectionId: 789,
+  } satisfies DeleteConnectedUserConnectionRequest;
+
+  try {
+    const data = await api.deleteConnectedUserConnection(body);
+    console.log(data);
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+// Run the test
+example().catch(console.error);
+```
+
+### Parameters
+
+
+| Name | Type | Description  | Notes |
+|------------- | ------------- | ------------- | -------------|
+| **connectedUserId** | `number` | The id of a connected user. | [Defaults to `undefined`] |
+| **connectionId** | `number` | The id of a connection. | [Defaults to `undefined`] |
+
+### Return type
+
+`void` (Empty response body)
+
+### Authorization
+
+No authorization required
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: Not defined
+
+
+### HTTP response details
+| Status code | Description | Response headers |
+|-------------|-------------|------------------|
+| **204** | Successful operation. |  -  |
+
+[[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
+
+
 ## deleteConnection
 
 > deleteConnection(id)
@@ -215,6 +288,73 @@ No authorization required
 | Status code | Description | Response headers |
 |-------------|-------------|------------------|
 | **204** | Successful operation. |  -  |
+
+[[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
+
+
+## getAllConnectedUserConnections
+
+> Array&lt;Connection&gt; getAllConnectedUserConnections(connectedUserId)
+
+Get all connections a connected user can use
+
+Get all connections a connected user can use, across every component.
+
+### Example
+
+```ts
+import {
+  Configuration,
+  ConnectionApi,
+} from '';
+import type { GetAllConnectedUserConnectionsRequest } from '';
+
+async function example() {
+  console.log("🚀 Testing  SDK...");
+  const api = new ConnectionApi();
+
+  const body = {
+    // number | The id of a connected user.
+    connectedUserId: 789,
+  } satisfies GetAllConnectedUserConnectionsRequest;
+
+  try {
+    const data = await api.getAllConnectedUserConnections(body);
+    console.log(data);
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+// Run the test
+example().catch(console.error);
+```
+
+### Parameters
+
+
+| Name | Type | Description  | Notes |
+|------------- | ------------- | ------------- | -------------|
+| **connectedUserId** | `number` | The id of a connected user. | [Defaults to `undefined`] |
+
+### Return type
+
+[**Array&lt;Connection&gt;**](Connection.md)
+
+### Authorization
+
+No authorization required
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: `application/json`
+
+
+### HTTP response details
+| Status code | Description | Response headers |
+|-------------|-------------|------------------|
+| **200** | The list of connections. |  -  |
 
 [[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
 
@@ -431,6 +571,79 @@ No authorization required
 | Status code | Description | Response headers |
 |-------------|-------------|------------------|
 | **200** | The list of connections. |  -  |
+
+[[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
+
+
+## updateConnectedUserConnectionCredentials
+
+> updateConnectedUserConnectionCredentials(connectedUserId, connectionId, updateConnectionCredentialsRequest)
+
+Replaces the credentials of a provisioned connected user connection
+
+Replaces the credentials of a connection a tenant admin provisioned for a connected user.
+
+### Example
+
+```ts
+import {
+  Configuration,
+  ConnectionApi,
+} from '';
+import type { UpdateConnectedUserConnectionCredentialsRequest } from '';
+
+async function example() {
+  console.log("🚀 Testing  SDK...");
+  const api = new ConnectionApi();
+
+  const body = {
+    // number | The id of a connected user.
+    connectedUserId: 789,
+    // number | The id of a connection.
+    connectionId: 789,
+    // UpdateConnectionCredentialsRequest
+    updateConnectionCredentialsRequest: ...,
+  } satisfies UpdateConnectedUserConnectionCredentialsRequest;
+
+  try {
+    const data = await api.updateConnectedUserConnectionCredentials(body);
+    console.log(data);
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+// Run the test
+example().catch(console.error);
+```
+
+### Parameters
+
+
+| Name | Type | Description  | Notes |
+|------------- | ------------- | ------------- | -------------|
+| **connectedUserId** | `number` | The id of a connected user. | [Defaults to `undefined`] |
+| **connectionId** | `number` | The id of a connection. | [Defaults to `undefined`] |
+| **updateConnectionCredentialsRequest** | [UpdateConnectionCredentialsRequest](UpdateConnectionCredentialsRequest.md) |  | |
+
+### Return type
+
+`void` (Empty response body)
+
+### Authorization
+
+No authorization required
+
+### HTTP request headers
+
+- **Content-Type**: `application/json`
+- **Accept**: Not defined
+
+
+### HTTP response details
+| Status code | Description | Response headers |
+|-------------|-------------|------------------|
+| **204** | Successful operation. |  -  |
 
 [[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
 

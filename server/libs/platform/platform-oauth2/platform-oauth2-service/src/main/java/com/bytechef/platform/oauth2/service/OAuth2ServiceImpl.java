@@ -21,9 +21,12 @@ import com.bytechef.component.definition.Authorization;
 import com.bytechef.config.ApplicationProperties;
 import com.bytechef.config.ApplicationProperties.Oauth2;
 import com.bytechef.config.ApplicationProperties.Oauth2.OAuth2App;
+import com.bytechef.platform.githubproxy.client.model.OAuthApp;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 
@@ -34,9 +37,12 @@ import org.springframework.stereotype.Service;
 public class OAuth2ServiceImpl implements OAuth2Service {
 
     private final Oauth2 oauth2;
+    private final RemoteOAuth2AppsClient remoteOAuth2AppsClient;
 
-    public OAuth2ServiceImpl(ApplicationProperties applicationProperties) {
+    public OAuth2ServiceImpl(ApplicationProperties applicationProperties,
+        RemoteOAuth2AppsClient remoteOAuth2AppsClient) {
         this.oauth2 = applicationProperties.getOauth2();
+        this.remoteOAuth2AppsClient = remoteOAuth2AppsClient;
     }
 
     @Override
@@ -44,15 +50,26 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         Map<String, Object> newParameters = new HashMap<>(parameters);
 
         if (StringUtils.isBlank(MapUtils.getString(parameters, Authorization.CLIENT_ID))) {
-            Map<String, OAuth2App> oAuth2AppMap = oauth2.getPredefinedApps();
+            Map<String, OAuth2App> predefinedOAuth2Apps = oauth2.getPredefinedApps();
 
-            if (oAuth2AppMap.containsKey(componentName)) {
-                OAuth2App oAuth2App = oAuth2AppMap.get(componentName);
+            OAuth2App oAuth2App = predefinedOAuth2Apps.get(componentName);
 
+            if (oAuth2App != null) {
                 newParameters.putAll(
                     Map.of(
                         Authorization.CLIENT_ID, oAuth2App.getClientId(),
                         Authorization.CLIENT_SECRET, oAuth2App.getClientSecret()));
+            } else {
+                Map<String, OAuthApp> remoteOAuth2Apps = remoteOAuth2AppsClient.getOAuth2Apps();
+
+                OAuthApp oAuthApp = remoteOAuth2Apps.get(componentName);
+
+                if (oAuthApp != null) {
+                    newParameters.putAll(
+                        Map.of(
+                            Authorization.CLIENT_ID, oAuthApp.clientId(),
+                            Authorization.CLIENT_SECRET, oAuthApp.clientSecret()));
+                }
             }
         }
 
@@ -66,9 +83,18 @@ public class OAuth2ServiceImpl implements OAuth2Service {
 
     @Override
     public List<String> getPredefinedApps() {
-        return oauth2.getPredefinedApps()
-            .keySet()
-            .stream()
-            .toList();
+        Map<String, OAuth2App> predefinedOAuth2Apps = oauth2.getPredefinedApps();
+
+        Set<String> names = new LinkedHashSet<>(predefinedOAuth2Apps.keySet());
+
+        Map<String, OAuthApp> remoteOAuth2Apps = remoteOAuth2AppsClient.getOAuth2Apps();
+
+        names.addAll(
+            remoteOAuth2Apps.keySet()
+                .stream()
+                .sorted()
+                .toList());
+
+        return List.copyOf(names);
     }
 }

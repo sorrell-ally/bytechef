@@ -31,13 +31,18 @@ import com.bytechef.automation.configuration.security.AutomationMethodSecurityEx
 import com.bytechef.automation.configuration.service.PermissionService;
 import com.bytechef.component.definition.Authorization.AuthorizationType;
 import com.bytechef.component.definition.ComponentDsl;
+import com.bytechef.ee.embedded.ai.mcp.facade.McpAutomationRowFacade;
+import com.bytechef.ee.embedded.ai.mcp.facade.McpIntegrationInstanceRowFacade;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationComponentService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceConfigurationService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceConfigurationWorkflowService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceToolService;
+import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceWorkflowService;
 import com.bytechef.ee.embedded.configuration.audit.ConnectionAuditEvents;
 import com.bytechef.ee.embedded.configuration.domain.ConnectedUserConnection;
+import com.bytechef.ee.embedded.configuration.domain.ConnectionOrigin;
 import com.bytechef.ee.embedded.configuration.domain.Integration;
+import com.bytechef.ee.embedded.configuration.domain.IntegrationInstance;
 import com.bytechef.ee.embedded.configuration.domain.IntegrationInstanceConfiguration;
 import com.bytechef.ee.embedded.configuration.repository.ConnectedUserConnectionRepository;
 import com.bytechef.ee.embedded.configuration.repository.ConnectedUserSharedConnectionRepository;
@@ -160,6 +165,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
     JobFacade.class, JobService.class, McpComponentService.class, McpIntegrationComponentService.class,
     McpIntegrationInstanceConfigurationService.class,
     McpIntegrationInstanceConfigurationWorkflowService.class, McpIntegrationInstanceToolService.class,
+    McpIntegrationInstanceWorkflowService.class, McpAutomationRowFacade.class, McpIntegrationInstanceRowFacade.class,
     McpServerService.class, McpToolService.class, OAuth2ParametersFacade.class, OAuth2Service.class,
     PrincipalJobFacade.class, PrincipalJobService.class, ProjectFacade.class,
     TaskDispatcherDefinitionService.class, TaskExecutionService.class,
@@ -509,6 +515,40 @@ class ConnectedUserConnectionFacadeIntTest {
     }
 
     @Test
+    void testGetConnectionsOrdersOwnConnectionsBeforeDisabledIntegrationAndSharedOnes() {
+        long connectedUserId = createConnectedUser(Environment.PRODUCTION);
+
+        stubSharedConnections(Environment.PRODUCTION, 84001L);
+
+        long disabledIntegrationInstanceId = createIntegrationInstance(
+            connectedUserId, 84002L, Environment.PRODUCTION, Map.of(), null);
+
+        integrationInstanceService.updateEnabled(disabledIntegrationInstanceId, false);
+
+        createConnectedUserConnection(connectedUserId, 84003L, Environment.PRODUCTION);
+        createConnectedUserConnection(connectedUserId, 84004L, Environment.PRODUCTION);
+        createIntegrationInstance(connectedUserId, 84005L, Environment.PRODUCTION);
+        createIntegrationInstance(connectedUserId, 84006L, Environment.PRODUCTION);
+
+        when(connectionFacade.getConnections(any(), eq(PlatformType.EMBEDDED)))
+            .thenAnswer(invocation -> {
+                List<Long> requestedConnectionIds = invocation.getArgument(0);
+
+                return requestedConnectionIds.stream()
+                    .sorted()
+                    .map(requestedConnectionId -> ConnectionDTO.builder()
+                        .componentName("slack")
+                        .id(requestedConnectionId)
+                        .build())
+                    .toList();
+            });
+
+        assertThat(connectedUserConnectionFacade.getConnections(connectedUserId, "slack", List.of()))
+            .extracting(ConnectionDTO::id)
+            .containsExactly(84006L, 84005L, 84004L, 84003L, 84002L, 84001L);
+    }
+
+    @Test
     void testGetConnectionsWithNullComponentNameReturnsAllOwnedConnections() {
         long connectedUserId = createConnectedUser(Environment.PRODUCTION);
 
@@ -622,6 +662,54 @@ class ConnectedUserConnectionFacadeIntTest {
         ConnectionDTO connectionDTO = connectionDTOs.getFirst();
 
         assertThat(connectionDTO.authorizationParameters()).isEqualTo(Map.of("secret", "value"));
+    }
+
+    @Test
+    void testGetConnectionOriginsMarksConnectionsTheConnectedUserCreatedAsSelfServe() {
+        long connectedUserId = createConnectedUser(Environment.PRODUCTION);
+
+        createConnectedUserConnection(connectedUserId, 85001L, Environment.PRODUCTION);
+        createIntegrationInstance(connectedUserId, 85002L, Environment.PRODUCTION);
+
+        assertThat(connectedUserConnectionFacade.getConnectionOrigins(connectedUserId, List.of(85001L, 85002L)))
+            .containsExactlyInAnyOrderEntriesOf(
+                Map.of(85001L, ConnectionOrigin.SELF_SERVE, 85002L, ConnectionOrigin.SELF_SERVE));
+    }
+
+    @Test
+    void testGetConnectionOriginsMarksConnectionsAnAdminCreatedForTheConnectedUserAsProvisioned() {
+        long connectedUserId = createConnectedUser(Environment.PRODUCTION);
+
+        registerConnection(85011L, Environment.PRODUCTION, PlatformType.EMBEDDED);
+
+        connectedUserConnectionService.create(connectedUserId, 85011L, "admin@localhost.com");
+
+        createProvisionedIntegrationInstance(connectedUserId, 85012L, Environment.PRODUCTION);
+
+        assertThat(connectedUserConnectionFacade.getConnectionOrigins(connectedUserId, List.of(85011L, 85012L)))
+            .containsExactlyInAnyOrderEntriesOf(
+                Map.of(85011L, ConnectionOrigin.PROVISIONED, 85012L, ConnectionOrigin.PROVISIONED));
+    }
+
+    @Test
+    void testGetConnectionOriginsMarksSharedAdminConnectionsAsInternal() {
+        long connectedUserId = createConnectedUser(Environment.PRODUCTION);
+
+        stubSharedConnections(Environment.PRODUCTION, 85021L);
+
+        assertThat(connectedUserConnectionFacade.getConnectionOrigins(connectedUserId, List.of(85021L)))
+            .containsExactlyEntriesOf(Map.of(85021L, ConnectionOrigin.INTERNAL));
+    }
+
+    @Test
+    void testGetConnectionOriginsLeavesOutConnectionsTheConnectedUserCannotUse() {
+        long connectedUserId = createConnectedUser(Environment.PRODUCTION);
+        long otherConnectedUserId = createConnectedUser(Environment.PRODUCTION);
+
+        createConnectedUserConnection(otherConnectedUserId, 85031L, Environment.PRODUCTION);
+
+        assertThat(connectedUserConnectionFacade.getConnectionOrigins(connectedUserId, List.of(85031L, 85032L)))
+            .isEmpty();
     }
 
     @Test
@@ -845,6 +933,113 @@ class ConnectedUserConnectionFacadeIntTest {
     }
 
     @Test
+    void testUpdateConnectedUserConnectionCredentialsReplacesAConnectionProvisionedForAutomations() {
+        long connectedUserId = createConnectedUser(Environment.PRODUCTION);
+
+        registerConnection(83771L, Environment.PRODUCTION, PlatformType.EMBEDDED);
+
+        connectedUserConnectionService.create(connectedUserId, 83771L, "admin@localhost.com");
+
+        stubOwnedConnectionDTOs(List.of(83771L));
+
+        Map<String, Object> parameters = Map.of("token", "new");
+
+        connectedUserConnectionFacade.updateConnectedUserConnectionCredentials(
+            connectedUserId, 83771L, parameters, 4);
+
+        verify(connectionFacade).updateCredentials(83771L, parameters, 4);
+
+        assertThat(findSingleConnectionEvent(ConnectionAuditEvents.CONNECTION_CREDENTIALS_UPDATED, 83771L).getData())
+            .containsEntry("result", "SUCCESS")
+            .containsEntry("connectedUserId", String.valueOf(connectedUserId))
+            .doesNotContainKey("parameters")
+            .doesNotContainValue("new");
+    }
+
+    @Test
+    void testUpdateConnectedUserConnectionCredentialsKeepsTheConfigurationParametersOfAProvisionedInstance() {
+        long connectedUserId = createConnectedUser(Environment.PRODUCTION);
+
+        createIntegrationInstance(
+            connectedUserId, 83781L, Environment.PRODUCTION,
+            Map.of("clientId", "app-id", "clientSecret", "app-secret"), "admin@localhost.com");
+        stubOwnedConnectionDTOs(List.of(83781L));
+
+        ConnectionDefinition connectionDefinition = new ConnectionDefinition(
+            ComponentDsl.connection()
+                .authorizations(
+                    ComponentDsl.authorization(AuthorizationType.OAUTH2_AUTHORIZATION_CODE)
+                        .properties(
+                            ComponentDsl.string("clientId"), ComponentDsl.string("clientSecret"),
+                            ComponentDsl.string("token"))),
+            "componentName", "Component", null);
+
+        when(connectionDefinitionService.getConnectionConnectionDefinition(any(), anyInt()))
+            .thenReturn(connectionDefinition);
+
+        connectedUserConnectionFacade.updateConnectedUserConnectionCredentials(
+            connectedUserId, 83781L, Map.of("token", "new"), 2);
+
+        verify(connectionFacade).updateCredentials(
+            83781L, Map.of("clientId", "app-id", "clientSecret", "app-secret", "token", "new"), 2);
+    }
+
+    @Test
+    void testUpdateConnectedUserConnectionCredentialsRejectsAConnectionTheUserCreated() {
+        long connectedUserId = createConnectedUser(Environment.PRODUCTION);
+
+        createConnectedUserConnection(connectedUserId, 83791L, Environment.PRODUCTION);
+        stubOwnedConnectionDTOs(List.of(83791L));
+
+        Map<String, Object> parameters = Map.of("token", "new");
+
+        assertThrows(
+            NoSuchElementException.class,
+            () -> connectedUserConnectionFacade.updateConnectedUserConnectionCredentials(
+                connectedUserId, 83791L, parameters, 0));
+
+        verify(connectionFacade, never()).updateCredentials(anyLong(), any(), anyInt());
+    }
+
+    @Test
+    void testUpdateConnectedUserConnectionCredentialsRejectsAConnectionProvisionedForAnotherUser() {
+        long connectedUserId = createConnectedUser(Environment.PRODUCTION);
+        long otherConnectedUserId = createConnectedUser(Environment.PRODUCTION);
+
+        registerConnection(83801L, Environment.PRODUCTION, PlatformType.EMBEDDED);
+
+        connectedUserConnectionService.create(otherConnectedUserId, 83801L, "admin@localhost.com");
+
+        stubOwnedConnectionDTOs(List.of(83801L));
+
+        Map<String, Object> parameters = Map.of("token", "new");
+
+        assertThrows(
+            NoSuchElementException.class,
+            () -> connectedUserConnectionFacade.updateConnectedUserConnectionCredentials(
+                connectedUserId, 83801L, parameters, 0));
+
+        verify(connectionFacade, never()).updateCredentials(anyLong(), any(), anyInt());
+    }
+
+    @Test
+    void testUpdateConnectedUserConnectionCredentialsRejectsASharedConnection() {
+        long connectedUserId = createConnectedUser(Environment.PRODUCTION);
+
+        stubSharedConnections(Environment.PRODUCTION, 83811L);
+        stubOwnedConnectionDTOs(List.of(83811L));
+
+        Map<String, Object> parameters = Map.of("token", "new");
+
+        assertThrows(
+            NoSuchElementException.class,
+            () -> connectedUserConnectionFacade.updateConnectedUserConnectionCredentials(
+                connectedUserId, 83811L, parameters, 0));
+
+        verify(connectionFacade, never()).updateCredentials(anyLong(), any(), anyInt());
+    }
+
+    @Test
     void testGetConnectedUserConnectionsForAdminStripsSelfActivatedInstanceCredentials() {
         long connectedUserId = createConnectedUser(Environment.PRODUCTION);
 
@@ -954,7 +1149,7 @@ class ConnectedUserConnectionFacadeIntTest {
         createIntegrationInstance(connectedUserId, connectionId, environment, connectionParameters, null);
     }
 
-    private void createIntegrationInstance(
+    private long createIntegrationInstance(
         long connectedUserId, long connectionId, Environment environment, Map<String, ?> connectionParameters,
         @Nullable String provisionedBy) {
 
@@ -980,8 +1175,10 @@ class ConnectedUserConnectionFacadeIntTest {
         integrationInstanceConfiguration = integrationInstanceConfigurationService.create(
             integrationInstanceConfiguration);
 
-        integrationInstanceService.create(
+        IntegrationInstance integrationInstance = integrationInstanceService.create(
             connectedUserId, connectionId, integrationInstanceConfiguration.getId(), provisionedBy);
+
+        return Objects.requireNonNull(integrationInstance.getId());
     }
 
     private void createProvisionedIntegrationInstance(
@@ -1209,6 +1406,26 @@ class ConnectedUserConnectionFacadeIntTest {
         }
 
         @Test
+        void testGetConnectionOriginsDeniesConnectedUserOnAnotherConnectedUser() {
+            authenticate(createConnectedUserAuthentication(Environment.PRODUCTION));
+
+            assertThatThrownBy(
+                () -> connectedUserConnectionFacade.getConnectionOrigins(
+                    connectedUserBId, List.of(CONNECTED_USER_B_CONNECTION_ID)))
+                        .isInstanceOf(AccessDeniedException.class);
+        }
+
+        @Test
+        void testGetConnectionOriginsAllowsTenantAdminOnAnyConnectedUser() {
+            authenticate(createTenantAdminAuthentication());
+
+            assertThat(
+                connectedUserConnectionFacade.getConnectionOrigins(
+                    connectedUserBId, List.of(CONNECTED_USER_B_CONNECTION_ID)))
+                        .containsExactlyEntriesOf(Map.of(CONNECTED_USER_B_CONNECTION_ID, ConnectionOrigin.SELF_SERVE));
+        }
+
+        @Test
         void testCreateConnectedUserConnectionDeniesConnectedUserOnAnotherConnectedUser() {
             authenticate(createConnectedUserAuthentication(Environment.PRODUCTION));
 
@@ -1245,6 +1462,20 @@ class ConnectedUserConnectionFacadeIntTest {
 
             assertThat(connectedUserConnectionService.getConnectionIds(connectedUserAId))
                 .containsExactlyInAnyOrder(CONNECTED_USER_A_CONNECTION_ID, CONNECTION_ID);
+        }
+
+        @Test
+        void testCreateConnectedUserConnectionDeniesConnectedUserWithoutConnectionDialog() {
+            authenticate(createConnectedUserAuthenticationWithoutConnectionDialog());
+
+            assertThatThrownBy(
+                () -> connectedUserConnectionFacade.createConnectedUserConnection(connectedUserAId, connectionDTO()))
+                    .isInstanceOf(AccessDeniedException.class);
+
+            verify(connectionFacade, never()).create(any(), any());
+
+            assertThat(connectedUserConnectionService.getConnectionIds(connectedUserAId))
+                .containsExactly(CONNECTED_USER_A_CONNECTION_ID);
         }
 
         @Test
@@ -1493,6 +1724,18 @@ class ConnectedUserConnectionFacadeIntTest {
         }
 
         @Test
+        void testReauthorizeConnectedUserConnectionAllowsConnectedUserWithoutConnectionDialog() {
+            authenticate(createConnectedUserAuthenticationWithoutConnectionDialog());
+
+            Map<String, Object> parameters = Map.of("apiKey", "new");
+
+            connectedUserConnectionFacade.reauthorizeConnectedUserConnection(
+                connectedUserAId, CONNECTED_USER_A_CONNECTION_ID, parameters);
+
+            verify(connectionFacade).replaceAuthorizationParameters(CONNECTED_USER_A_CONNECTION_ID, parameters);
+        }
+
+        @Test
         void testReauthorizeConnectedUserConnectionAllowsTenantAdminOnAnyConnectedUser() {
             authenticate(createTenantAdminAuthentication());
 
@@ -1652,6 +1895,12 @@ class ConnectedUserConnectionFacadeIntTest {
 
             return new EmbeddedApiKeyAuthenticationToken(
                 environment.ordinal(), connectedUserId, new User(externalUserAId, "", List.of()), false);
+        }
+
+        private EmbeddedApiKeyAuthenticationToken createConnectedUserAuthenticationWithoutConnectionDialog() {
+            return new EmbeddedApiKeyAuthenticationToken(
+                Environment.PRODUCTION.ordinal(), connectedUserAId, new User(externalUserAId, "", List.of()), false,
+                null, false);
         }
 
         private long createConnectedUser(String externalUserId, Environment environment) {

@@ -1,10 +1,17 @@
 import Button from '@/components/Button/Button';
+import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip';
+import ConnectedUserSheetEmptyState from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserSheetEmptyState';
+import ConnectedUserSheetPanelListSkeleton from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserSheetPanelListSkeleton';
 import ConnectedUserProjectWorkflowList from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/connected-user-project-workflow-list/ConnectedUserProjectWorkflowList';
 import {ConnectedUserWorkflowTemplateSourceI} from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/connected-user-project-workflow-list/ConnectedUserProjectWorkflowListItem';
 import ProvisionProjectWorkflowDialog from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/provision-project-workflow-dialog/ProvisionProjectWorkflowDialog';
-import {useAutomationProjectsQuery, useConnectedUserProjectsQuery} from '@/shared/middleware/graphql';
+import {
+    useAutomationProjectsQuery,
+    useConnectedUserProjectsQuery,
+    useProvisionableConnectedUserProjectsQuery,
+} from '@/shared/middleware/graphql';
 import {useEnvironmentStore} from '@/shared/stores/useEnvironmentStore';
-import {PlusIcon} from 'lucide-react';
+import {FolderIcon, PlusIcon} from 'lucide-react';
 import {useMemo, useState} from 'react';
 
 interface ConnectedUserSheetPanelWorkflowListProps {
@@ -29,6 +36,10 @@ const ConnectedUserSheetPanelWorkflowList = ({
 
     const {data: automationProjectsData, isLoading: automationProjectsIsLoading} = useAutomationProjectsQuery();
 
+    const {data: provisionableData} = useProvisionableConnectedUserProjectsQuery({
+        connectedUserId: connectedUserId.toString(),
+    });
+
     const workflowTemplateSourcesByWorkflowUuid = useMemo(
         () =>
             new Map<string, ConnectedUserWorkflowTemplateSourceI>(
@@ -37,7 +48,11 @@ const ConnectedUserSheetPanelWorkflowList = ({
                         (workflowTemplate) =>
                             [
                                 workflowTemplate.workflowUuid,
-                                {projectName: automationProject.name, workflowTemplate},
+                                {
+                                    projectId: automationProject.id,
+                                    projectName: automationProject.name,
+                                    workflowTemplate,
+                                },
                             ] as const
                     )
                 )
@@ -45,8 +60,18 @@ const ConnectedUserSheetPanelWorkflowList = ({
         [automationProjectsData]
     );
 
+    const lastPublishedVersionsByProjectId = useMemo(
+        () =>
+            new Map(
+                (automationProjectsData?.automationProjects ?? [])
+                    .filter((automationProject) => automationProject.lastPublishedVersion != null)
+                    .map((automationProject) => [automationProject.id, automationProject.lastPublishedVersion!])
+            ),
+        [automationProjectsData]
+    );
+
     if (isLoading || automationProjectsIsLoading) {
-        return <div className="py-4 text-sm text-muted-foreground">Loading...</div>;
+        return <ConnectedUserSheetPanelListSkeleton label="Loading automations" variant="automation" />;
     }
 
     const connectedUserProjects = data?.connectedUserProjects ?? [];
@@ -62,33 +87,58 @@ const ConnectedUserSheetPanelWorkflowList = ({
         name: connectedUserName,
     };
 
+    const nothingToProvision = provisionableData?.provisionableConnectedUserProjects.length === 0;
+
     const connectedUserProjectWorkflows = (data?.connectedUserProjects ?? []).flatMap(
         (connectedUserProject) => connectedUserProject.connectedUserProjectWorkflows
     );
 
     return (
         <div>
-            <div className="flex items-center justify-between pb-2">
-                <h3 className="text-sm font-semibold">Automations</h3>
-
-                <Button
-                    icon={<PlusIcon />}
-                    label="New Workflow"
-                    onClick={() => setShowProvisionDialog(true)}
-                    size="sm"
-                    variant="secondary"
-                />
-            </div>
-
             {connectedUserProjectWorkflows.length > 0 ? (
-                <ConnectedUserProjectWorkflowList
-                    configurations={configurations}
-                    connectedUser={connectedUser}
-                    connectedUserProjectWorkflows={connectedUserProjectWorkflows}
-                    workflowTemplateSourcesByWorkflowUuid={workflowTemplateSourcesByWorkflowUuid}
-                />
+                <>
+                    <div className="flex items-center justify-end pb-2">
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <span className="block">
+                                    <Button
+                                        disabled={nothingToProvision}
+                                        icon={<PlusIcon />}
+                                        label="Provision Workflow"
+                                        onClick={() => setShowProvisionDialog(true)}
+                                        size="sm"
+                                        variant="secondary"
+                                    />
+                                </span>
+                            </TooltipTrigger>
+
+                            {nothingToProvision && (
+                                <TooltipContent>
+                                    No project has a configuration released to this user's environment yet.
+                                </TooltipContent>
+                            )}
+                        </Tooltip>
+                    </div>
+
+                    <ConnectedUserProjectWorkflowList
+                        configurations={configurations}
+                        connectedUser={connectedUser}
+                        connectedUserProjectWorkflows={connectedUserProjectWorkflows}
+                        lastPublishedVersionsByProjectId={lastPublishedVersionsByProjectId}
+                        workflowTemplateSourcesByWorkflowUuid={workflowTemplateSourcesByWorkflowUuid}
+                    />
+                </>
             ) : (
-                <div className="py-4 text-sm">No automations.</div>
+                <ConnectedUserSheetEmptyState
+                    description="Provision a workflow from your automation projects for this user. It runs with their connections and inputs, and follows the versions you publish."
+                    icon={<FolderIcon />}
+                    nothingToProvision={nothingToProvision}
+                    nothingToProvisionDescription="No project has a configuration released to this user's environment yet. Release one first, then provision its workflows for this user."
+                    onProvision={() => setShowProvisionDialog(true)}
+                    pageLink={{label: 'Go to Automations', to: '/embedded/automations'}}
+                    provisionLabel="Provision Workflow"
+                    title="No automations yet"
+                />
             )}
 
             {showProvisionDialog && (

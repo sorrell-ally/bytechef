@@ -19,6 +19,7 @@ import com.bytechef.automation.configuration.repository.ProjectWorkflowRepositor
 import com.bytechef.automation.configuration.security.AutomationAuthorizationContext;
 import com.bytechef.automation.configuration.security.ResourceOwnershipResolver;
 import com.bytechef.automation.configuration.security.ResourceOwnershipResolver.ResourceOwner;
+import com.bytechef.automation.configuration.service.CurrentUserResolver;
 import com.bytechef.automation.configuration.service.PermissionService;
 import com.bytechef.ee.automation.configuration.config.WorkspacePermissionIntTestConfiguration;
 import com.bytechef.ee.automation.configuration.domain.WorkspaceUser;
@@ -80,7 +81,7 @@ class PermissionServiceIntTest {
     private WorkspaceRepository workspaceRepository;
 
     @Autowired
-    private WorkspaceScopeCacheService workspaceScopeCacheService;
+    private WorkspaceScopeCache workspaceScopeCache;
 
     @Autowired
     private WorkspaceUserRepository workspaceUserRepository;
@@ -316,7 +317,7 @@ class PermissionServiceIntTest {
 
         assertThat(permissionService.getMyWorkspaceScopes(workspaceId))
             .isEqualTo(permissionScopeRegistry.getScopeNames(WorkspaceRole.VIEWER))
-            .isEqualTo(workspaceScopeCacheService.getWorkspaceScopes(USER_ID, workspaceId));
+            .isEqualTo(workspaceScopeCache.getWorkspaceScopes(USER_ID, workspaceId));
     }
 
     @Test
@@ -502,7 +503,7 @@ class PermissionServiceIntTest {
 
     private PermissionService createPermissionService(ResourceOwnershipResolver resourceOwnershipResolver) {
         return new PermissionServiceImpl(
-            currentUserResolver, permissionScopeRegistry, projectRepository, workspaceScopeCacheService,
+            currentUserResolver, permissionScopeRegistry, projectRepository, workspaceScopeCache,
             workspaceUserRepository, List.of(resourceOwnershipResolver));
     }
 

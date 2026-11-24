@@ -16,36 +16,31 @@
 
 package com.bytechef.platform.data.table.configuration.service;
 
-import com.bytechef.platform.tag.domain.Tag;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Service for accessing tags associated with Data Tables.
+ * Service for accessing the tag ids associated with Data Tables.
  *
  * @author Ivica Cardic
  */
 public interface DataTableTagService {
 
     /**
-     * Retrieves a list of all tags.
+     * Retrieves the distinct tag ids assigned to the given data tables.
      *
-     * @return a list of Tag objects representing all available tags
+     * @param dataTableIds the ids of the data tables whose tag ids are to be retrieved
+     * @return a list of the tag ids assigned to the given data tables
      */
-    List<Tag> getAllTags();
+    List<Long> getTagIds(List<Long> dataTableIds);
+
+    Map<Long, List<Long>> getTagIdsByTableId();
 
     /**
-     * Retrieves a mapping from data table base name to list of tags assigned to that table.
-     *
-     * @return a map where keys are data table base names and values are lists of Tag objects assigned to each table
-     */
-    Map<String, List<Tag>> getTagsByTableName();
-
-    /**
-     * Updates the tags associated with a specific data table.
+     * Updates the tag ids associated with a specific data table.
      *
      * @param tableId the unique identifier of the data table whose tags are to be updated
-     * @param tags    a list of Tag objects representing the new set of tags to associate with the data table
+     * @param tagIds  the ids of the tags to associate with the data table
      */
-    void updateTags(long tableId, List<Tag> tags);
+    void updateTagIds(long tableId, List<Long> tagIds);
 }

@@ -9,6 +9,7 @@ package com.bytechef.ee.embedded.security.web.authentication;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -18,11 +19,14 @@ import com.bytechef.ee.embedded.connected.user.domain.ConnectedUser;
 import com.bytechef.ee.embedded.connected.user.service.ConnectedUserService;
 import com.bytechef.platform.constant.PlatformType;
 import com.bytechef.platform.security.domain.ApiKey;
+import com.bytechef.platform.security.exception.UserNotActivatedException;
 import com.bytechef.platform.security.service.ApiKeyService;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -78,6 +82,50 @@ class EmbeddedApiKeyAuthenticationProviderTest {
         assertThat(authenticationToken.environmentId()).isEqualTo(ENVIRONMENT_ID);
         assertThat(authenticationToken.getApiKeyId()).isEqualTo(API_KEY_ID);
         assertThat(authenticationToken.getConnectedUserId()).isEqualTo(42L);
+
+        verify(apiKeyService).updateLastUsedDate(API_KEY_ID);
+    }
+
+    @Test
+    void testAuthenticationWithoutSecretKeyDoesNotRecordApiKeyUse() {
+        when(connectedUserService.fetchConnectedUser(EXTERNAL_USER_ID, ENVIRONMENT_ID))
+            .thenReturn(Optional.of(connectedUser(42L)));
+
+        provider.authenticate(new EmbeddedApiKeyAuthenticationToken(ENVIRONMENT_ID, EXTERNAL_USER_ID, null, "tenant"));
+
+        verify(apiKeyService, never()).updateLastUsedDate(anyLong());
+    }
+
+    @Test
+    void testAuthenticationOfADisabledConnectedUserDoesNotRecordApiKeyUse() {
+        when(connectedUserService.fetchConnectedUser(EXTERNAL_USER_ID, ENVIRONMENT_ID))
+            .thenReturn(Optional.of(new ConnectedUser(Map.of(), null, false, EXTERNAL_USER_ID, 42L, null, 0)));
+
+        assertThatThrownBy(() -> provider.authenticate(
+            new EmbeddedApiKeyAuthenticationToken(ENVIRONMENT_ID, EXTERNAL_USER_ID, "secret", "tenant")))
+                .isInstanceOf(UserNotActivatedException.class);
+
+        verify(apiKeyService, never()).updateLastUsedDate(anyLong());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {
+        false, true
+    })
+    void testAuthenticationCarriesConnectionDialogAllowedOverToTheAuthenticatedToken(
+        boolean connectionDialogAllowed) {
+
+        when(connectedUserService.fetchConnectedUser(EXTERNAL_USER_ID, ENVIRONMENT_ID))
+            .thenReturn(Optional.of(connectedUser(42L)));
+
+        Authentication authentication = provider.authenticate(
+            new EmbeddedApiKeyAuthenticationToken(
+                ENVIRONMENT_ID, EXTERNAL_USER_ID, null, "tenant", connectionDialogAllowed));
+
+        EmbeddedApiKeyAuthenticationToken authenticationToken = (EmbeddedApiKeyAuthenticationToken) authentication;
+
+        assertThat(authenticationToken.isAuthenticated()).isTrue();
+        assertThat(authenticationToken.connectionDialogAllowed()).isEqualTo(connectionDialogAllowed);
     }
 
     @Test
@@ -164,6 +212,7 @@ class EmbeddedApiKeyAuthenticationProviderTest {
                 .hasMessage("Embedded API key required");
 
         verify(connectedUserService, never()).fetchConnectedUser(EXTERNAL_USER_ID, ENVIRONMENT_ID);
+        verify(apiKeyService, never()).updateLastUsedDate(anyLong());
     }
 
     private static ConnectedUser connectedUser(long id) {

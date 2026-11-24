@@ -16,6 +16,10 @@
 
 package com.bytechef.automation.ai.mcp.server.facade;
 
+import static com.bytechef.component.definition.ComponentDsl.integer;
+import static com.bytechef.component.definition.ComponentDsl.object;
+import static com.bytechef.component.definition.ComponentDsl.option;
+import static com.bytechef.component.definition.ComponentDsl.string;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -53,9 +57,12 @@ import com.bytechef.evaluator.Evaluator;
 import com.bytechef.exception.ConfigurationException;
 import com.bytechef.exception.ExecutionException;
 import com.bytechef.file.storage.domain.FileEntry;
+import com.bytechef.platform.ai.tool.FromAiResult;
 import com.bytechef.platform.component.constant.MetadataConstants;
 import com.bytechef.platform.component.constant.WorkflowConstants;
 import com.bytechef.platform.component.domain.ClusterElementDefinition;
+import com.bytechef.platform.component.domain.Option;
+import com.bytechef.platform.component.domain.Property;
 import com.bytechef.platform.component.facade.ClusterElementDefinitionFacade;
 import com.bytechef.platform.component.service.ClusterElementDefinitionService;
 import com.bytechef.platform.configuration.domain.Environment;
@@ -64,9 +71,9 @@ import com.bytechef.platform.constant.JobInputConstants;
 import com.bytechef.platform.constant.PlatformType;
 import com.bytechef.platform.definition.WorkflowNodeType;
 import com.bytechef.platform.external.invocation.ExternalInvocationEvent;
-import com.bytechef.platform.external.invocation.ExternalInvocationOutcome;
 import com.bytechef.platform.external.invocation.ExternalInvocationRecorder;
 import com.bytechef.platform.external.invocation.ExternalInvocationRecorderImpl;
+import com.bytechef.platform.external.invocation.ExternalInvocationStatus;
 import com.bytechef.platform.mcp.domain.McpComponent;
 import com.bytechef.platform.mcp.domain.McpServer;
 import com.bytechef.platform.mcp.domain.McpTool;
@@ -83,6 +90,7 @@ import com.bytechef.test.extension.ObjectMapperSetupExtension;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -695,8 +703,8 @@ class AutomationMcpToolFacadeIntTest {
         ToolCallback toolCallback = getWorkflowToolCallbackAwaiting(job);
 
         assertThat(toolCallback.call("{}")).contains("approval_required");
-        assertThat(captureRecordedExternalInvocationEvent().outcome())
-            .isEqualTo(ExternalInvocationOutcome.APPROVAL_REQUIRED);
+        assertThat(captureRecordedExternalInvocationEvent().status())
+            .isEqualTo(ExternalInvocationStatus.APPROVAL_REQUIRED);
     }
 
     @Test
@@ -712,7 +720,7 @@ class AutomationMcpToolFacadeIntTest {
             .readJobOutputs(outputs);
 
         assertThat(toolCallback.call("{}")).contains("approval_required");
-        assertThat(captureRecordedExternalInvocationEvent().outcome()).isEqualTo(ExternalInvocationOutcome.SUCCESS);
+        assertThat(captureRecordedExternalInvocationEvent().status()).isEqualTo(ExternalInvocationStatus.SUCCESS);
     }
 
     @Test
@@ -774,7 +782,7 @@ class AutomationMcpToolFacadeIntTest {
             .doesNotContain("approval_required")
             .doesNotContain("resumeToken")
             .doesNotContain("formUrl");
-        assertThat(captureRecordedExternalInvocationEvent().outcome()).isEqualTo(ExternalInvocationOutcome.SUSPENDED);
+        assertThat(captureRecordedExternalInvocationEvent().status()).isEqualTo(ExternalInvocationStatus.SUSPENDED);
     }
 
     @Test
@@ -823,7 +831,7 @@ class AutomationMcpToolFacadeIntTest {
 
         ExternalInvocationEvent externalInvocationEvent = captureRecordedExternalInvocationEvent();
 
-        assertThat(externalInvocationEvent.outcome()).isEqualTo(ExternalInvocationOutcome.ERROR);
+        assertThat(externalInvocationEvent.status()).isEqualTo(ExternalInvocationStatus.ERROR);
         assertThat(externalInvocationEvent.errorMessage()).contains("was stopped");
     }
 
@@ -839,7 +847,7 @@ class AutomationMcpToolFacadeIntTest {
 
         ExternalInvocationEvent externalInvocationEvent = captureRecordedExternalInvocationEvent();
 
-        assertThat(externalInvocationEvent.outcome()).isEqualTo(ExternalInvocationOutcome.TIMEOUT);
+        assertThat(externalInvocationEvent.status()).isEqualTo(ExternalInvocationStatus.TIMEOUT);
         assertThat(externalInvocationEvent.jobId()).isEqualTo(5L);
     }
 
@@ -855,7 +863,7 @@ class AutomationMcpToolFacadeIntTest {
 
         ExternalInvocationEvent externalInvocationEvent = captureRecordedExternalInvocationEvent();
 
-        assertThat(externalInvocationEvent.outcome()).isEqualTo(ExternalInvocationOutcome.ERROR);
+        assertThat(externalInvocationEvent.status()).isEqualTo(ExternalInvocationStatus.ERROR);
         assertThat(externalInvocationEvent.errorType()).isEqualTo("IllegalArgumentException");
         assertThat(externalInvocationEvent.errorMessage()).isEqualTo("Missing required input: email");
         assertThat(externalInvocationEvent.mcpServerId()).isEqualTo(30L);
@@ -869,6 +877,106 @@ class AutomationMcpToolFacadeIntTest {
         toolCallback.call("{}");
 
         assertThat(captureRecordedExternalInvocationEvent().jobId()).isEqualTo(5L);
+    }
+
+    @Test
+    void testCallFillsMissingDefaultedParameter() {
+        FunctionToolCallback<Map<String, Object>, Object> functionToolCallback = givenListedToolWithDefaults(Map.of());
+
+        givenEnabledMcpServer();
+
+        when(mcpToolServiceTarget.fetchMcpTool(3L)).thenReturn(Optional.of(mcpTool(true)));
+
+        functionToolCallback.call("{}");
+
+        assertThat(captureExecutedToolParameters()).isEqualTo(
+            Map.of("length", 8L, "text", "default", "body", Map.of("format", "text")));
+    }
+
+    @Test
+    void testCallLetsSavedValuesAndModelArgumentsWinOverDefaults() {
+        FunctionToolCallback<Map<String, Object>, Object> functionToolCallback = givenListedToolWithDefaults(
+            Map.of("text", "saved", "body", Map.of("content", "x")));
+
+        givenEnabledMcpServer();
+
+        when(mcpToolServiceTarget.fetchMcpTool(3L)).thenReturn(Optional.of(mcpTool(true)));
+
+        functionToolCallback.call("{\"length\": 12}");
+
+        assertThat(captureExecutedToolParameters()).isEqualTo(
+            Map.of("length", 12, "text", "saved", "body", Map.of("content", "x", "format", "text")));
+    }
+
+    @Test
+    void testCallKeepsExplicitlyClearedSavedValuesOverDefaults() {
+        Map<String, Object> savedBody = new HashMap<>();
+
+        savedBody.put("format", null);
+
+        Map<String, Object> savedParameters = new HashMap<>();
+
+        savedParameters.put("text", null);
+        savedParameters.put("body", savedBody);
+
+        FunctionToolCallback<Map<String, Object>, Object> functionToolCallback =
+            givenListedToolWithDefaults(savedParameters);
+
+        givenEnabledMcpServer();
+
+        when(mcpToolServiceTarget.fetchMcpTool(3L)).thenReturn(Optional.of(mcpTool(true)));
+
+        functionToolCallback.call("{}");
+
+        assertThat(captureExecutedToolParameters()).isEqualTo(Map.of("length", 8L, "body", savedBody));
+    }
+
+    @Test
+    void testDefaultsDoNotChangeTheToolInputSchema() {
+        FunctionToolCallback<Map<String, Object>, Object> functionToolCallback = givenListedToolWithDefaults(Map.of());
+
+        ToolDefinition toolDefinition = functionToolCallback.getToolDefinition();
+
+        assertThat(toolDefinition.inputSchema()).doesNotContain("length", "body");
+    }
+
+    @Test
+    void testListedToolOffersTheOptionsOfItsCurrentConnection() {
+        McpTool mcpTool = new McpTool(
+            "sendMessage",
+            Map.of("channel", new FromAiResult("channel", "STRING", null, null, List.<Object>of("stale"), true)), 1L);
+
+        mcpTool.setId(4L);
+
+        when(mcpComponentService.getMcpComponent(1L)).thenReturn(new McpComponent("slack", 1, 1L, 5L));
+
+        ClusterElementDefinition clusterElementDefinition = mock(ClusterElementDefinition.class);
+
+        when(clusterElementDefinition.getComponentName()).thenReturn("slack");
+        when(clusterElementDefinition.getComponentVersion()).thenReturn(1);
+        when(clusterElementDefinition.getName()).thenReturn("sendMessage");
+        doReturn(
+            List.of(
+                Property.toProperty(
+                    string("channel").options(
+                        (com.bytechef.component.definition.ClusterElementDefinition.OptionsFunction<String>) (
+                            inputParameters, connectionParameters, lookupDependsOnPaths, searchText,
+                            context) -> List.of()))))
+                                .when(clusterElementDefinition)
+                                .getProperties();
+        when(clusterElementDefinitionService.getClusterElementDefinition("slack", 1, "sendMessage"))
+            .thenReturn(clusterElementDefinition);
+        when(clusterElementDefinitionFacade.executeOptions(
+            eq("slack"), eq(1), eq("sendMessage"), eq("channel"), any(), any(), any(), isNull(), eq(5L), any(),
+            any()))
+                .thenReturn(List.of(new Option(option("General", "general"))));
+
+        String inputSchema = facade.getFunctionToolCallback(mcpTool)
+            .getToolDefinition()
+            .inputSchema();
+
+        assertThat(inputSchema).contains("\"general\"")
+            .doesNotContain("stale");
     }
 
     private ToolDefinition getToolDefinition(Map<String, Object> parameters) {
@@ -963,6 +1071,53 @@ class AutomationMcpToolFacadeIntTest {
         when(workspaceMcpServerService.fetchMcpServerWorkspaceId(30L)).thenReturn(workspaceId);
 
         return facade.getFunctionToolCallback(mcpTool(true));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> captureExecutedToolParameters() {
+        ArgumentCaptor<Map<String, Object>> parametersArgumentCaptor = ArgumentCaptor.forClass(Map.class);
+
+        verify(clusterElementDefinitionFacade).executeTool(
+            eq("slack"), eq(1), eq("sendMessage"), parametersArgumentCaptor.capture(), isNull());
+
+        return parametersArgumentCaptor.getValue();
+    }
+
+    private FunctionToolCallback<Map<String, Object>, Object> givenListedToolWithDefaults(
+        Map<String, Object> parameters) {
+
+        McpComponent mcpComponent = mock(McpComponent.class);
+
+        when(mcpComponent.getComponentName()).thenReturn("slack");
+        when(mcpComponent.getComponentVersion()).thenReturn(1);
+        when(mcpComponent.getMcpServerId()).thenReturn(30L);
+        when(mcpComponent.getConnectionId()).thenReturn(null);
+
+        ClusterElementDefinition clusterElementDefinition = mock(ClusterElementDefinition.class);
+
+        when(clusterElementDefinition.getComponentName()).thenReturn("slack");
+        when(clusterElementDefinition.getComponentVersion()).thenReturn(1);
+        when(clusterElementDefinition.getName()).thenReturn("sendMessage");
+        doReturn(
+            List.of(
+                Property.toProperty(integer("length").defaultValue(8)),
+                Property.toProperty(string("text").defaultValue("default")),
+                Property.toProperty(
+                    object("body").properties(string("content"), string("format").defaultValue("text")))))
+                        .when(clusterElementDefinition)
+                        .getProperties();
+
+        when(mcpComponentService.getMcpComponent(2L)).thenReturn(mcpComponent);
+        when(clusterElementDefinitionService.getClusterElementDefinition("slack", 1, "sendMessage"))
+            .thenReturn(clusterElementDefinition);
+        when(workspaceMcpServerService.fetchMcpServerWorkspaceId(30L)).thenReturn(Optional.empty());
+
+        McpTool mcpTool = new McpTool("sendMessage", parameters, 2L);
+
+        mcpTool.setId(3L);
+        mcpTool.setEnabled(true);
+
+        return facade.getFunctionToolCallback(mcpTool);
     }
 
     private void givenEnabledMcpServer() {

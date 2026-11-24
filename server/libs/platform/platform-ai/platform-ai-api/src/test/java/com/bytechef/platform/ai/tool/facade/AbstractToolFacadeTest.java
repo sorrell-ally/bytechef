@@ -16,13 +16,19 @@
 
 package com.bytechef.platform.ai.tool.facade;
 
+import static com.bytechef.component.definition.ComponentDsl.object;
+import static com.bytechef.component.definition.ComponentDsl.option;
+import static com.bytechef.component.definition.ComponentDsl.string;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
+import com.bytechef.component.definition.ClusterElementDefinition.OptionsFunction;
 import com.bytechef.evaluator.Evaluator;
 import com.bytechef.platform.ai.tool.FromAiResult;
+import com.bytechef.platform.component.domain.Property;
 import com.bytechef.test.extension.ObjectMapperSetupExtension;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,6 +48,9 @@ class AbstractToolFacadeTest {
 
     @Mock
     private Evaluator evaluator;
+
+    private static final OptionsFunction<String> OPTIONS_FUNCTION =
+        (inputParameters, connectionParameters, lookupDependsOnPaths, searchText, context) -> List.of();
 
     private AbstractToolFacade createToolFacade() {
         return new AbstractToolFacade(evaluator) {};
@@ -546,6 +555,28 @@ class AbstractToolFacadeTest {
     }
 
     @Test
+    void testGetToolNameReplacesCharactersAiClientsReject() {
+        AbstractToolFacade toolFacade = createToolFacade();
+
+        assertEquals(
+            "crm_sync_v1_2", toolFacade.getToolName("httpClient", "post", Map.of("toolName", " crm/sync v1.2! ")));
+    }
+
+    @Test
+    void testGetToolNameFallsBackWhenTheConfiguredNameHasNothingUsable() {
+        AbstractToolFacade toolFacade = createToolFacade();
+
+        assertEquals("HTTPCLIENT_POST", toolFacade.getToolName("httpClient", "post", Map.of("toolName", "/._!")));
+    }
+
+    @Test
+    void testGetToolNameKeepsAValidConfiguredNameAsTyped() {
+        AbstractToolFacade toolFacade = createToolFacade();
+
+        assertEquals("_post-Thing_", toolFacade.getToolName("httpClient", "post", Map.of("toolName", "_post-Thing_")));
+    }
+
+    @Test
     void testGetToolDescriptionReturnsNullWhenUnconfigured() {
         assertNull(AbstractToolFacade.getToolDescription(Map.of(), null));
     }
@@ -556,34 +587,75 @@ class AbstractToolFacadeTest {
     }
 
     @Test
-    void testGetWorkflowToolNameFallsBackToTheWorkflowLabel() {
-        assertEquals("Send_Email", AbstractToolFacade.getWorkflowToolName(Map.of(), "Send Email"));
+    void testApplyRuntimeOptionsReplacesStoredOptionsWithTheLoadedOnes() {
+        FromAiResult channelFromAiResult = new FromAiResult(
+            "channel", "STRING", null, null, List.<Object>of("stale"), true);
+
+        when(evaluator.evaluate(eq(Map.of("value", "=fromAi('channel')")), eq(Map.of())))
+            .thenReturn(Map.of("value", channelFromAiResult));
+
+        AbstractToolFacade toolFacade = createToolFacade();
+
+        List<FromAiResult> fromAiResults = toolFacade.applyRuntimeOptions(
+            List.of(channelFromAiResult), Map.of("channel", "=fromAi('channel')"),
+            List.of(Property.toProperty(string("channel").options(OPTIONS_FUNCTION))),
+            property -> List.of("general", "random"));
+
+        assertThat(fromAiResults).containsExactly(
+            new FromAiResult("channel", "STRING", null, null, List.of("general", "random"), true));
     }
 
     @Test
-    void testGetWorkflowToolNamePrefersTheConfiguredName() {
-        assertEquals(
-            "sendEmail", AbstractToolFacade.getWorkflowToolName(Map.of("toolName", "sendEmail"), "Send Email"));
+    void testApplyRuntimeOptionsKeepsTheStoredOptionsWhenNoneLoad() {
+        FromAiResult channelFromAiResult = new FromAiResult(
+            "channel", "STRING", null, null, List.<Object>of("stored"), false);
+
+        when(evaluator.evaluate(eq(Map.of("value", "=fromAi('channel')")), eq(Map.of())))
+            .thenReturn(Map.of("value", channelFromAiResult));
+
+        AbstractToolFacade toolFacade = createToolFacade();
+
+        List<FromAiResult> fromAiResults = toolFacade.applyRuntimeOptions(
+            List.of(channelFromAiResult), Map.of("channel", "=fromAi('channel')"),
+            List.of(Property.toProperty(string("channel").options(OPTIONS_FUNCTION))), property -> null);
+
+        assertThat(fromAiResults).containsExactly(channelFromAiResult);
     }
 
     @Test
-    void testGetWorkflowToolNameReturnsNullWithoutAConfiguredNameOrLabel() {
-        assertNull(AbstractToolFacade.getWorkflowToolName(Map.of(), null));
+    void testApplyRuntimeOptionsResolvesANestedProperty() {
+        FromAiResult channelFromAiResult = new FromAiResult("target_channel", "STRING", null, null, null, false);
+
+        when(evaluator.evaluate(eq(Map.of("value", "=fromAi('target_channel')")), eq(Map.of())))
+            .thenReturn(Map.of("value", channelFromAiResult));
+
+        AbstractToolFacade toolFacade = createToolFacade();
+
+        List<FromAiResult> fromAiResults = toolFacade.applyRuntimeOptions(
+            List.of(channelFromAiResult), Map.of("target", Map.of("channel", "=fromAi('target_channel')")),
+            List.of(Property.toProperty(object("target").properties(string("channel").options(OPTIONS_FUNCTION)))),
+            property -> List.of(property.getName()));
+
+        assertThat(fromAiResults).containsExactly(
+            new FromAiResult("target_channel", "STRING", null, null, List.of("channel"), false));
     }
 
-    // Tool names reach the model as identifiers, so a label cannot be used verbatim.
     @Test
-    void testToToolNameSanitizesALabel() {
-        assertEquals("Order_Sync_v2", AbstractToolFacade.toToolName("Order Sync (v2)"));
-    }
+    void testApplyRuntimeOptionsLeavesFixedOptionsAndCompositeExpressionsAlone() {
+        FromAiResult priorityFromAiResult = new FromAiResult(
+            "priority", "STRING", null, null, List.<Object>of("high"), false);
+        FromAiResult channelFromAiResult = new FromAiResult("channel", "STRING", null, null, null, false);
 
-    @Test
-    void testToToolNameKeepsAnAlreadyValidLabel() {
-        assertEquals("order-sync_2", AbstractToolFacade.toToolName("order-sync_2"));
-    }
+        AbstractToolFacade toolFacade = createToolFacade();
 
-    @Test
-    void testToToolNameReturnsNullForALabelWithNothingUsable() {
-        assertNull(AbstractToolFacade.toToolName("()"));
+        List<FromAiResult> fromAiResults = toolFacade.applyRuntimeOptions(
+            List.of(priorityFromAiResult, channelFromAiResult),
+            Map.of("priority", "=fromAi('priority')", "channel", "='#' + fromAi('channel')"),
+            List.of(
+                Property.toProperty(string("priority").options(option("High", "high"))),
+                Property.toProperty(string("channel").options(OPTIONS_FUNCTION))),
+            property -> List.of("loaded"));
+
+        assertThat(fromAiResults).containsExactly(priorityFromAiResult, channelFromAiResult);
     }
 }

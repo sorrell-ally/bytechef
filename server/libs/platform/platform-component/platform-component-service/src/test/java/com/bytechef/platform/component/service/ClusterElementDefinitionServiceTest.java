@@ -43,6 +43,7 @@ import com.bytechef.platform.component.definition.ActionContextAware;
 import com.bytechef.platform.component.definition.ai.agent.MultipleConnectionsToolFunction;
 import com.bytechef.platform.component.domain.ClusterElementDefinition;
 import com.bytechef.platform.component.domain.Property;
+import com.bytechef.platform.component.domain.ValueProperty;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -51,7 +52,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.beans.factory.ObjectProvider;
 
 /**
  * @author Ivica Cardic
@@ -73,7 +73,7 @@ class ClusterElementDefinitionServiceTest {
     @BeforeEach
     void setUp() {
         clusterElementDefinitionService = new ClusterElementDefinitionServiceImpl(
-            componentDefinitionRegistry, contextFactory, mock(ObjectProvider.class));
+            componentDefinitionRegistry, contextFactory, mock());
     }
 
     @Test
@@ -353,6 +353,16 @@ class ClusterElementDefinitionServiceTest {
     }
 
     @Test
+    void testTheToolNamePlaceholderShowsTheDefaultNameOfThisTool() {
+        ClusterElementDefinition result = getToolClusterElementDefinition(List.of());
+
+        ValueProperty<?> toolNameProperty = (ValueProperty<?>) result.getProperties()
+            .getFirst();
+
+        assertEquals("Defaults to TESTCOMPONENT_POST", toolNameProperty.getPlaceholder());
+    }
+
+    @Test
     void testTheContributedToolPropertiesAreOptional() {
         ClusterElementDefinition result = getToolClusterElementDefinition(List.of());
 
@@ -397,6 +407,9 @@ class ClusterElementDefinitionServiceTest {
             new ClusterElementType("TOOLS", "tools", "Tools"), "TOOLS", properties);
     }
 
+    @SuppressWarnings({
+        "rawtypes", "unchecked"
+    })
     private ClusterElementDefinition getClusterElementDefinition(
         ClusterElementType clusterElementType, String clusterElementTypeName,
         List<? extends com.bytechef.component.definition.Property> properties) {

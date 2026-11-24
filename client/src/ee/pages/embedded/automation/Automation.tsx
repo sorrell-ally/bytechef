@@ -105,11 +105,24 @@ const Automation = () => {
 
     const deleteClusterElementParameterMutation = useDeleteClusterElementParameterMutation();
 
-    const updateClusterElementParameterMutation = useUpdateClusterElementParameterMutation();
+    const invalidateAutomationProjects = () => queryClient.invalidateQueries({queryKey: ['automationProjects']});
 
-    const updateWorkflowNodeParameterMutation = useUpdateWorkflowNodeParameterMutation();
+    const updateClusterElementParameterMutation = useUpdateClusterElementParameterMutation({
+        onSuccess: () => {
+            void invalidateAutomationProjects();
+        },
+    });
+
+    const updateWorkflowNodeParameterMutation = useUpdateWorkflowNodeParameterMutation({
+        onSuccess: () => {
+            void invalidateAutomationProjects();
+        },
+    });
 
     const updateWorkflowEditorMutation = useUpdatePlatformWorkflowMutation({
+        onSuccess: () => {
+            void invalidateAutomationProjects();
+        },
         useUpdateWorkflowMutation,
         workflowId: workflow.id!,
         workflowKeys: WorkflowKeys,
@@ -170,7 +183,10 @@ const Automation = () => {
                         leftSidebarOpen ? 'ml-0 opacity-100' : 'ml-[-355px] opacity-0'
                     )}
                 >
-                    <AutomationEditorLeftSidebar currentWorkflowId={workflowUuid!} />
+                    <AutomationEditorLeftSidebar
+                        bottomResizablePanelRef={bottomResizablePanelRef}
+                        currentWorkflowId={workflowUuid!}
+                    />
                 </div>
             </div>
 
@@ -190,7 +206,10 @@ const Automation = () => {
                             <WorkflowEditorProvider
                                 value={{
                                     ConnectionKeys: ConnectionKeys,
+                                    automationProjectId: currentProject?.codeWorkflowProject ? projectId : undefined,
                                     cancelWorkflowQueries,
+                                    codeWorkflow: currentProject?.codeWorkflowProject,
+                                    codeWorkflowLanguage: currentProject?.codeWorkflowLanguage ?? undefined,
                                     deleteClusterElementParameterMutation,
                                     deleteWorkflowNodeParameterMutation,
                                     invalidateWorkflowQueries,

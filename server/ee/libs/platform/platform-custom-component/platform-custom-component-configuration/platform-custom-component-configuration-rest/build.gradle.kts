@@ -3,7 +3,7 @@ plugins {
 }
 
 val generateOpenAPISpring by tasks.registering(org.openapitools.generator.gradle.plugin.tasks.GenerateTask::class) {
-    apiPackage.set("com.bytechef.ee.platform.customcomponent.configuration.public_.web.rest")
+    apiPackage.set("com.bytechef.ee.platform.customcomponent.configuration.web.rest")
     configOptions.set(
         mapOf(
             "interfaceOnly" to "true",
@@ -14,7 +14,7 @@ val generateOpenAPISpring by tasks.registering(org.openapitools.generator.gradle
     generatorName.set("spring")
     inputSpec.set( "$projectDir/openapi.yaml")
     modelNameSuffix.set("Model")
-    modelPackage.set("com.bytechef.ee.platform.customcomponent.configuration.public_.web.rest.model")
+    modelPackage.set("com.bytechef.ee.platform.customcomponent.configuration.web.rest.model")
     outputDir.set("$projectDir/generated")
     schemaMappings.set(
         mapOf(
@@ -61,5 +61,6 @@ dependencies {
 
     testImplementation("org.springframework:spring-webflux")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
+    testImplementation(project(":server:ee:libs:platform:platform-security-web:platform-security-web-impl"))
     testImplementation(project(":server:libs:test:test-int-support"))
 }

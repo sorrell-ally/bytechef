@@ -90,6 +90,14 @@ export interface Project {
      */
     category?: Category;
     /**
+     * Whether the project is backed by a code workflow.
+     */
+    readonly codeWorkflow?: boolean;
+    /**
+     * The programming language of the code workflow, if the project is code-backed.
+     */
+    readonly codeWorkflowLanguage?: string;
+    /**
      * The number of the project's deployments in the Development environment. Only set by the workspace project list.
      */
     readonly developmentDeploymentCount?: number;
@@ -101,6 +109,10 @@ export interface Project {
      * 
      */
     tags?: Array<Tag>;
+    /**
+     * If the project's draft version differs from its last published version. Computed only by the project list endpoints; false in every other response.
+     */
+    readonly unpublishedChanges?: boolean;
     /**
      * The workspace id.
      */
@@ -144,9 +156,12 @@ export function ProjectFromJSONTyped(json: any, ignoreDiscriminator: boolean): P
         'lastProjectVersion': json['lastProjectVersion'] == null ? undefined : json['lastProjectVersion'],
         'uuid': json['uuid'] == null ? undefined : json['uuid'],
         'category': json['category'] == null ? undefined : CategoryFromJSON(json['category']),
+        'codeWorkflow': json['codeWorkflow'] == null ? undefined : json['codeWorkflow'],
+        'codeWorkflowLanguage': json['codeWorkflowLanguage'] == null ? undefined : json['codeWorkflowLanguage'],
         'developmentDeploymentCount': json['developmentDeploymentCount'] == null ? undefined : json['developmentDeploymentCount'],
         'projectWorkflowIds': json['projectWorkflowIds'] == null ? undefined : json['projectWorkflowIds'],
         'tags': json['tags'] == null ? undefined : ((json['tags'] as Array<any>).map(TagFromJSON)),
+        'unpublishedChanges': json['unpublishedChanges'] == null ? undefined : json['unpublishedChanges'],
         'workspaceId': json['workspaceId'],
         'version': json['__version'] == null ? undefined : json['__version'],
     };
@@ -156,7 +171,7 @@ export function ProjectToJSON(json: any): Project {
     return ProjectToJSONTyped(json, false);
 }
 
-export function ProjectToJSONTyped(value?: Omit<Project, 'createdBy'|'createdDate'|'id'|'lastModifiedBy'|'lastModifiedDate'|'lastPublishedDate'|'lastProjectVersion'|'developmentDeploymentCount'> | null, ignoreDiscriminator: boolean = false): any {
+export function ProjectToJSONTyped(value?: Omit<Project, 'createdBy'|'createdDate'|'id'|'lastModifiedBy'|'lastModifiedDate'|'lastPublishedDate'|'lastProjectVersion'|'codeWorkflow'|'codeWorkflowLanguage'|'developmentDeploymentCount'|'unpublishedChanges'> | null, ignoreDiscriminator: boolean = false): any {
     if (value == null) {
         return value;
     }

@@ -32,10 +32,13 @@ import com.bytechef.automation.configuration.service.ProjectDeploymentService;
 import com.bytechef.automation.configuration.service.ProjectDeploymentWorkflowService;
 import com.bytechef.automation.configuration.service.ProjectService;
 import com.bytechef.automation.configuration.service.ProjectWorkflowService;
+import com.bytechef.ee.embedded.ai.mcp.facade.McpAutomationRowFacade;
+import com.bytechef.ee.embedded.ai.mcp.facade.McpIntegrationInstanceRowFacade;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationComponentService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceConfigurationService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceConfigurationWorkflowService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceToolService;
+import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceWorkflowService;
 import com.bytechef.ee.embedded.configuration.audit.AutomationProjectAuditEvents;
 import com.bytechef.ee.embedded.configuration.audit.WorkflowAuditEvents;
 import com.bytechef.ee.embedded.configuration.dto.ProvisionConnectedUserProjectWorkflowDTO;
@@ -136,7 +139,10 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
     GitHubProxyClient.class, JobFacade.class, JobService.class, McpComponentService.class,
     McpIntegrationComponentService.class,
     McpIntegrationInstanceConfigurationService.class, McpIntegrationInstanceConfigurationWorkflowService.class,
-    McpIntegrationInstanceToolService.class, McpServerService.class, McpToolService.class,
+    McpIntegrationInstanceToolService.class,
+    McpIntegrationInstanceWorkflowService.class, McpAutomationRowFacade.class, McpIntegrationInstanceRowFacade.class,
+    McpServerService.class,
+    McpToolService.class,
     OAuth2ParametersFacade.class,
     OAuth2Service.class, PrincipalJobFacade.class, PrincipalJobService.class, ProjectDeploymentFacade.class,
     ProjectDeploymentService.class, ProjectDeploymentWorkflowService.class, ProjectFacade.class,
@@ -154,7 +160,7 @@ class AutomationProjectFacadeAuditIntTest {
     private static final String PERMISSION_EXPRESSION = "metadata['tier'] == 'pro'";
 
     @Autowired
-    private AutomationProjectConfigurationAdminFacade automationProjectConfigurationAdminFacade;
+    private AutomationProjectConfigurationFacade automationProjectConfigurationFacade;
 
     @Autowired
     private AutomationProjectFacade automationProjectFacade;
@@ -163,7 +169,7 @@ class AutomationProjectFacadeAuditIntTest {
     private AutomationProjectService automationProjectService;
 
     @Autowired
-    private ConnectedUserProjectAdminFacade connectedUserProjectAdminFacade;
+    private ConnectedUserProjectFacade connectedUserProjectFacade;
 
     @Autowired
     private PersistenceAuditEventRepository persistenceAuditEventRepository;
@@ -288,6 +294,14 @@ class AutomationProjectFacadeAuditIntTest {
                 .containsEntry("projectId", String.valueOf(projectId))
                 .containsEntry("projectVersion", String.valueOf(projectVersion));
 
+        automationProjectFacade.restoreProjectVersion(projectId, 1);
+
+        assertThat(
+            findSingleEvent(AutomationProjectAuditEvents.AUTOMATION_PROJECT_VERSION_RESTORED).getData())
+                .containsEntry("result", "SUCCESS")
+                .containsEntry("projectId", String.valueOf(projectId))
+                .containsEntry("projectVersion", "1");
+
         long duplicatedProjectId = automationProjectFacade.duplicateProject(projectId);
 
         assertThat(
@@ -312,7 +326,7 @@ class AutomationProjectFacadeAuditIntTest {
 
         automationProjectFacade.publishProject(projectId);
 
-        long configurationId = automationProjectConfigurationAdminFacade.createConfiguration(
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
             projectId, 0L, CONFIGURATION_NAME, null, 1, true, false);
 
         assertThat(
@@ -326,7 +340,7 @@ class AutomationProjectFacadeAuditIntTest {
                     .containsEntry("projectVersion", "1")
                     .containsEntry("automationHubVisible", "false");
 
-        automationProjectConfigurationAdminFacade.updateConfiguration(
+        automationProjectConfigurationFacade.updateConfiguration(
             configurationId, CONFIGURATION_NAME, null, 1, true, true);
 
         assertThat(
@@ -336,7 +350,7 @@ class AutomationProjectFacadeAuditIntTest {
                     .containsEntry("configurationId", String.valueOf(configurationId))
                     .containsEntry("automationHubVisible", "true");
 
-        automationProjectConfigurationAdminFacade.enableConfigurationWorkflow(
+        automationProjectConfigurationFacade.enableConfigurationWorkflow(
             configurationId, workflowUuid, false);
 
         assertThat(
@@ -348,7 +362,7 @@ class AutomationProjectFacadeAuditIntTest {
                         .containsEntry("workflowUuid", workflowUuid)
                         .containsEntry("enabled", "false");
 
-        automationProjectConfigurationAdminFacade.enableConfiguration(configurationId, false);
+        automationProjectConfigurationFacade.enableConfiguration(configurationId, false);
 
         assertThat(
             findSingleEvent(
@@ -358,7 +372,7 @@ class AutomationProjectFacadeAuditIntTest {
                         .containsEntry("configurationId", String.valueOf(configurationId))
                         .containsEntry("enabled", "false");
 
-        automationProjectConfigurationAdminFacade.deleteConfiguration(configurationId);
+        automationProjectConfigurationFacade.deleteConfiguration(configurationId);
 
         assertThat(
             findSingleEvent(AutomationProjectAuditEvents.AUTOMATION_PROJECT_CONFIGURATION_DELETED)
@@ -371,11 +385,12 @@ class AutomationProjectFacadeAuditIntTest {
     void testConnectedUserProjectChangesOfUnknownTargetsRecordFailures() {
         String workflowUuid = String.valueOf(UUID.randomUUID());
 
+        List<ProvisionConnectedUserProjectWorkflowDTO> workflows = List.of(
+            new ProvisionConnectedUserProjectWorkflowDTO(workflowUuid, null));
+
         assertThatThrownBy(
-            () -> connectedUserProjectAdminFacade.provisionProjectWorkflows(
-                Long.MAX_VALUE, Long.MAX_VALUE,
-                List.of(new ProvisionConnectedUserProjectWorkflowDTO(workflowUuid, null))))
-                    .isInstanceOf(RuntimeException.class);
+            () -> connectedUserProjectFacade.provisionProjectWorkflows(Long.MAX_VALUE, Long.MAX_VALUE, workflows))
+                .isInstanceOf(RuntimeException.class);
 
         assertThat(
             findSingleEvent(AutomationProjectAuditEvents.CONNECTED_USER_PROJECT_WORKFLOWS_PROVISIONED)
@@ -385,7 +400,7 @@ class AutomationProjectFacadeAuditIntTest {
                     .containsEntry("configurationId", String.valueOf(Long.MAX_VALUE))
                     .containsEntry("workflowUuids", "[" + workflowUuid + "]");
 
-        assertThatThrownBy(() -> connectedUserProjectAdminFacade.enableProjectWorkflow(Long.MAX_VALUE, true))
+        assertThatThrownBy(() -> connectedUserProjectFacade.enableProjectWorkflow(Long.MAX_VALUE, true))
             .isInstanceOf(RuntimeException.class);
 
         assertThat(
@@ -395,7 +410,7 @@ class AutomationProjectFacadeAuditIntTest {
                     .containsEntry("connectedUserProjectWorkflowId", String.valueOf(Long.MAX_VALUE))
                     .containsEntry("enabled", "true");
 
-        assertThatThrownBy(() -> connectedUserProjectAdminFacade.deleteProjectWorkflow(Long.MAX_VALUE))
+        assertThatThrownBy(() -> connectedUserProjectFacade.deleteProjectWorkflow(Long.MAX_VALUE))
             .isInstanceOf(RuntimeException.class);
 
         assertThat(

@@ -35,8 +35,8 @@ export const useSettingsMenu = ({project, workflow}: {project: Project; workflow
     const queryClient = useQueryClient();
 
     const deleteProjectMutation = useDeleteProjectMutation({
-        onSuccess: (_, projectId) => {
-            void navigate('/automation/projects');
+        onSuccess: async (_, projectId) => {
+            await navigate('/automation/projects');
 
             void queryClient.cancelQueries({queryKey: ProjectKeys.project(projectId)});
             queryClient.removeQueries({queryKey: ProjectKeys.project(projectId)});
@@ -52,10 +52,16 @@ export const useSettingsMenu = ({project, workflow}: {project: Project; workflow
     });
 
     const duplicateProjectMutation = useDuplicateProjectMutation({
-        onSuccess: () => {
+        onSuccess: (duplicatedProject) => {
             void queryClient.invalidateQueries({queryKey: ProjectKeys.projects});
 
-            void navigate(`/automation/projects/${project?.id}/project-workflows/${project?.projectWorkflowIds![0]}`);
+            const duplicatedProjectFirstWorkflowId = duplicatedProject.projectWorkflowIds?.[0];
+
+            void navigate(
+                duplicatedProjectFirstWorkflowId
+                    ? `/automation/projects/${duplicatedProject.id}/project-workflows/${duplicatedProjectFirstWorkflowId}?${searchParams}`
+                    : '/automation/projects'
+            );
 
             toast('Project duplicated successfully.');
         },
@@ -119,6 +125,10 @@ export const useSettingsMenu = ({project, workflow}: {project: Project; workflow
                 queryClient.removeQueries({
                     queryKey: ProjectWorkflowKeys.projectWorkflow(id, currentProjectWorkflowId),
                 });
+            } else if (currentProjectWorkflowId) {
+                void queryClient.invalidateQueries({
+                    queryKey: ProjectWorkflowKeys.projectWorkflow(id, currentProjectWorkflowId),
+                });
             }
 
             clearWorkflowHistory();
@@ -127,6 +137,7 @@ export const useSettingsMenu = ({project, workflow}: {project: Project; workflow
 
             void queryClient.invalidateQueries({queryKey: ProjectKeys.project(id)});
             void queryClient.invalidateQueries({queryKey: ProjectVersionKeys.projectProjectVersions(id)});
+            void queryClient.invalidateQueries({queryKey: ['codeWorkflowSource', {projectId: String(id)}]});
 
             toast(`Version V${projectVersion} applied to the draft.`);
         },

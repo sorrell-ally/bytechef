@@ -11,54 +11,74 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.bytechef.ai.copilot.service.CopilotWorkflowGenerator;
+import com.bytechef.atlas.configuration.domain.Workflow;
 import com.bytechef.atlas.configuration.domain.WorkflowTask;
 import com.bytechef.atlas.configuration.service.WorkflowService;
+import com.bytechef.atlas.execution.domain.Job;
 import com.bytechef.atlas.execution.facade.JobFacade;
 import com.bytechef.atlas.execution.service.JobService;
 import com.bytechef.atlas.execution.service.TaskExecutionService;
 import com.bytechef.automation.configuration.domain.ProjectDeploymentWorkflow;
+import com.bytechef.automation.configuration.domain.ProjectDeploymentWorkflowConnection;
 import com.bytechef.automation.configuration.facade.WorkspaceConnectionFacade;
 import com.bytechef.automation.configuration.facade.WorkspaceFacade;
 import com.bytechef.automation.configuration.service.ProjectDeploymentService;
 import com.bytechef.automation.configuration.service.ProjectDeploymentWorkflowService;
 import com.bytechef.automation.configuration.service.ProjectWorkflowService;
+import com.bytechef.ee.embedded.ai.mcp.facade.McpAutomationRowFacade;
+import com.bytechef.ee.embedded.ai.mcp.facade.McpIntegrationInstanceRowFacade;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationComponentService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceConfigurationService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceConfigurationWorkflowService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceToolService;
+import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceWorkflowService;
 import com.bytechef.ee.embedded.configuration.domain.AutomationProjectConfiguration;
 import com.bytechef.ee.embedded.configuration.domain.ConnectedUserProjectConfiguration;
 import com.bytechef.ee.embedded.configuration.domain.ConnectedUserProjectWorkflow;
 import com.bytechef.ee.embedded.configuration.domain.Integration;
 import com.bytechef.ee.embedded.configuration.domain.IntegrationInstanceConfiguration;
+import com.bytechef.ee.embedded.configuration.dto.AutomationProjectDTO;
+import com.bytechef.ee.embedded.configuration.dto.ConnectedUserAutomationProjectConfigurationDTO;
 import com.bytechef.ee.embedded.configuration.dto.ConnectedUserProjectDTO;
 import com.bytechef.ee.embedded.configuration.dto.ConnectedUserProjectWorkflowDTO;
+import com.bytechef.ee.embedded.configuration.dto.ConnectedUserWorkflowReferenceValuesDTO;
+import com.bytechef.ee.embedded.configuration.dto.ConnectedUserWorkflowTemplateDTO;
 import com.bytechef.ee.embedded.configuration.dto.CopilotChatContextDTO;
+import com.bytechef.ee.embedded.configuration.dto.ProvisionConnectedUserProjectWorkflowDTO;
+import com.bytechef.ee.embedded.configuration.dto.ProvisionableAutomationProjectDTO;
+import com.bytechef.ee.embedded.configuration.exception.AutomationProjectConfigurationErrorType;
 import com.bytechef.ee.embedded.configuration.exception.ConnectedUserProjectWorkflowErrorType;
 import com.bytechef.ee.embedded.configuration.exception.InvalidWorkflowException;
 import com.bytechef.ee.embedded.configuration.listener.AutomationProjectConfigurationUpdatedEventListener;
 import com.bytechef.ee.embedded.configuration.repository.ConnectedUserProjectWorkflowRepository;
 import com.bytechef.ee.embedded.configuration.security.EmbeddedPermissionEvaluator;
 import com.bytechef.ee.embedded.configuration.service.AutomationProjectConfigurationService;
+import com.bytechef.ee.embedded.configuration.service.ConnectedUserConnectionService;
 import com.bytechef.ee.embedded.configuration.service.ConnectedUserProjectConfigurationService;
+import com.bytechef.ee.embedded.configuration.service.ConnectedUserProjectService;
 import com.bytechef.ee.embedded.configuration.service.IntegrationInstanceConfigurationService;
 import com.bytechef.ee.embedded.configuration.service.IntegrationService;
 import com.bytechef.ee.embedded.connected.user.domain.ConnectedUser;
 import com.bytechef.ee.embedded.connected.user.service.ConnectedUserService;
+import com.bytechef.evaluator.SpelEvaluator;
 import com.bytechef.exception.ConfigurationException;
 import com.bytechef.platform.component.domain.ComponentDefinition;
 import com.bytechef.platform.component.facade.ActionDefinitionFacade;
@@ -70,6 +90,9 @@ import com.bytechef.platform.component.service.TriggerDefinitionService;
 import com.bytechef.platform.configuration.cache.WorkflowCacheManager;
 import com.bytechef.platform.configuration.domain.ComponentConnection;
 import com.bytechef.platform.configuration.domain.Environment;
+import com.bytechef.platform.configuration.domain.WorkflowInput;
+import com.bytechef.platform.configuration.domain.WorkflowTestConfiguration;
+import com.bytechef.platform.configuration.domain.WorkflowTestConfigurationConnection;
 import com.bytechef.platform.configuration.facade.ComponentConnectionFacade;
 import com.bytechef.platform.configuration.facade.OAuth2ParametersFacade;
 import com.bytechef.platform.configuration.facade.WorkflowNodeParameterFacade;
@@ -100,15 +123,22 @@ import com.bytechef.platform.workflow.task.dispatcher.service.TaskDispatcherDefi
 import com.bytechef.platform.workflow.validator.WorkflowValidatorFacade;
 import com.bytechef.platform.workflow.validator.WorkflowValidatorFacade.WorkflowValidationResult;
 import com.bytechef.test.config.testcontainers.PostgreSQLContainerConfiguration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -116,7 +146,10 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 /**
  * @version ee
@@ -144,6 +177,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
     JobFacade.class, JobService.class, McpComponentService.class, McpIntegrationComponentService.class,
     McpIntegrationInstanceConfigurationService.class,
     McpIntegrationInstanceConfigurationWorkflowService.class, McpIntegrationInstanceToolService.class,
+    McpIntegrationInstanceWorkflowService.class, McpAutomationRowFacade.class, McpIntegrationInstanceRowFacade.class,
     McpServerService.class, McpToolService.class, OAuth2ParametersFacade.class, OAuth2Service.class,
     PrincipalJobFacade.class, PrincipalJobService.class,
     TaskDispatcherDefinitionService.class, TaskExecutionService.class,
@@ -172,6 +206,24 @@ class ConnectedUserProjectFacadeIntTest {
          "triggers":[],"tasks":[]}
         """;
 
+    private static final String COPY_WORKFLOW_WITH_SHEET_AND_INTERNAL_ONLY_INPUTS_DEFINITION = """
+        {"label":"Leads","inputs":[{"name":"sheetName","label":"Sheet","type":"string","required":false},
+         {"name":"accountId","label":"Account","type":"string","required":false,"internalOnly":true}],
+         "triggers":[],"tasks":[]}
+        """;
+
+    private static final String SLACK_WORKFLOW_WITH_CHANNEL_AND_INTERNAL_ONLY_INPUTS_DEFINITION = """
+        {"label":"Post","inputs":[{"name":"channel","label":"Channel","type":"string","required":true},
+         {"name":"accountId","label":"Account","type":"string","required":false,"internalOnly":true}],
+         "triggers":[],"tasks":[{"name":"postMessage1","type":"slack/v1/postMessage","parameters":{}}]}
+        """;
+
+    private static final String MANUAL_SLACK_WORKFLOW_DEFINITION = """
+        {"label":"Post manually","description":"Posts on demand",
+         "triggers":[{"label":"Manual","name":"trigger_1","type":"manual/v1/manual"}],
+         "tasks":[{"name":"postMessage1","type":"slack/v1/postMessage","parameters":{}}]}
+        """;
+
     private static final String SLACK_WORKFLOW_DEFINITION = """
         {"label":"Sync leads","description":"Posts new leads","triggers":[],
          "tasks":[{"name":"postMessage1","type":"slack/v1/postMessage","parameters":{}}]}
@@ -180,6 +232,10 @@ class ConnectedUserProjectFacadeIntTest {
     private static final String SLACK_WORKFLOW_WITH_CHANNEL_INPUT_DEFINITION = """
         {"label":"Post","inputs":[{"name":"channel","label":"Channel","type":"string","required":true}],
          "triggers":[],"tasks":[{"name":"postMessage1","type":"slack/v1/postMessage","parameters":{}}]}
+        """;
+
+    private static final String NEW_WORKFLOW_DEFINITION = """
+        {"label":"New Workflow","description":"","inputs":[],"triggers":[],"tasks":[]}
         """;
 
     @Autowired
@@ -197,8 +253,11 @@ class ConnectedUserProjectFacadeIntTest {
     @Autowired
     private ComponentDefinitionService componentDefinitionService;
 
-    @MockitoBean
+    @MockitoSpyBean
     private ConnectedUserConnectionFacade connectedUserConnectionFacade;
+
+    @Autowired
+    private ConnectedUserConnectionService connectedUserConnectionService;
 
     @Autowired
     private ConnectedUserProjectFacade connectedUserProjectFacade;
@@ -212,10 +271,10 @@ class ConnectedUserProjectFacadeIntTest {
     @Autowired
     private ConnectedUserProjectWorkflowRepository connectedUserProjectWorkflowRepository;
 
-    @Autowired
+    @MockitoSpyBean
     private ConnectedUserService connectedUserService;
 
-    @Autowired
+    @MockitoSpyBean
     private ConnectedUserWorkflowReferenceFacade connectedUserWorkflowReferenceFacade;
 
     @Autowired
@@ -237,6 +296,9 @@ class ConnectedUserProjectFacadeIntTest {
     private IntegrationService integrationService;
 
     @Autowired
+    private JobService jobService;
+
+    @Autowired
     private PrincipalJobService principalJobService;
 
     @Autowired
@@ -250,6 +312,9 @@ class ConnectedUserProjectFacadeIntTest {
 
     @Autowired
     private WorkflowService workflowService;
+
+    @Autowired
+    private WorkflowTestConfigurationService workflowTestConfigurationService;
 
     @Autowired
     private WorkflowValidatorFacade workflowValidatorFacade;
@@ -322,6 +387,20 @@ class ConnectedUserProjectFacadeIntTest {
     }
 
     @Test
+    void testUpdateProjectWorkflowInputsIgnoresAnInternalOnlyInputOnACopy() {
+        String workflowUuid = createPublishedCopy(
+            externalUserId, COPY_WORKFLOW_WITH_SHEET_AND_INTERNAL_ONLY_INPUTS_DEFINITION);
+
+        connectedUserProjectFacade.updateProjectWorkflowInputs(
+            externalUserId, workflowUuid, Map.of("sheetName", "Leads", "accountId", "user-account"), null);
+
+        ProjectDeploymentWorkflow row = projectDeploymentWorkflowService.getProjectDeploymentWorkflow(
+            getCopyProjectDeploymentId(externalUserId), getPublishedCopyWorkflowId(externalUserId, workflowUuid));
+
+        assertThat(row.getInputs()).isEqualTo(Map.of("sheetName", "Leads"));
+    }
+
+    @Test
     void testEnableProjectWorkflowOnAReferenceWhoseCatalogWorkflowHasErrorsIsRefused() {
         long automationProjectId = createAutomationProject("Broken Reference");
 
@@ -381,6 +460,55 @@ class ConnectedUserProjectFacadeIntTest {
             .singleElement()
             .satisfies(connectedUserProjectWorkflowDTO -> assertThat(connectedUserProjectWorkflowDTO.attentionReason())
                 .isNull());
+    }
+
+    @Test
+    void testGetConnectedUserProjectWorkflowsReportsTheLastExecutionOfThePublishedVersionBehindADraft() {
+        String workflowUuid = createPublishedCopy(externalUserId, COPY_WORKFLOW_WITH_SHEET_INPUT_DEFINITION);
+
+        connectedUserProjectFacade.updateProjectWorkflow(
+            externalUserId, workflowUuid, COPY_WORKFLOW_WITH_SHEET_INPUT_DEFINITION, Environment.PRODUCTION);
+
+        String publishedWorkflowId = getPublishedCopyWorkflowId(externalUserId, workflowUuid);
+
+        Instant endDate = Instant.parse("2026-11-15T00:28:50Z");
+
+        Job job = new Job(1L);
+
+        job.setEndDate(endDate);
+
+        when(jobService.fetchLastWorkflowJob(argThat((List<String> workflowIds) -> workflowIds.contains(
+            publishedWorkflowId)))).thenReturn(Optional.of(job));
+
+        assertThat(connectedUserProjectFacade.getConnectedUserProjectWorkflows(externalUserId, Environment.PRODUCTION))
+            .singleElement()
+            .extracting(ConnectedUserProjectWorkflowDTO::lastExecutionDate)
+            .isEqualTo(endDate);
+    }
+
+    @Test
+    void testGenerateNamesAWorkflowStillCalledNewWorkflowFromThePrompt() {
+        String workflowUuid = connectedUserProjectFacade.createProjectWorkflow(
+            externalUserId, NEW_WORKFLOW_DEFINITION, Environment.PRODUCTION);
+
+        connectedUserProjectFacade.updateProjectWorkflow(
+            externalUserId, workflowUuid, "Post a standup reminder to #general every weekday at 9am", null,
+            Environment.PRODUCTION, true);
+
+        assertThat(getLastWorkflowLabel(workflowUuid))
+            .isEqualTo("Post a standup reminder to #general every weekday at 9am");
+    }
+
+    @Test
+    void testGenerateKeepsTheNameOfARenamedWorkflow() {
+        String workflowUuid = connectedUserProjectFacade.createProjectWorkflow(
+            externalUserId, NEW_WORKFLOW_DEFINITION.replace("New Workflow", "Standup"), Environment.PRODUCTION);
+
+        connectedUserProjectFacade.updateProjectWorkflow(
+            externalUserId, workflowUuid, "Post a standup reminder to #general every weekday at 9am", null,
+            Environment.PRODUCTION, true);
+
+        assertThat(getLastWorkflowLabel(workflowUuid)).isEqualTo("Standup");
     }
 
     @Test
@@ -450,6 +578,28 @@ class ConnectedUserProjectFacadeIntTest {
     }
 
     @Test
+    void testPublishProjectWorkflowLeavesOutAnotherConnectedUsersConnection() {
+        String otherExternalUserId = createConnectedUser();
+
+        long otherConnectionId = createOwnedConnection(otherExternalUserId);
+
+        List<ProjectDeploymentWorkflowConnection> connections = publishWithTestConnection(otherConnectionId);
+
+        assertThat(connections).isEmpty();
+    }
+
+    @Test
+    void testPublishProjectWorkflowDeploysTheConnectedUsersOwnConnection() {
+        long ownConnectionId = createOwnedConnection(externalUserId);
+
+        List<ProjectDeploymentWorkflowConnection> connections = publishWithTestConnection(ownConnectionId);
+
+        assertThat(connections)
+            .extracting(ProjectDeploymentWorkflowConnection::getConnectionId)
+            .containsExactly(ownConnectionId);
+    }
+
+    @Test
     void testUpdateProjectWorkflowInputsWritesValuesToThePublishedDeploymentWorkflowNotTheDraft() {
         String workflowUuid = createPublishedCopy(externalUserId, COPY_WORKFLOW_WITH_SHEET_INPUT_DEFINITION);
 
@@ -510,6 +660,44 @@ class ConnectedUserProjectFacadeIntTest {
     }
 
     @Test
+    void testGetConnectedUserProjectWorkflowsReportsTheLastExecutionOfAReferenceOnItsOwnDeployment() {
+        long automationProjectId = createAutomationProject("Reference Last Execution");
+
+        String automationUuid = addAutomation(automationProjectId, SLACK_WORKFLOW_DEFINITION);
+
+        publishAndPinProject(automationProjectId);
+
+        ConnectedUserProjectWorkflow reference = connectedUserWorkflowReferenceFacade.getOrCreateReference(
+            externalUserId, automationUuid, Environment.PRODUCTION);
+
+        long projectDeploymentId = reference.getProjectDeploymentId();
+
+        List<ProjectDeploymentWorkflow> projectDeploymentWorkflows =
+            projectDeploymentWorkflowService.getProjectDeploymentWorkflows(projectDeploymentId);
+
+        String deployedWorkflowId = projectDeploymentWorkflows.getFirst()
+            .getWorkflowId();
+
+        Instant endDate = Instant.parse("2026-11-19T14:50:46Z");
+
+        Job job = new Job(4242L);
+
+        job.setEndDate(endDate);
+
+        when(principalJobService.fetchLastWorkflowJobId(
+            eq(projectDeploymentId), argThat((List<String> workflowIds) -> workflowIds.contains(deployedWorkflowId)),
+            eq(PlatformType.AUTOMATION)))
+                .thenReturn(Optional.of(4242L));
+        when(jobService.getJob(4242L))
+            .thenReturn(job);
+
+        assertThat(connectedUserProjectFacade.getConnectedUserProjectWorkflows(externalUserId, Environment.PRODUCTION))
+            .singleElement()
+            .extracting(ConnectedUserProjectWorkflowDTO::lastExecutionDate)
+            .isEqualTo(endDate);
+    }
+
+    @Test
     void testUpdateProjectWorkflowInputsOnADanglingReferenceIsRefused() {
         long automationProjectId = createAutomationProject("Dangling Inputs");
 
@@ -526,6 +714,25 @@ class ConnectedUserProjectFacadeIntTest {
         assertThatThrownBy(() -> connectedUserProjectFacade.updateProjectWorkflowInputs(
             externalUserId, automationUuid, Map.of("channel", "#alerts"), null))
                 .isInstanceOf(DanglingReferenceException.class);
+    }
+
+    @Test
+    void testGetConnectedUserProjectWorkflowsListsTheTriggersOfAReferencedAutomation() {
+        long automationProjectId = createAutomationProject("Reference Triggers");
+
+        String automationUuid = addAutomation(automationProjectId, MANUAL_SLACK_WORKFLOW_DEFINITION);
+
+        publishAndPinProject(automationProjectId);
+
+        connectedUserWorkflowReferenceFacade.getOrCreateReference(
+            externalUserId, automationUuid, Environment.PRODUCTION);
+
+        assertThat(connectedUserProjectFacade.getConnectedUserProjectWorkflows(externalUserId, Environment.PRODUCTION))
+            .singleElement()
+            .satisfies(connectedUserProjectWorkflowDTO -> assertThat(connectedUserProjectWorkflowDTO.workflow()
+                .getTriggers())
+                    .extracting("type")
+                    .containsExactly("manual/v1/manual"));
     }
 
     @Test
@@ -862,6 +1069,27 @@ class ConnectedUserProjectFacadeIntTest {
     }
 
     @Test
+    void testGetConnectedUserProjectWorkflowsReturnsTheConnectionEachComponentOfAReferenceUses() {
+        long automationProjectId = createAutomationProject("Connections");
+
+        String automationUuid =
+            addAutomation(automationProjectId, SLACK_WORKFLOW_WITH_CHANNEL_INPUT_DEFINITION);
+
+        publishAndPinProject(automationProjectId);
+
+        connectedUserWorkflowReferenceFacade.getOrCreateReference(
+            externalUserId, automationUuid, Environment.PRODUCTION);
+
+        List<ConnectedUserProjectWorkflowDTO> connectedUserProjectWorkflowDTOs =
+            connectedUserProjectFacade.getConnectedUserProjectWorkflows(externalUserId, Environment.PRODUCTION);
+
+        assertThat(connectedUserProjectWorkflowDTOs)
+            .singleElement()
+            .satisfies(connectedUserProjectWorkflowDTO -> assertThat(connectedUserProjectWorkflowDTO.connections())
+                .isEqualTo(Map.of("slack", 777L)));
+    }
+
+    @Test
     void testEnableProjectWorkflowOnAReferenceTurnedOffByTheAdministratorReturnsTheAttentionReason() {
         long automationProjectId = createAutomationProject("Enable Turned Off");
 
@@ -996,6 +1224,64 @@ class ConnectedUserProjectFacadeIntTest {
     }
 
     @Test
+    void testWorkflowTemplateInputsLeaveOutInternalOnlyInputs() {
+        long automationProjectId = createAutomationProject("Internal Only Template");
+
+        String automationUuid =
+            addAutomation(automationProjectId, SLACK_WORKFLOW_WITH_CHANNEL_AND_INTERNAL_ONLY_INPUTS_DEFINITION);
+
+        publishAndPinProject(automationProjectId);
+
+        String copyWorkflowUuid = createPublishedCopy(
+            externalUserId, COPY_WORKFLOW_WITH_SHEET_AND_INTERNAL_ONLY_INPUTS_DEFINITION);
+
+        connectedUserWorkflowReferenceFacade.getOrCreateReference(
+            externalUserId, automationUuid, Environment.PRODUCTION);
+
+        assertThat(automationProjectFacade.getPublishedProjects(externalUserId, Environment.PRODUCTION))
+            .filteredOn(project -> project.id() == automationProjectId)
+            .singleElement()
+            .satisfies(project -> assertThat(project.workflowTemplates())
+                .singleElement()
+                .satisfies(template -> assertThat(template.inputs()).extracting("name")
+                    .containsExactly("channel")));
+
+        List<ConnectedUserProjectWorkflowDTO> connectedUserProjectWorkflowDTOs =
+            connectedUserProjectFacade.getConnectedUserProjectWorkflows(externalUserId, Environment.PRODUCTION);
+
+        assertThat(connectedUserProjectWorkflowDTOs)
+            .filteredOn(connectedUserProjectWorkflowDTO -> Objects.equals(
+                connectedUserProjectWorkflowDTO.workflowUuid(), automationUuid))
+            .singleElement()
+            .satisfies(referenceDTO -> assertThat(referenceDTO.inputs()).extracting("name")
+                .containsExactly("channel"));
+        assertThat(connectedUserProjectWorkflowDTOs)
+            .filteredOn(connectedUserProjectWorkflowDTO -> Objects.equals(
+                connectedUserProjectWorkflowDTO.workflowUuid(), copyWorkflowUuid))
+            .singleElement()
+            .satisfies(copyDTO -> assertThat(copyDTO.inputs()).extracting("name")
+                .containsExactly("sheetName"));
+    }
+
+    @Test
+    void testCopyWorkflowTemplateDropsInternalOnlyInputs() {
+        long automationProjectId = createAutomationProject("Internal Only Copy");
+
+        String templateUuid =
+            addAutomation(automationProjectId, SLACK_WORKFLOW_WITH_CHANNEL_AND_INTERNAL_ONLY_INPUTS_DEFINITION);
+
+        publishAndPinProject(automationProjectId);
+
+        String copyWorkflowUuid = connectedUserProjectFacade.copyWorkflowTemplate(
+            externalUserId, templateUuid, Environment.PRODUCTION);
+
+        Workflow copyWorkflow = workflowService.getWorkflow(projectWorkflowService.getLastWorkflowId(copyWorkflowUuid));
+
+        assertThat(WorkflowInput.of(copyWorkflow)).extracting(WorkflowInput::getName)
+            .containsExactly("channel");
+    }
+
+    @Test
     void testCopyWorkflowTemplateRejectsATemplateHiddenByThePermissionExpression() {
         long automationProjectId = createAutomationProject("Hidden Template");
 
@@ -1070,6 +1356,57 @@ class ConnectedUserProjectFacadeIntTest {
             name + " " + UUID.randomUUID(), "", null, List.of(), null);
     }
 
+    private long createOwnedConnection(String connectionExternalUserId) {
+        UUID connectionUuid = UUID.randomUUID();
+
+        long connectionId = connectionUuid.getMostSignificantBits() & Long.MAX_VALUE;
+
+        long connectedUserId = connectedUserService.getConnectedUser(connectionExternalUserId, Environment.PRODUCTION)
+            .getId();
+
+        connectedUserConnectionService.create(connectedUserId, connectionId, null);
+
+        Connection connection = new Connection();
+
+        connection.setComponentName("slack");
+        connection.setEnvironmentId(Environment.PRODUCTION.ordinal());
+        connection.setId(connectionId);
+        connection.setType(PlatformType.EMBEDDED);
+
+        when(connectionService.getConnections(argThat((List<Long> connectionIds) -> connectionIds != null &&
+            connectionIds.contains(connectionId))))
+                .thenReturn(List.of(connection));
+        when(connectionService.getConnection(connectionId)).thenReturn(connection);
+
+        return connectionId;
+    }
+
+    private List<ProjectDeploymentWorkflowConnection> publishWithTestConnection(long connectionId) {
+        String workflowUuid = connectedUserProjectFacade.createProjectWorkflow(
+            externalUserId, SLACK_WORKFLOW_DEFINITION, Environment.PRODUCTION);
+
+        String workflowId = projectWorkflowService.getLastWorkflowId(workflowUuid);
+
+        WorkflowTestConfiguration workflowTestConfiguration = new WorkflowTestConfiguration();
+
+        workflowTestConfiguration.setConnections(
+            List.of(new WorkflowTestConfigurationConnection(connectionId, "slack", "postMessage1")));
+        workflowTestConfiguration.setEnvironmentId(Environment.PRODUCTION.ordinal());
+        workflowTestConfiguration.setWorkflowId(workflowId);
+
+        when(workflowTestConfigurationService.fetchWorkflowTestConfiguration(
+            workflowId, Environment.PRODUCTION.ordinal()))
+                .thenReturn(Optional.of(workflowTestConfiguration));
+
+        connectedUserProjectFacade.publishProjectWorkflow(externalUserId, workflowUuid, "published", null);
+
+        ProjectDeploymentWorkflow projectDeploymentWorkflow = projectDeploymentWorkflowService
+            .getProjectDeploymentWorkflow(
+                getCopyProjectDeploymentId(externalUserId), getPublishedCopyWorkflowId(externalUserId, workflowUuid));
+
+        return projectDeploymentWorkflow.getConnections();
+    }
+
     private String createConnectedUser() {
         String newExternalUserId = "project-facade-user-" + UUID.randomUUID();
 
@@ -1098,6 +1435,12 @@ class ConnectedUserProjectFacadeIntTest {
             integrationInstanceConfiguration);
 
         integrationInstanceConfigurationService.updateEnabled(integrationInstanceConfiguration.getId(), enabled);
+    }
+
+    private String getLastWorkflowLabel(String workflowUuid) {
+        Workflow workflow = workflowService.getWorkflow(projectWorkflowService.getLastWorkflowId(workflowUuid));
+
+        return workflow.getLabel();
     }
 
     private String createPublishedCopy(String copyExternalUserId, String definition) {
@@ -1140,8 +1483,9 @@ class ConnectedUserProjectFacadeIntTest {
 
         when(connectionDTO.id()).thenReturn(connectionId);
         when(connectionDTO.componentName()).thenReturn("slack");
-        when(connectedUserConnectionFacade.getConnections(anyLong(), eq("slack"), eq(List.of())))
-            .thenReturn(List.of(connectionDTO));
+        doReturn(List.of(connectionDTO))
+            .when(connectedUserConnectionFacade)
+            .getConnections(anyLong(), eq("slack"), eq(List.of()));
         when(componentConnectionFacade.getComponentConnections(any(WorkflowTask.class))).thenReturn(List.of(slot));
         when(componentConnectionFacade.getComponentConnection(anyString(), eq("postMessage1"), eq("slack")))
             .thenReturn(slot);
@@ -1152,6 +1496,1099 @@ class ConnectedUserProjectFacadeIntTest {
         return UUID.randomUUID()
             .toString()
             .replace("-", "");
+    }
+
+    @Nested
+    class Provisioning {
+
+        private static final String ADMIN_LOGIN = "admin@localhost.com";
+
+        @BeforeEach
+        void setUpProvisioning() {
+            reset(connectedUserConnectionFacade);
+
+            SecurityContextHolder.getContext()
+                .setAuthentication(new UsernamePasswordAuthenticationToken(ADMIN_LOGIN, null, List.of()));
+        }
+
+        @AfterEach
+        void tearDownProvisioning() {
+            SecurityContextHolder.clearContext();
+        }
+
+        private static final AtomicLong NEXT_CONNECTION_ID = new AtomicLong(1000L);
+
+        private static final String CHANNEL_INPUT_WORKFLOW_DEFINITION = """
+            {"label":"Post","inputs":[{"name":"channel","label":"Channel","type":"string","required":true}],
+             "triggers":[],"tasks":[{"name":"postMessage1","type":"slack/v1/postMessage","parameters":{}}]}
+            """;
+
+        private static final String CHANNEL_AND_REQUIRED_INTERNAL_ONLY_INPUTS_WORKFLOW_DEFINITION = """
+            {"label":"Post","inputs":[{"name":"channel","label":"Channel","type":"string","required":true},
+             {"name":"accountId","label":"Account","type":"string","required":true,"internalOnly":true}],
+             "triggers":[],"tasks":[{"name":"postMessage1","type":"slack/v1/postMessage","parameters":{}}]}
+            """;
+
+        private static final String NO_CONNECTION_WORKFLOW_DEFINITION = """
+            {"label":"Standalone","triggers":[],"tasks":[]}
+            """;
+
+        private static final String SLACK_WORKFLOW_DEFINITION =
+            """
+                {"label":"Post","triggers":[],"tasks":[{"name":"postMessage1","type":"slack/v1/postMessage","parameters":{}}]}
+                """;
+
+        @MockitoSpyBean
+        private ConnectedUserProjectService connectedUserProjectService;
+
+        @Autowired
+        private AutomationProjectConfigurationFacade automationProjectConfigurationFacade;
+
+        @Autowired
+        private ConnectionFacade connectionFacade;
+
+        private final Map<Long, Connection> embeddedConnections = new ConcurrentHashMap<>();
+
+        @Test
+        void testGetProvisionableProjectsListsReleasedProjectsWithTheirEnabledWorkflows() {
+            givenSlackAutomationEnvironment();
+
+            long projectId = createProjectWithWorkflows("Provisionable Listed", 2);
+
+            publishAndPinProject(projectId);
+
+            ConnectedUser connectedUser = createConnectedUserWithConnection();
+
+            AutomationProjectDTO publishedProject = findPublishedProject(connectedUser, projectId);
+
+            List<ProvisionableAutomationProjectDTO> result =
+                connectedUserProjectFacade.getProvisionableProjects(connectedUser.getId());
+
+            ProvisionableAutomationProjectDTO provisionableProject = findProvisionableProject(result, projectId);
+
+            assertThat(provisionableProject.name()).isEqualTo(publishedProject.name());
+            assertThat(provisionableProject.projectVersion()).isEqualTo(publishedProject.lastPublishedVersion());
+            assertThat(provisionableProject.workflows())
+                .extracting(
+                    ProvisionableAutomationProjectDTO.Workflow::workflowUuid,
+                    ProvisionableAutomationProjectDTO.Workflow::label,
+                    ProvisionableAutomationProjectDTO.Workflow::inputs,
+                    ProvisionableAutomationProjectDTO.Workflow::provisioned,
+                    ProvisionableAutomationProjectDTO.Workflow::dangling)
+                .containsExactlyInAnyOrderElementsOf(
+                    publishedProject.workflowTemplates()
+                        .stream()
+                        .map(template -> tuple(
+                            template.workflowUuid(), template.label(), template.inputs(), false, false))
+                        .toList());
+            assertThat(provisionableProject.workflows()).hasSize(2);
+        }
+
+        @Test
+        void testGetProvisionableProjectsSkipsProjectsWithoutConfigurationInTheUserEnvironment() {
+            givenSlackAutomationEnvironment();
+
+            long unconfiguredProjectId = createProjectWithWorkflows("Provisionable Unconfigured", 1);
+
+            automationProjectFacade.publishProject(unconfiguredProjectId);
+
+            long configuredProjectId = createProjectWithWorkflows("Provisionable Configured", 1);
+
+            publishAndPinProject(configuredProjectId);
+
+            ConnectedUser connectedUser = createConnectedUserWithConnection();
+
+            List<ProvisionableAutomationProjectDTO> result =
+                connectedUserProjectFacade.getProvisionableProjects(connectedUser.getId());
+
+            assertThat(result)
+                .extracting(ProvisionableAutomationProjectDTO::projectId)
+                .contains(configuredProjectId)
+                .doesNotContain(unconfiguredProjectId);
+        }
+
+        @Test
+        void testGetProvisionableProjectsSkipsWorkflowsTurnedOffInTheConfiguration() {
+            givenSlackAutomationEnvironment();
+
+            long projectId = createProjectWithWorkflows("Provisionable Turned Off", 2);
+
+            publishAndPinProject(projectId);
+
+            ConnectedUser connectedUser = createConnectedUserWithConnection();
+
+            List<ConnectedUserWorkflowTemplateDTO> templates = findPublishedProject(connectedUser, projectId)
+                .workflowTemplates();
+
+            String turnedOffWorkflowUuid = templates.getFirst()
+                .workflowUuid();
+            String remainingWorkflowUuid = templates.getLast()
+                .workflowUuid();
+
+            AutomationProjectConfiguration configuration = automationProjectConfigurationService
+                .getConfigurations(projectId, Environment.PRODUCTION.ordinal())
+                .stream()
+                .findFirst()
+                .orElseThrow();
+
+            automationProjectConfigurationFacade.enableConfigurationWorkflow(
+                configuration.getId(), turnedOffWorkflowUuid, false);
+
+            ProvisionableAutomationProjectDTO provisionableProject = findProvisionableProject(
+                connectedUserProjectFacade.getProvisionableProjects(connectedUser.getId()), projectId);
+
+            assertThat(provisionableProject.workflows())
+                .extracting(ProvisionableAutomationProjectDTO.Workflow::workflowUuid)
+                .containsExactly(remainingWorkflowUuid);
+        }
+
+        @Test
+        void testGetProvisionableProjectsMarksProvisionedAndDanglingWorkflows() {
+            givenSlackAutomationEnvironment();
+
+            long projectId = createProjectWithWorkflows("Provisionable Marked", 3);
+
+            publishAndPinProject(projectId);
+
+            ConnectedUser connectedUser = createConnectedUserWithConnection();
+
+            List<ConnectedUserWorkflowTemplateDTO> templates = findPublishedProject(connectedUser, projectId)
+                .workflowTemplates();
+
+            String provisionedWorkflowUuid = templates.get(0)
+                .workflowUuid();
+            String danglingWorkflowUuid = templates.get(1)
+                .workflowUuid();
+            String untouchedWorkflowUuid = templates.get(2)
+                .workflowUuid();
+
+            connectedUserWorkflowReferenceFacade.getOrCreateReference(
+                connectedUser.getExternalId(), provisionedWorkflowUuid, Environment.PRODUCTION);
+
+            ConnectedUserProjectWorkflow danglingReference = connectedUserWorkflowReferenceFacade.getOrCreateReference(
+                connectedUser.getExternalId(), danglingWorkflowUuid, Environment.PRODUCTION);
+
+            markDangling(danglingReference);
+
+            ProvisionableAutomationProjectDTO provisionableProject = findProvisionableProject(
+                connectedUserProjectFacade.getProvisionableProjects(connectedUser.getId()), projectId);
+
+            assertThat(provisionableProject.workflows())
+                .extracting(
+                    ProvisionableAutomationProjectDTO.Workflow::workflowUuid,
+                    ProvisionableAutomationProjectDTO.Workflow::provisioned,
+                    ProvisionableAutomationProjectDTO.Workflow::dangling)
+                .containsExactlyInAnyOrder(
+                    tuple(provisionedWorkflowUuid, true, false),
+                    tuple(danglingWorkflowUuid, true, true),
+                    tuple(untouchedWorkflowUuid, false, false));
+        }
+
+        @Test
+        void testProvisionProjectWorkflowsCreatesReferencesLikeThePublicPath() {
+            givenSlackAutomationEnvironment();
+
+            long projectId = createProjectWithWorkflows("Provision Created", 2);
+
+            publishAndPinProject(projectId);
+
+            ConnectedUser connectedUser = createConnectedUserWithConnection();
+            ConnectedUser directConnectedUser = createConnectedUserWithConnection();
+
+            List<ConnectedUserWorkflowTemplateDTO> templates = findPublishedProject(connectedUser, projectId)
+                .workflowTemplates();
+
+            String firstWorkflowUuid = templates.getFirst()
+                .workflowUuid();
+            String secondWorkflowUuid = templates.getLast()
+                .workflowUuid();
+
+            connectedUserProjectFacade.provisionProjectWorkflows(
+                connectedUser.getId(), getConfigurationId(projectId),
+                List.of(
+                    new ProvisionConnectedUserProjectWorkflowDTO(firstWorkflowUuid, null),
+                    new ProvisionConnectedUserProjectWorkflowDTO(secondWorkflowUuid, null)));
+
+            ConnectedUserProjectWorkflow directReference = connectedUserWorkflowReferenceFacade.getOrCreateReference(
+                directConnectedUser.getExternalId(), firstWorkflowUuid, Environment.PRODUCTION);
+
+            assertThat(connectedUserWorkflowReferenceFacade.getConnectedUserWorkflows(connectedUser.getId()))
+                .extracting(
+                    ConnectedUserProjectWorkflow::getAutomationUuid, ConnectedUserProjectWorkflow::isEnabled,
+                    ConnectedUserProjectWorkflow::isDangling,
+                    reference -> reference.getProjectDeploymentId() != null)
+                .containsExactlyInAnyOrder(
+                    tuple(firstWorkflowUuid, true, false, directReference.getProjectDeploymentId() != null),
+                    tuple(secondWorkflowUuid, true, false, directReference.getProjectDeploymentId() != null));
+        }
+
+        @Test
+        void testProvisionProjectWorkflowsRecordsTheAdminAsProvisioner() {
+            givenSlackAutomationEnvironment();
+
+            long projectId = createProjectWithWorkflows("Provision Recorded", 1);
+
+            publishAndPinProject(projectId);
+
+            ConnectedUser connectedUser = createConnectedUserWithConnection();
+
+            List<ConnectedUserWorkflowTemplateDTO> templates = findPublishedProject(connectedUser, projectId)
+                .workflowTemplates();
+
+            String workflowUuid = templates.getFirst()
+                .workflowUuid();
+
+            connectedUserProjectFacade.provisionProjectWorkflows(
+                connectedUser.getId(), getConfigurationId(projectId),
+                List.of(new ProvisionConnectedUserProjectWorkflowDTO(workflowUuid, null)));
+
+            assertThat(connectedUserWorkflowReferenceFacade.getConnectedUserWorkflows(connectedUser.getId()))
+                .extracting(ConnectedUserProjectWorkflow::getAutomationUuid,
+                    ConnectedUserProjectWorkflow::getProvisionedBy)
+                .containsExactly(tuple(workflowUuid, ADMIN_LOGIN));
+        }
+
+        @Test
+        void testGetOrCreateReferenceThroughThePublicPathLeavesTheProvisionerEmpty() {
+            givenSlackAutomationEnvironment();
+
+            long projectId = createProjectWithWorkflows("Public Reference", 1);
+
+            publishAndPinProject(projectId);
+
+            ConnectedUser connectedUser = createConnectedUserWithConnection();
+
+            List<ConnectedUserWorkflowTemplateDTO> templates = findPublishedProject(connectedUser, projectId)
+                .workflowTemplates();
+
+            String workflowUuid = templates.getFirst()
+                .workflowUuid();
+
+            ConnectedUserProjectWorkflow reference = connectedUserWorkflowReferenceFacade.getOrCreateReference(
+                connectedUser.getExternalId(), workflowUuid, Environment.PRODUCTION);
+
+            assertThat(reference.getProvisionedBy()).isNull();
+        }
+
+        @Test
+        void testProvisionProjectWorkflowsRejectsUnprovisionableUuidBeforeWriting() {
+            givenSlackAutomationEnvironment();
+
+            long projectId = createProjectWithWorkflows("Provision Rejected", 2);
+
+            publishAndPinProject(projectId);
+
+            ConnectedUser connectedUser = createConnectedUserWithConnection();
+
+            List<ConnectedUserWorkflowTemplateDTO> templates = findPublishedProject(connectedUser, projectId)
+                .workflowTemplates();
+
+            String validWorkflowUuid = templates.getFirst()
+                .workflowUuid();
+            String turnedOffWorkflowUuid = templates.getLast()
+                .workflowUuid();
+
+            AutomationProjectConfiguration configuration = automationProjectConfigurationService
+                .getConfigurations(projectId, Environment.PRODUCTION.ordinal())
+                .stream()
+                .findFirst()
+                .orElseThrow();
+
+            automationProjectConfigurationFacade.enableConfigurationWorkflow(
+                configuration.getId(), turnedOffWorkflowUuid, false);
+
+            assertThatThrownBy(() -> connectedUserProjectFacade.provisionProjectWorkflows(
+                connectedUser.getId(), configuration.getId(),
+                List.of(
+                    new ProvisionConnectedUserProjectWorkflowDTO(validWorkflowUuid, null),
+                    new ProvisionConnectedUserProjectWorkflowDTO(turnedOffWorkflowUuid, null))))
+                        .isInstanceOfSatisfying(ConfigurationException.class, configurationException -> assertThat(
+                            configurationException.getErrorKey())
+                                .isEqualTo(ConnectedUserProjectWorkflowErrorType.WORKFLOW_NOT_PROVISIONABLE
+                                    .getErrorKey()));
+
+            assertThat(connectedUserWorkflowReferenceFacade.getConnectedUserWorkflows(connectedUser.getId())).isEmpty();
+            assertThat(connectedUserProjectConfigurationService.fetchAssignment(connectedUser.getId(), projectId))
+                .isEmpty();
+        }
+
+        @Test
+        void testProvisionProjectWorkflowsKeepsEarlierReferencesWhenALaterWorkflowFails() {
+            givenSlackAutomationEnvironment();
+
+            long projectId = createProjectWithWorkflows("Provision Partial", 2);
+
+            publishAndPinProject(projectId);
+
+            ConnectedUser connectedUser = createConnectedUserWithConnection();
+
+            List<ConnectedUserWorkflowTemplateDTO> templates = findPublishedProject(connectedUser, projectId)
+                .workflowTemplates();
+
+            String firstWorkflowUuid = templates.getFirst()
+                .workflowUuid();
+            String failingWorkflowUuid = templates.getLast()
+                .workflowUuid();
+
+            doThrow(new IllegalStateException("Trigger registration failed"))
+                .when(connectedUserWorkflowReferenceFacade)
+                .getOrCreateReference(
+                    anyString(), eq(failingWorkflowUuid), any(Environment.class), anyMap(), any(), any());
+
+            long connectedUserId = connectedUser.getId();
+            long configurationId = getConfigurationId(projectId);
+            List<ProvisionConnectedUserProjectWorkflowDTO> workflows = List.of(
+                new ProvisionConnectedUserProjectWorkflowDTO(firstWorkflowUuid, null),
+                new ProvisionConnectedUserProjectWorkflowDTO(failingWorkflowUuid, null));
+
+            assertThatThrownBy(() -> connectedUserProjectFacade.provisionProjectWorkflows(
+                connectedUserId, configurationId, workflows))
+                    .isInstanceOf(IllegalStateException.class);
+
+            assertThat(connectedUserWorkflowReferenceFacade.getConnectedUserWorkflows(connectedUser.getId()))
+                .extracting(ConnectedUserProjectWorkflow::getAutomationUuid,
+                    ConnectedUserProjectWorkflow::isEnabled)
+                .containsExactly(tuple(firstWorkflowUuid, true));
+        }
+
+        @Test
+        void testProvisionProjectWorkflowsKeepsReferenceWhenConnectionIsMissing() {
+            givenSlackAutomationEnvironment();
+
+            long needsConnectionProjectId =
+                createProjectWithDefinition("Provision Needs Connection", SLACK_WORKFLOW_DEFINITION);
+            long standaloneProjectId = createProjectWithDefinition(
+                "Provision Standalone", NO_CONNECTION_WORKFLOW_DEFINITION);
+
+            publishAndPinProject(needsConnectionProjectId);
+            publishAndPinProject(standaloneProjectId);
+
+            ConnectedUser connectedUser = connectedUserService.createConnectedUser(
+                "provisionable-user-" + UUID.randomUUID(), Environment.PRODUCTION);
+
+            String needsConnectionWorkflowUuid = findPublishedProject(connectedUser, needsConnectionProjectId)
+                .workflowTemplates()
+                .getFirst()
+                .workflowUuid();
+            String standaloneWorkflowUuid = findPublishedProject(connectedUser, standaloneProjectId)
+                .workflowTemplates()
+                .getFirst()
+                .workflowUuid();
+
+            connectedUserProjectFacade.provisionProjectWorkflows(
+                connectedUser.getId(), getConfigurationId(needsConnectionProjectId),
+                List.of(new ProvisionConnectedUserProjectWorkflowDTO(needsConnectionWorkflowUuid, null)));
+            connectedUserProjectFacade.provisionProjectWorkflows(
+                connectedUser.getId(), getConfigurationId(standaloneProjectId),
+                List.of(new ProvisionConnectedUserProjectWorkflowDTO(standaloneWorkflowUuid, null)));
+
+            assertThat(connectedUserWorkflowReferenceFacade.getConnectedUserWorkflows(connectedUser.getId()))
+                .extracting(ConnectedUserProjectWorkflow::getAutomationUuid)
+                .containsExactlyInAnyOrder(needsConnectionWorkflowUuid, standaloneWorkflowUuid);
+
+            ConnectedUserProjectWorkflowDTO needsConnectionWorkflow = findProjectWorkflow(
+                connectedUser, needsConnectionWorkflowUuid);
+
+            assertThat(needsConnectionWorkflow.attentionReason())
+                .isEqualTo(ConnectedUserReferenceAttentionResolver.MISSING_CONNECTION_PREFIX + "slack");
+        }
+
+        @Test
+        void testGetProvisionableProjectsListsTheComponentsAWorkflowNeedsAConnectionFor() {
+            givenSlackAutomationEnvironment();
+
+            ComponentDefinition slackComponentDefinition = mock(ComponentDefinition.class);
+
+            when(slackComponentDefinition.getName()).thenReturn("slack");
+            when(slackComponentDefinition.getTitle()).thenReturn("Slack");
+            when(slackComponentDefinition.isConnectionRequired()).thenReturn(true);
+            when(componentDefinitionService.fetchComponentDefinition(eq("slack"), anyInt()))
+                .thenReturn(Optional.of(slackComponentDefinition));
+
+            long projectId = createProjectWithDefinition("Provisionable Components", SLACK_WORKFLOW_DEFINITION);
+
+            publishAndPinProject(projectId);
+
+            ConnectedUser connectedUser = createConnectedUserWithConnection();
+
+            ProvisionableAutomationProjectDTO provisionableProject = findProvisionableProject(
+                connectedUserProjectFacade.getProvisionableProjects(connectedUser.getId()), projectId);
+
+            assertThat(provisionableProject.workflows())
+                .singleElement()
+                .satisfies(workflow -> assertThat(workflow.components())
+                    .extracting(ConnectedUserWorkflowTemplateDTO.Component::name,
+                        ConnectedUserWorkflowTemplateDTO.Component::title)
+                    .containsExactly(tuple("slack", "Slack")));
+        }
+
+        @Test
+        void testGetProvisionableProjectsOmitsTheConnectionsTheConfigurationProvidesAndKeepsOrdinaryInputs() {
+            givenSlackAutomationEnvironment();
+
+            ComponentDefinition slackComponentDefinition = mock(ComponentDefinition.class);
+
+            when(slackComponentDefinition.getName()).thenReturn("slack");
+            when(slackComponentDefinition.getTitle()).thenReturn("Slack");
+            when(slackComponentDefinition.isConnectionRequired()).thenReturn(true);
+            when(componentDefinitionService.fetchComponentDefinition(eq("slack"), anyInt()))
+                .thenReturn(Optional.of(slackComponentDefinition));
+
+            long projectId = createProjectWithDefinition("Provisionable Provided",
+                CHANNEL_AND_REQUIRED_INTERNAL_ONLY_INPUTS_WORKFLOW_DEFINITION);
+
+            publishAndPinProject(projectId);
+
+            ConnectedUser connectedUser = createConnectedUserWithConnection();
+
+            long administratorConnectionId = NEXT_CONNECTION_ID.getAndIncrement();
+            Connection administratorConnection = new Connection();
+
+            administratorConnection.setComponentName("slack");
+            administratorConnection.setEnvironmentId(Environment.PRODUCTION.ordinal());
+            administratorConnection.setId(administratorConnectionId);
+            administratorConnection.setType(PlatformType.EMBEDDED);
+
+            when(connectionService.fetchConnection(administratorConnectionId))
+                .thenReturn(Optional.of(administratorConnection));
+
+            String workflowUuid = findPublishedProject(connectedUser, projectId).workflowTemplates()
+                .getFirst()
+                .workflowUuid();
+
+            automationProjectConfigurationFacade.updateConfigurationWorkflow(
+                getConfigurationId(projectId), workflowUuid, Map.of("slack", administratorConnectionId),
+                Map.of("accountId", "acme"));
+
+            ProvisionableAutomationProjectDTO provisionableProject = findProvisionableProject(
+                connectedUserProjectFacade.getProvisionableProjects(connectedUser.getId()), projectId);
+
+            assertThat(provisionableProject.workflows())
+                .singleElement()
+                .satisfies(workflow -> {
+                    assertThat(workflow.components()).isEmpty();
+                    assertThat(workflow.inputs())
+                        .extracting(ConnectedUserWorkflowTemplateDTO.Input::name)
+                        .containsExactly("channel");
+                });
+        }
+
+        @Test
+        void testProvisionProjectWorkflowsWiresTheConnectionChosenForAComponent() {
+            givenSlackAutomationEnvironment();
+
+            long projectId = createProjectWithDefinition("Provision Chosen Connection", SLACK_WORKFLOW_DEFINITION);
+
+            publishAndPinProject(projectId);
+
+            ConnectedUser connectedUser = createConnectedUserWithConnection();
+
+            long connectedUserId = Objects.requireNonNull(connectedUser.getId());
+            long chosenConnectionId = connectedUserConnectionService.getConnectionIds(connectedUserId)
+                .getFirst();
+            long newerConnectionId = NEXT_CONNECTION_ID.getAndIncrement();
+
+            registerEmbeddedConnection(newerConnectionId, Environment.PRODUCTION);
+
+            connectedUserConnectionService.create(connectedUserId, newerConnectionId);
+
+            String workflowUuid = findPublishedProject(connectedUser, projectId).workflowTemplates()
+                .getFirst()
+                .workflowUuid();
+
+            connectedUserProjectFacade.provisionProjectWorkflows(
+                connectedUserId, getConfigurationId(projectId),
+                List.of(
+                    new ProvisionConnectedUserProjectWorkflowDTO(workflowUuid, null,
+                        Map.of("slack", chosenConnectionId))));
+
+            ConnectedUserProjectWorkflow reference = connectedUserWorkflowReferenceFacade
+                .getConnectedUserWorkflows(connectedUserId)
+                .stream()
+                .filter(
+                    connectedUserProjectWorkflow -> workflowUuid
+                        .equals(connectedUserProjectWorkflow.getAutomationUuid()))
+                .findFirst()
+                .orElseThrow();
+
+            assertThat(projectDeploymentWorkflowService.getProjectDeploymentWorkflows(
+                Objects.requireNonNull(reference.getProjectDeploymentId())))
+                    .flatExtracting(ProjectDeploymentWorkflow::getConnections)
+                    .extracting(ProjectDeploymentWorkflowConnection::getConnectionId)
+                    .containsExactly(chosenConnectionId);
+        }
+
+        @Test
+        void testProvisionProjectWorkflowsPassesInputsThroughAndLeavesThemAloneWhenOmitted() {
+            givenSlackAutomationEnvironment();
+
+            long projectId = createProjectWithDefinition("Provision Inputs", CHANNEL_INPUT_WORKFLOW_DEFINITION);
+
+            publishAndPinProject(projectId);
+
+            ConnectedUser connectedUser = createConnectedUserWithConnection();
+
+            String workflowUuid = findPublishedProject(connectedUser, projectId).workflowTemplates()
+                .getFirst()
+                .workflowUuid();
+
+            connectedUserProjectFacade.provisionProjectWorkflows(
+                connectedUser.getId(), getConfigurationId(projectId),
+                List.of(new ProvisionConnectedUserProjectWorkflowDTO(workflowUuid, Map.of("channel", "#alerts"))));
+
+            assertThat(findProjectWorkflow(connectedUser, workflowUuid).inputValues())
+                .isEqualTo(Map.of("channel", "#alerts"));
+
+            connectedUserProjectFacade.provisionProjectWorkflows(
+                connectedUser.getId(), getConfigurationId(projectId),
+                List.of(new ProvisionConnectedUserProjectWorkflowDTO(workflowUuid, null)));
+
+            assertThat(findProjectWorkflow(connectedUser, workflowUuid).inputValues())
+                .isEqualTo(Map.of("channel", "#alerts"));
+        }
+
+        @Test
+        void testGetProjectWorkflowReferenceValuesReturnsTheChosenConnectionAndInputs() {
+            givenSlackAutomationEnvironment();
+
+            long projectId = createProjectWithDefinition("Reference Values", CHANNEL_INPUT_WORKFLOW_DEFINITION);
+
+            publishAndPinProject(projectId);
+
+            ConnectedUser connectedUser = createConnectedUserWithConnection();
+
+            long connectedUserId = Objects.requireNonNull(connectedUser.getId());
+            long chosenConnectionId = connectedUserConnectionService.getConnectionIds(connectedUserId)
+                .getFirst();
+
+            String workflowUuid = findPublishedProject(connectedUser, projectId).workflowTemplates()
+                .getFirst()
+                .workflowUuid();
+
+            connectedUserProjectFacade.provisionProjectWorkflows(
+                connectedUserId, getConfigurationId(projectId),
+                List.of(
+                    new ProvisionConnectedUserProjectWorkflowDTO(
+                        workflowUuid, Map.of("channel", "#alerts"), Map.of("slack", chosenConnectionId))));
+
+            ConnectedUserWorkflowReferenceValuesDTO referenceValues =
+                connectedUserProjectFacade.getProjectWorkflowReferenceValues(
+                    getReferenceId(connectedUserId, workflowUuid));
+
+            assertThat(referenceValues.connectionIds()).isEqualTo(Map.of("slack", chosenConnectionId));
+            assertThat(referenceValues.inputs()).isEqualTo(Map.of("channel", "#alerts"));
+        }
+
+        @Test
+        void testGetProjectWorkflowReferenceValuesLeavesOutTheConnectionsAndInternalOnlyInputsTheConfigurationProvides() {
+            givenSlackAutomationEnvironment();
+
+            long projectId =
+                createProjectWithDefinition("Reference Provided Values",
+                    CHANNEL_AND_REQUIRED_INTERNAL_ONLY_INPUTS_WORKFLOW_DEFINITION);
+
+            publishAndPinProject(projectId);
+
+            ConnectedUser connectedUser = createConnectedUserWithConnection();
+
+            long connectedUserId = Objects.requireNonNull(connectedUser.getId());
+            long administratorConnectionId = NEXT_CONNECTION_ID.getAndIncrement();
+            Connection administratorConnection = new Connection();
+
+            administratorConnection.setComponentName("slack");
+            administratorConnection.setEnvironmentId(Environment.PRODUCTION.ordinal());
+            administratorConnection.setId(administratorConnectionId);
+            administratorConnection.setType(PlatformType.EMBEDDED);
+
+            when(connectionService.fetchConnection(administratorConnectionId))
+                .thenReturn(Optional.of(administratorConnection));
+
+            String workflowUuid = findPublishedProject(connectedUser, projectId).workflowTemplates()
+                .getFirst()
+                .workflowUuid();
+
+            automationProjectConfigurationFacade.updateConfigurationWorkflow(
+                getConfigurationId(projectId), workflowUuid, Map.of("slack", administratorConnectionId),
+                Map.of("accountId", "acme"));
+
+            connectedUserProjectFacade.provisionProjectWorkflows(
+                connectedUserId, getConfigurationId(projectId),
+                List.of(new ProvisionConnectedUserProjectWorkflowDTO(workflowUuid, null)));
+
+            ConnectedUserWorkflowReferenceValuesDTO referenceValues =
+                connectedUserProjectFacade.getProjectWorkflowReferenceValues(
+                    getReferenceId(connectedUserId, workflowUuid));
+
+            assertThat(referenceValues.connectionIds()).isEmpty();
+            assertThat(referenceValues.inputs()).isEmpty();
+        }
+
+        @Test
+        void testGetConnectedUserProjectWorkflowsLeavesOutTheInternalOnlyValueTheConfigurationProvides() {
+            givenSlackAutomationEnvironment();
+
+            long projectId = createProjectWithDefinition(
+                "Reference Internal Only Value", CHANNEL_AND_REQUIRED_INTERNAL_ONLY_INPUTS_WORKFLOW_DEFINITION);
+
+            publishAndPinProject(projectId);
+
+            ConnectedUser connectedUser = createConnectedUserWithConnection();
+
+            long connectedUserId = Objects.requireNonNull(connectedUser.getId());
+            long chosenConnectionId = connectedUserConnectionService.getConnectionIds(connectedUserId)
+                .getFirst();
+
+            String workflowUuid = findPublishedProject(connectedUser, projectId).workflowTemplates()
+                .getFirst()
+                .workflowUuid();
+
+            automationProjectConfigurationFacade.updateConfigurationWorkflow(
+                getConfigurationId(projectId), workflowUuid, Map.of(), Map.of("accountId", "configuration-account"));
+
+            connectedUserProjectFacade.provisionProjectWorkflows(
+                connectedUserId, getConfigurationId(projectId),
+                List.of(
+                    new ProvisionConnectedUserProjectWorkflowDTO(
+                        workflowUuid, Map.of("channel", "#alerts"), Map.of("slack", chosenConnectionId))));
+
+            assertThat(
+                connectedUserProjectFacade.getConnectedUserProjectWorkflows(
+                    connectedUser.getExternalId(), Environment.PRODUCTION))
+                        .singleElement()
+                        .satisfies(referenceDTO -> assertThat(referenceDTO.inputValues())
+                            .isEqualTo(Map.of("channel", "#alerts")));
+        }
+
+        @Test
+        void testGetProjectWorkflowReferenceValuesRejectsAWorkflowThatIsNotAReference() {
+            assertThatThrownBy(() -> connectedUserProjectFacade.getProjectWorkflowReferenceValues(Long.MAX_VALUE))
+                .isInstanceOf(ConfigurationException.class);
+        }
+
+        @Test
+        void testProvisionAssignsTheChosenConfigurationIgnoringItsExpression() {
+            givenSlackAutomationEnvironment();
+            givenRealPermissionEvaluator();
+
+            long projectId = createProjectWithWorkflows("Provision Beta", 1);
+
+            publishAndPinProject(projectId);
+
+            AutomationProjectConfiguration betaConfiguration = createBetaConfiguration(projectId);
+
+            ConnectedUser connectedUser = createConnectedUserWithConnection();
+
+            String workflowUuid = findProvisionableProject(
+                connectedUserProjectFacade.getProvisionableProjects(connectedUser.getId()), projectId)
+                    .workflows()
+                    .getFirst()
+                    .workflowUuid();
+
+            connectedUserProjectFacade.provisionProjectWorkflows(
+                connectedUser.getId(), betaConfiguration.getId(),
+                List.of(new ProvisionConnectedUserProjectWorkflowDTO(workflowUuid, null)));
+
+            assertThat(connectedUserProjectConfigurationService.fetchAssignment(connectedUser.getId(), projectId))
+                .map(ConnectedUserProjectConfiguration::getConfigurationId)
+                .contains(betaConfiguration.getId());
+            assertThat(connectedUserWorkflowReferenceFacade.getConnectedUserWorkflows(connectedUser.getId()))
+                .extracting(ConnectedUserProjectWorkflow::getAutomationUuid,
+                    ConnectedUserProjectWorkflow::isEnabled)
+                .containsExactly(tuple(workflowUuid, true));
+            assertThat(connectedUserProjectFacade.getConnectedUserProjectConfigurations(connectedUser.getId()))
+                .containsExactly(
+                    new ConnectedUserAutomationProjectConfigurationDTO(
+                        projectId, betaConfiguration.getId(), "Beta", betaConfiguration.getProjectVersion(), true,
+                        true));
+        }
+
+        @Test
+        void testProvisionWithDifferentConfigurationForAssignedUserThrows() {
+            givenSlackAutomationEnvironment();
+            givenRealPermissionEvaluator();
+
+            long projectId = createProjectWithWorkflows("Provision Reassign", 1);
+
+            publishAndPinProject(projectId);
+
+            long alphaConfigurationId = getConfigurationId(projectId);
+
+            AutomationProjectConfiguration betaConfiguration = createBetaConfiguration(projectId);
+
+            ConnectedUser connectedUser = createConnectedUserWithConnection();
+
+            String workflowUuid = findProvisionableProject(
+                connectedUserProjectFacade.getProvisionableProjects(connectedUser.getId()), projectId)
+                    .workflows()
+                    .getFirst()
+                    .workflowUuid();
+
+            connectedUserProjectFacade.provisionProjectWorkflows(
+                connectedUser.getId(), alphaConfigurationId,
+                List.of(new ProvisionConnectedUserProjectWorkflowDTO(workflowUuid, null)));
+
+            assertThatThrownBy(() -> connectedUserProjectFacade.provisionProjectWorkflows(
+                connectedUser.getId(), betaConfiguration.getId(),
+                List.of(new ProvisionConnectedUserProjectWorkflowDTO(workflowUuid, null))))
+                    .isInstanceOfSatisfying(ConfigurationException.class, configurationException -> assertThat(
+                        configurationException.getErrorKey())
+                            .isEqualTo(AutomationProjectConfigurationErrorType.CONFIGURATION_PROJECT_MISMATCH
+                                .getErrorKey()));
+
+            assertThat(connectedUserProjectConfigurationService.fetchAssignment(connectedUser.getId(), projectId))
+                .map(ConnectedUserProjectConfiguration::getConfigurationId)
+                .contains(alphaConfigurationId);
+
+            connectedUserProjectFacade.provisionProjectWorkflows(
+                connectedUser.getId(), alphaConfigurationId,
+                List.of(new ProvisionConnectedUserProjectWorkflowDTO(workflowUuid, null)));
+
+            assertThat(connectedUserWorkflowReferenceFacade.getConnectedUserWorkflows(connectedUser.getId()))
+                .extracting(ConnectedUserProjectWorkflow::getAutomationUuid)
+                .containsExactly(workflowUuid);
+        }
+
+        @Test
+        void testProvisionableProjectsListEveryEnabledConfigurationAndMarkSelfServe() {
+            givenSlackAutomationEnvironment();
+            givenRealPermissionEvaluator();
+
+            long projectId = createProjectWithWorkflows("Provisionable Configurations", 2);
+
+            publishAndPinProject(projectId);
+
+            long alphaConfigurationId = getConfigurationId(projectId);
+
+            AutomationProjectConfiguration betaConfiguration = createBetaConfiguration(projectId);
+
+            automationProjectConfigurationService.create(
+                projectId, Environment.PRODUCTION.ordinal(), "Disabled", null, betaConfiguration.getProjectVersion(),
+                false, true);
+
+            ConnectedUser connectedUser = createConnectedUserWithConnection();
+
+            List<String> workflowUuids = findProvisionableProject(
+                connectedUserProjectFacade.getProvisionableProjects(connectedUser.getId()), projectId)
+                    .workflows()
+                    .stream()
+                    .map(ProvisionableAutomationProjectDTO.Workflow::workflowUuid)
+                    .toList();
+
+            String betaTurnedOffWorkflowUuid = workflowUuids.getFirst();
+            String betaReleasedWorkflowUuid = workflowUuids.getLast();
+
+            automationProjectConfigurationFacade.enableConfigurationWorkflow(
+                betaConfiguration.getId(), betaTurnedOffWorkflowUuid, false);
+
+            ProvisionableAutomationProjectDTO provisionableProject = findProvisionableProject(
+                connectedUserProjectFacade.getProvisionableProjects(connectedUser.getId()), projectId);
+
+            assertThat(provisionableProject.assignedConfigurationId()).isNull();
+            assertThat(provisionableProject.configurations())
+                .extracting(
+                    ProvisionableAutomationProjectDTO.Configuration::id,
+                    ProvisionableAutomationProjectDTO.Configuration::selfServe)
+                .containsExactly(tuple(alphaConfigurationId, true), tuple(betaConfiguration.getId(), false));
+            assertThat(provisionableProject.configurations()
+                .getLast()
+                .workflows())
+                    .extracting(ProvisionableAutomationProjectDTO.Workflow::workflowUuid)
+                    .containsExactly(betaReleasedWorkflowUuid);
+            assertThat(provisionableProject.workflows())
+                .extracting(ProvisionableAutomationProjectDTO.Workflow::workflowUuid)
+                .containsExactlyInAnyOrderElementsOf(workflowUuids);
+
+            ConnectedUser betaConnectedUser = connectedUserService.createConnectedUser(
+                "beta-user-" + UUID.randomUUID(), Environment.PRODUCTION, null, null, Map.of("beta", "true"));
+
+            assertThat(
+                findProvisionableProject(
+                    connectedUserProjectFacade.getProvisionableProjects(betaConnectedUser.getId()), projectId)
+                        .configurations())
+                            .extracting(
+                                ProvisionableAutomationProjectDTO.Configuration::id,
+                                ProvisionableAutomationProjectDTO.Configuration::selfServe)
+                            .containsExactly(tuple(alphaConfigurationId, false),
+                                tuple(betaConfiguration.getId(), true));
+
+            connectedUserProjectFacade.provisionProjectWorkflows(
+                connectedUser.getId(), betaConfiguration.getId(),
+                List.of(new ProvisionConnectedUserProjectWorkflowDTO(betaReleasedWorkflowUuid, null)));
+
+            ProvisionableAutomationProjectDTO assignedProvisionableProject = findProvisionableProject(
+                connectedUserProjectFacade.getProvisionableProjects(connectedUser.getId()), projectId);
+
+            assertThat(assignedProvisionableProject.assignedConfigurationId()).isEqualTo(betaConfiguration.getId());
+            assertThat(assignedProvisionableProject.workflows())
+                .extracting(
+                    ProvisionableAutomationProjectDTO.Workflow::workflowUuid,
+                    ProvisionableAutomationProjectDTO.Workflow::provisioned)
+                .containsExactly(tuple(betaReleasedWorkflowUuid, true));
+        }
+
+        @Test
+        void testProvisionOntoDisabledConfigurationThrowsAndAssignsNothing() {
+            givenSlackAutomationEnvironment();
+            givenRealPermissionEvaluator();
+
+            long projectId = createProjectWithWorkflows("Provision Disabled", 1);
+
+            publishAndPinProject(projectId);
+
+            AutomationProjectConfiguration alphaConfiguration = automationProjectConfigurationService
+                .getConfiguration(getConfigurationId(projectId));
+
+            AutomationProjectConfiguration disabledConfiguration = automationProjectConfigurationService
+                .create(
+                    projectId, Environment.PRODUCTION.ordinal(), "Disabled", null,
+                    alphaConfiguration.getProjectVersion(),
+                    false, true);
+
+            ConnectedUser connectedUser = createConnectedUserWithConnection();
+
+            String workflowUuid = findProvisionableProject(
+                connectedUserProjectFacade.getProvisionableProjects(connectedUser.getId()), projectId)
+                    .workflows()
+                    .getFirst()
+                    .workflowUuid();
+
+            assertThatThrownBy(() -> connectedUserProjectFacade.provisionProjectWorkflows(
+                connectedUser.getId(), disabledConfiguration.getId(),
+                List.of(new ProvisionConnectedUserProjectWorkflowDTO(workflowUuid, null))))
+                    .isInstanceOfSatisfying(ConfigurationException.class, configurationException -> assertThat(
+                        configurationException.getErrorKey())
+                            .isEqualTo(AutomationProjectConfigurationErrorType.CONFIGURATION_PROJECT_MISMATCH
+                                .getErrorKey()));
+
+            assertThat(connectedUserProjectConfigurationService.fetchAssignment(connectedUser.getId(), projectId))
+                .isEmpty();
+            assertThat(connectedUserWorkflowReferenceFacade.getConnectedUserWorkflows(connectedUser.getId())).isEmpty();
+        }
+
+        @Test
+        void testProvisionIntoProjectWhoseExpressionFailsThrowsAndAssignsNothing() {
+            givenSlackAutomationEnvironment();
+            givenRealPermissionEvaluator();
+
+            long projectId = automationProjectFacade.createProject(
+                "Provision Gated " + UUID.randomUUID(), "", null, List.of(), "metadata['beta'] == 'true'");
+
+            String workflowUuid = automationProjectFacade.createProjectWorkflow(
+                projectId, SLACK_WORKFLOW_DEFINITION, null);
+
+            publishAndPinProject(projectId);
+
+            ConnectedUser connectedUser = createConnectedUserWithConnection();
+
+            assertThat(connectedUserProjectFacade.getProvisionableProjects(connectedUser.getId()))
+                .extracting(ProvisionableAutomationProjectDTO::projectId)
+                .doesNotContain(projectId);
+
+            assertThatThrownBy(() -> connectedUserProjectFacade.provisionProjectWorkflows(
+                connectedUser.getId(), getConfigurationId(projectId),
+                List.of(new ProvisionConnectedUserProjectWorkflowDTO(workflowUuid, null))))
+                    .isInstanceOfSatisfying(ConfigurationException.class, configurationException -> assertThat(
+                        configurationException.getErrorKey())
+                            .isEqualTo(AutomationProjectConfigurationErrorType.CONFIGURATION_PROJECT_MISMATCH
+                                .getErrorKey()));
+
+            assertThat(connectedUserProjectConfigurationService.fetchAssignment(connectedUser.getId(), projectId))
+                .isEmpty();
+            assertThat(connectedUserWorkflowReferenceFacade.getConnectedUserWorkflows(connectedUser.getId())).isEmpty();
+        }
+
+        @Test
+        void testProvisionWithNoWorkflowsThrows() {
+            givenSlackAutomationEnvironment();
+            givenRealPermissionEvaluator();
+
+            long projectId = createProjectWithWorkflows("Provision Nothing", 1);
+
+            publishAndPinProject(projectId);
+
+            ConnectedUser connectedUser = createConnectedUserWithConnection();
+
+            assertThatThrownBy(() -> connectedUserProjectFacade.provisionProjectWorkflows(
+                connectedUser.getId(), getConfigurationId(projectId), List.of()))
+                    .isInstanceOfSatisfying(ConfigurationException.class, configurationException -> assertThat(
+                        configurationException.getErrorKey())
+                            .isEqualTo(ConnectedUserProjectWorkflowErrorType.WORKFLOW_NOT_PROVISIONABLE.getErrorKey()));
+
+            assertThat(connectedUserProjectConfigurationService.fetchAssignment(connectedUser.getId(), projectId))
+                .isEmpty();
+        }
+
+        private AutomationProjectConfiguration createBetaConfiguration(long projectId) {
+            AutomationProjectConfiguration alphaConfiguration = automationProjectConfigurationService
+                .getConfiguration(getConfigurationId(projectId));
+
+            return automationProjectConfigurationService.create(
+                projectId, Environment.PRODUCTION.ordinal(), "Beta", "metadata['beta'] == 'true'",
+                alphaConfiguration.getProjectVersion(), true, true);
+        }
+
+        private void givenRealPermissionEvaluator() {
+            EmbeddedPermissionEvaluator realEmbeddedPermissionEvaluator = new EmbeddedPermissionEvaluator(
+                SpelEvaluator.create());
+
+            when(embeddedPermissionEvaluator.evaluate(any(), any()))
+                .thenAnswer(invocation -> realEmbeddedPermissionEvaluator.evaluate(
+                    invocation.getArgument(0), invocation.getArgument(1)));
+        }
+
+        private long getConfigurationId(long projectId) {
+            AutomationProjectConfiguration configuration = automationProjectConfigurationService
+                .getConfigurations(projectId, Environment.PRODUCTION.ordinal())
+                .getFirst();
+
+            return Objects.requireNonNull(configuration.getId());
+        }
+
+        private ConnectedUserProjectWorkflowDTO findProjectWorkflow(ConnectedUser connectedUser, String workflowUuid) {
+            return connectedUserProjectFacade.getConnectedUserProjects(connectedUser.getId(), Environment.PRODUCTION)
+                .stream()
+                .map(ConnectedUserProjectDTO::connectedUserProjectWorkflows)
+                .flatMap(List::stream)
+                .filter(workflow -> workflowUuid.equals(workflow.automationUuid()))
+                .findFirst()
+                .orElseThrow();
+        }
+
+        private long createProjectWithDefinition(String name, String definition) {
+            long projectId = automationProjectFacade.createProject(
+                name + " " + UUID.randomUUID(), "", null, List.of(), null);
+
+            automationProjectFacade.createProjectWorkflow(projectId, definition, null);
+
+            return projectId;
+        }
+
+        private long createProjectWithWorkflows(String name, int workflowCount) {
+            long projectId = automationProjectFacade.createProject(
+                name + " " + UUID.randomUUID(), "", null, List.of(), null);
+
+            for (int index = 0; index < workflowCount; index++) {
+                automationProjectFacade.createProjectWorkflow(projectId, SLACK_WORKFLOW_DEFINITION, null);
+            }
+
+            return projectId;
+        }
+
+        private AutomationProjectDTO findPublishedProject(ConnectedUser connectedUser, long projectId) {
+            return automationProjectFacade
+                .getPublishedProjects(connectedUser.getExternalId(), Environment.PRODUCTION)
+                .stream()
+                .filter(project -> project.id() == projectId)
+                .findFirst()
+                .orElseThrow();
+        }
+
+        private ProvisionableAutomationProjectDTO findProvisionableProject(
+            List<ProvisionableAutomationProjectDTO> provisionableProjects, long projectId) {
+
+            return provisionableProjects.stream()
+                .filter(project -> project.projectId() == projectId)
+                .findFirst()
+                .orElseThrow();
+        }
+
+        private ConnectedUser createConnectedUserWithConnection() {
+            ConnectedUser connectedUser = connectedUserService.createConnectedUser(
+                "provisionable-user-" + UUID.randomUUID(), Environment.PRODUCTION);
+
+            long connectionId = NEXT_CONNECTION_ID.getAndIncrement();
+
+            registerEmbeddedConnection(connectionId, Environment.PRODUCTION);
+
+            connectedUserConnectionService.create(Objects.requireNonNull(connectedUser.getId()), connectionId);
+
+            return connectedUser;
+        }
+
+        private void registerEmbeddedConnection(long connectionId, Environment environment) {
+            Connection connection = new Connection();
+
+            connection.setEnvironmentId(environment.ordinal());
+            connection.setId(connectionId);
+            connection.setType(PlatformType.EMBEDDED);
+
+            embeddedConnections.put(connectionId, connection);
+        }
+
+        private void givenSlackAutomationEnvironment() {
+            ComponentConnection slot = new ComponentConnection("slack", 1, "postMessage1", "slack", true);
+
+            when(componentDefinitionService.getComponentDefinition(anyString(), anyInt()))
+                .thenReturn(new ComponentDefinition("slack"));
+            when(componentConnectionFacade.getComponentConnections(any(WorkflowTask.class)))
+                .thenReturn(List.of(slot));
+            when(componentConnectionFacade.getComponentConnection(anyString(), eq("postMessage1"), eq("slack")))
+                .thenReturn(slot);
+            when(connectionFacade.getConnections(anyList(), eq(PlatformType.EMBEDDED)))
+                .thenAnswer(invocation -> {
+                    List<Long> connectionIds = invocation.getArgument(0);
+
+                    return connectionIds.stream()
+                        .map(connectionId -> ConnectionDTO.builder()
+                            .componentName("slack")
+                            .id(connectionId)
+                            .build())
+                        .toList();
+                });
+            when(connectionService.getConnections(anyList()))
+                .thenAnswer(invocation -> {
+                    List<Long> connectionIds = invocation.getArgument(0);
+
+                    return connectionIds.stream()
+                        .map(embeddedConnections::get)
+                        .filter(Objects::nonNull)
+                        .toList();
+                });
+            when(connectionService.getConnection(anyLong()))
+                .thenAnswer(invocation -> {
+                    Connection connection = new Connection();
+
+                    connection.setComponentName("slack");
+                    connection.setId(invocation.getArgument(0));
+
+                    return connection;
+                });
+            when(embeddedPermissionEvaluator.evaluate(any(), any()))
+                .thenReturn(true);
+            when(principalJobService.getJobIds(
+                any(), any(), any(), anyList(), any(), anyList(), anyBoolean(), anyInt()))
+                    .thenReturn(Page.empty());
+        }
+
+        private void markDangling(ConnectedUserProjectWorkflow reference) {
+            ConnectedUserProjectWorkflow storedReference =
+                connectedUserProjectWorkflowRepository.findById(reference.getId())
+                    .orElseThrow();
+
+            storedReference.setDangling(true);
+            storedReference.setDanglingReason("Removed from the automation project on redeploy");
+            storedReference.setEnabled(false);
+
+            connectedUserProjectWorkflowRepository.save(storedReference);
+        }
+
+        private void publishAndPinProject(long projectId) {
+            AutomationProjectConfigurationTestSupport.publishAndPinProject(
+                automationProjectFacade, automationProjectConfigurationService, projectId);
+        }
+
+        private long getReferenceId(long connectedUserId, String workflowUuid) {
+            ConnectedUserProjectWorkflow reference = connectedUserWorkflowReferenceFacade
+                .getConnectedUserWorkflows(connectedUserId)
+                .stream()
+                .filter(
+                    connectedUserProjectWorkflow -> workflowUuid
+                        .equals(connectedUserProjectWorkflow.getAutomationUuid()))
+                .findFirst()
+                .orElseThrow();
+
+            return Objects.requireNonNull(reference.getId());
+        }
     }
 
     @Configuration

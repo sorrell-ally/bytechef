@@ -34,7 +34,6 @@ import com.bytechef.automation.configuration.service.PreBuiltTemplateService;
 import com.bytechef.automation.configuration.service.ProjectDeploymentService;
 import com.bytechef.automation.configuration.service.ProjectDeploymentWorkflowService;
 import com.bytechef.automation.configuration.service.ProjectService;
-import com.bytechef.automation.configuration.service.ProjectVersionWorkflowChangeService;
 import com.bytechef.automation.configuration.service.ProjectWorkflowService;
 import com.bytechef.automation.configuration.service.SharedTemplateService;
 import com.bytechef.automation.configuration.util.ComponentDefinitionHelper;
@@ -108,7 +107,7 @@ public class ProjectWorkflowFacadeImpl implements ProjectWorkflowFacade {
     private final ProjectDeploymentService projectDeploymentService;
     private final ProjectDeploymentWorkflowService projectDeploymentWorkflowService;
     private final ProjectService projectService;
-    private final ProjectVersionWorkflowChangeService projectVersionWorkflowChangeService;
+    private final ProjectVersionWorkflowChangeFacade projectVersionWorkflowChangeFacade;
     private final ProjectWorkflowService projectWorkflowService;
     private final String publicUrl;
     private final SharedTemplateFileStorage sharedTemplateFileStorage;
@@ -126,7 +125,7 @@ public class ProjectWorkflowFacadeImpl implements ProjectWorkflowFacade {
         ApplicationProperties applicationProperties, EnvironmentService environmentService,
         ProjectDeploymentService projectDeploymentService,
         ProjectDeploymentWorkflowService projectDeploymentWorkflowService, ProjectService projectService,
-        ProjectVersionWorkflowChangeService projectVersionWorkflowChangeService,
+        ProjectVersionWorkflowChangeFacade projectVersionWorkflowChangeFacade,
         ProjectWorkflowService projectWorkflowService, SharedTemplateFileStorage sharedTemplateFileStorage,
         SharedTemplateService sharedTemplateService, WorkflowCacheManager workflowCacheManager,
         WorkflowFacade workflowFacade, List<WorkflowPreDeleteListener> workflowPreDeleteListeners,
@@ -139,7 +138,7 @@ public class ProjectWorkflowFacadeImpl implements ProjectWorkflowFacade {
         this.projectDeploymentService = projectDeploymentService;
         this.projectDeploymentWorkflowService = projectDeploymentWorkflowService;
         this.projectService = projectService;
-        this.projectVersionWorkflowChangeService = projectVersionWorkflowChangeService;
+        this.projectVersionWorkflowChangeFacade = projectVersionWorkflowChangeFacade;
         this.projectWorkflowService = projectWorkflowService;
         this.publicUrl = applicationProperties.getPublicUrl();
         this.sharedTemplateFileStorage = sharedTemplateFileStorage;
@@ -166,7 +165,12 @@ public class ProjectWorkflowFacadeImpl implements ProjectWorkflowFacade {
 
         Workflow workflow = workflowService.create(definition, Workflow.Format.JSON, Workflow.SourceType.JDBC);
 
-        return projectWorkflowService.addWorkflow(projectId, project.getLastProjectVersion(), workflow.getId());
+        ProjectWorkflow projectWorkflow = projectWorkflowService.addWorkflow(
+            projectId, project.getLastProjectVersion(), workflow.getId());
+
+        projectService.updateLastModified(projectId, workflow.getCreatedBy(), workflow.getCreatedDate());
+
+        return projectWorkflow;
     }
 
     @Override
@@ -222,6 +226,8 @@ public class ProjectWorkflowFacadeImpl implements ProjectWorkflowFacade {
         workflowTestConfigurationService.delete(workflowId);
 
         workflowService.delete(workflowId);
+
+        projectService.updateLastModified(Validate.notNull(project.getId(), "id"));
     }
 
     @Override
@@ -234,17 +240,19 @@ public class ProjectWorkflowFacadeImpl implements ProjectWorkflowFacade {
     public String duplicateWorkflow(long projectId, String workflowId) {
         Project project = projectService.getWorkflowProject(workflowId);
 
-        Workflow workflow = workflowService.duplicateWorkflow(workflowId);
+        Workflow sourceWorkflow = workflowService.getWorkflow(workflowId);
 
-        Map<String, Object> definitionMap = JsonUtils.read(workflow.getDefinition(), new TypeReference<>() {});
+        Map<String, Object> definitionMap = JsonUtils.read(sourceWorkflow.getDefinition(), new TypeReference<>() {});
 
         definitionMap.put("label", MapUtils.getString(definitionMap, "label", "(2)") + " (2)");
 
-        workflowService.update(
-            Validate.notNull(workflow.getId(), "id"), JsonUtils.writeWithDefaultPrettyPrinter(definitionMap),
-            workflow.getVersion());
+        Workflow workflow = workflowService.create(
+            JsonUtils.writeWithDefaultPrettyPrinter(definitionMap), sourceWorkflow.getFormat(),
+            sourceWorkflow.getSourceType());
 
         projectWorkflowService.addWorkflow(projectId, project.getLastProjectVersion(), workflow.getId());
+
+        projectService.updateLastModified(projectId, workflow.getCreatedBy(), workflow.getCreatedDate());
 
         workflowTestConfigurationService.copyWorkflowTestConfigurations(workflowId, workflow.getId());
 
@@ -426,14 +434,14 @@ public class ProjectWorkflowFacadeImpl implements ProjectWorkflowFacade {
     public VersionWorkflowChange getProjectVersionWorkflowChange(
         long projectId, int projectVersion, String workflowUuid) {
 
-        return projectVersionWorkflowChangeService.getVersionWorkflowChange(projectId, projectVersion, workflowUuid);
+        return projectVersionWorkflowChangeFacade.getVersionWorkflowChange(projectId, projectVersion, workflowUuid);
     }
 
     @Override
     @PreAuthorize("hasPermission(#projectId, 'Project', 'WORKFLOW_VIEW')")
     @Transactional(readOnly = true)
     public VersionWorkflowChanges getProjectVersionWorkflowChanges(long projectId, int projectVersion) {
-        return projectVersionWorkflowChangeService.getVersionWorkflowChanges(projectId, projectVersion);
+        return projectVersionWorkflowChangeFacade.getVersionWorkflowChanges(projectId, projectVersion);
     }
 
     @Override
@@ -579,6 +587,9 @@ public class ProjectWorkflowFacadeImpl implements ProjectWorkflowFacade {
             projectWorkflowService.addWorkflow(
                 projectId, draftProjectVersion, duplicatedWorkflow.getId(), publishedProjectWorkflow.getUuid());
 
+            projectService.updateLastModified(
+                projectId, duplicatedWorkflow.getCreatedBy(), duplicatedWorkflow.getCreatedDate());
+
             return;
         }
 
@@ -592,7 +603,21 @@ public class ProjectWorkflowFacadeImpl implements ProjectWorkflowFacade {
 
     @Override
     public ProjectWorkflowDTO updateWorkflow(String workflowId, String definition, int version) {
+        Workflow currentWorkflow = workflowService.getWorkflow(workflowId);
+
+        String currentLabel = currentWorkflow.getLabel();
+
         workflowFacade.update(workflowId, definition, version);
+
+        Workflow updatedWorkflow = workflowService.getWorkflow(workflowId);
+
+        if (!Objects.equals(currentLabel, updatedWorkflow.getLabel())) {
+            Project project = projectService.getWorkflowProject(workflowId);
+
+            projectService.updateLastModified(
+                Validate.notNull(project.getId(), "id"), updatedWorkflow.getLastModifiedBy(),
+                updatedWorkflow.getLastModifiedDate());
+        }
 
         for (String cacheName : WorkflowNodeOutputFacade.WORKFLOW_CACHE_NAMES) {
             for (Environment environment : environmentService.getEnvironments()) {
@@ -648,7 +673,7 @@ public class ProjectWorkflowFacadeImpl implements ProjectWorkflowFacade {
         return componentDefinitions.stream()
             .filter(Objects::nonNull)
             .filter(componentDefinition -> Objects.equals(componentDefinition.getName(), workflowNodeType.name()))
-            .anyMatch(ComponentDefinition::isClusterRoot);
+            .anyMatch(componentDefinition -> componentDefinition.isClusterRoot(workflowNodeType.operation()));
     }
 
     private static List<String> toCategories(String category) {

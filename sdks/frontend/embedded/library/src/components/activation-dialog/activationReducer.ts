@@ -1,4 +1,4 @@
-import {TemplateComponentType, TemplateInputType} from './types';
+import {ExistingReferenceType, TemplateComponentType, TemplateInputType} from './types';
 
 export type ActivationStepType = 'activate' | 'configure' | 'connect' | 'done';
 
@@ -37,7 +37,8 @@ export function toInputValueText(value: unknown): string {
 
 export function initialActivationState(
     components: TemplateComponentType[],
-    inputs: TemplateInputType[]
+    inputs: TemplateInputType[],
+    existingReference?: ExistingReferenceType
 ): ActivationStateI {
     const requiredComponents: string[] = [];
     const unavailableComponents: string[] = [];
@@ -54,18 +55,49 @@ export function initialActivationState(
         }
     }
 
+    const selections: Record<string, number | undefined> = {};
+    const inputValues: Record<string, unknown> = {};
+
+    if (existingReference) {
+        for (const componentName of requiredComponents) {
+            const connectionId = existingReference.connections[componentName];
+
+            if (connectionId !== undefined && connectionId !== null) {
+                selections[componentName] = connectionId;
+            }
+        }
+
+        for (const input of inputs) {
+            if (input.name in existingReference.inputValues) {
+                inputValues[input.name] = existingReference.inputValues[input.name];
+            }
+        }
+    }
+
     return {
-        inputValues: {},
+        inputValues,
         inputs,
         requiredComponents,
-        selections: {},
+        selections,
         step: getFirstStep(requiredComponents, inputs),
         unavailableComponents,
     };
 }
 
 export function hasEditableInputs(inputs: TemplateInputType[]): boolean {
-    return inputs.some((input) => !input.provided);
+    return inputs.length > 0;
+}
+
+function withoutComponentInputValues(state: ActivationStateI, componentName: string): Record<string, unknown> {
+    const inputValues = {...state.inputValues};
+
+    for (const input of state.inputs) {
+        if (input.componentReference?.componentName === componentName) {
+            delete inputValues[input.name];
+        }
+    }
+
+    return inputValues;
 }
 
 function getFirstStep(requiredComponents: string[], inputs: TemplateInputType[]): ActivationStepType {
@@ -82,8 +114,7 @@ export function canProceed(state: ActivationStateI): boolean {
             return true;
         case 'configure':
             return state.inputs.every(
-                (input) =>
-                    input.provided || !input.required || toInputValueText(state.inputValues[input.name]).trim() !== ''
+                (input) => !input.required || toInputValueText(state.inputValues[input.name]).trim() !== ''
             );
         case 'connect':
             return (
@@ -137,6 +168,10 @@ export function activationReducer(state: ActivationStateI, action: ActivationAct
             return {
                 ...state,
                 highlightedComponent,
+                inputValues:
+                    state.selections[action.componentName] === action.connectionId
+                        ? state.inputValues
+                        : withoutComponentInputValues(state, action.componentName),
                 selections: {...state.selections, [action.componentName]: action.connectionId},
             };
         }

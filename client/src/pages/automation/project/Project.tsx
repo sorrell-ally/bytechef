@@ -1,4 +1,5 @@
 import {ResizableHandle, ResizablePanel, ResizablePanelGroup} from '@/components/ui/resizable';
+import EditorGettingStartedOverlay from '@/pages/automation/project/components/editor-getting-started/EditorGettingStartedOverlay';
 import ProjectHeader from '@/pages/automation/project/components/project-header/ProjectHeader';
 import ProjectsLeftSidebar from '@/pages/automation/project/components/projects-sidebar/ProjectsLeftSidebar';
 import {useProject} from '@/pages/automation/project/hooks/useProject';
@@ -16,6 +17,7 @@ import {PlatformType} from '@/shared/middleware/graphql';
 import {useCreateConnectionMutation} from '@/shared/mutations/automation/connections.mutations';
 import {useGetComponentDefinitionsQuery} from '@/shared/queries/automation/componentDefinitions.queries';
 import {ConnectionKeys, useGetConnectionTagsQuery} from '@/shared/queries/automation/connections.queries';
+import {useGetProjectQuery} from '@/shared/queries/automation/projects.queries';
 import {useEnvironmentStore} from '@/shared/stores/useEnvironmentStore';
 import {twMerge} from 'tailwind-merge';
 import {useShallow} from 'zustand/react/shallow';
@@ -51,6 +53,8 @@ const Project = () => {
         useGetConnectionsQuery,
     } = useProject();
 
+    const {data: project} = useGetProjectQuery(projectId, undefined, !!projectId);
+
     const {runDisabled} = useRun();
 
     const chatTrigger = useTestRunChatTrigger(workflow);
@@ -84,6 +88,7 @@ const Project = () => {
                     <ProjectHeader
                         bottomResizablePanelRef={bottomResizablePanelRef}
                         chatTrigger={chatTrigger}
+                        codeWorkflow={project?.codeWorkflow}
                         projectId={projectId}
                         projectWorkflowId={projectWorkflowId}
                         runDisabled={runDisabled}
@@ -98,6 +103,8 @@ const Project = () => {
                                 value={{
                                     ConnectionKeys: ConnectionKeys,
                                     cancelWorkflowQueries,
+                                    codeWorkflow: project?.codeWorkflow,
+                                    codeWorkflowLanguage: project?.codeWorkflowLanguage,
                                     deleteClusterElementParameterMutation,
                                     deleteWorkflowNodeParameterMutation,
                                     invalidateWorkflowQueries,
@@ -122,6 +129,14 @@ const Project = () => {
                                     />
                                 )}
                             </WorkflowEditorProvider>
+
+                            {!!projectId && !!projectWorkflowId && (
+                                <EditorGettingStartedOverlay
+                                    key={projectWorkflowId}
+                                    projectId={+projectId}
+                                    projectWorkflowId={+projectWorkflowId}
+                                />
+                            )}
                         </ResizablePanel>
 
                         <ResizableHandle className="bg-transparent aria-[orientation=horizontal]:-top-1.5 aria-[orientation=horizontal]:h-0" />

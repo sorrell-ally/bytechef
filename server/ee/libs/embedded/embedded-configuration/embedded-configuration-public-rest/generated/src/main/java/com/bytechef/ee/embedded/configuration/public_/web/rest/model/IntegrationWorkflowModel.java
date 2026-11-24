@@ -26,7 +26,7 @@ import jakarta.annotation.Generated;
 
 @Schema(name = "IntegrationWorkflow", description = "A group of tasks that make one logical workflow.")
 @JsonTypeName("IntegrationWorkflow")
-@Generated(value = "org.openapitools.codegen.languages.SpringCodegen", date = "2026-11-10T16:12:12.795950+01:00[Europe/Zagreb]", comments = "Generator version: 7.27.0")
+@Generated(value = "org.openapitools.codegen.languages.SpringCodegen", date = "2026-11-20T21:37:42.770599+01:00[Europe/Zagreb]", comments = "Generator version: 7.27.0")
 public class IntegrationWorkflowModel {
 
   private @Nullable String description;
@@ -34,6 +34,8 @@ public class IntegrationWorkflowModel {
   private List<@Valid InputModel> inputs = new ArrayList<>();
 
   private @Nullable String label;
+
+  private @Nullable Boolean staticWebhookTrigger;
 
   private @Nullable String workflowUuid;
 
@@ -108,6 +110,27 @@ public class IntegrationWorkflowModel {
     this.label = label;
   }
 
+  public IntegrationWorkflowModel staticWebhookTrigger(@Nullable Boolean staticWebhookTrigger) {
+    this.staticWebhookTrigger = staticWebhookTrigger;
+    return this;
+  }
+
+  /**
+   * If the workflow starts with a static webhook trigger. Its webhook URL is available once the workflow is enabled.
+   * @return staticWebhookTrigger
+   */
+  
+  @Schema(name = "staticWebhookTrigger", description = "If the workflow starts with a static webhook trigger. Its webhook URL is available once the workflow is enabled.", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+  @JsonProperty("staticWebhookTrigger")
+  public @Nullable Boolean getStaticWebhookTrigger() {
+    return staticWebhookTrigger;
+  }
+
+  @JsonProperty("staticWebhookTrigger")
+  public void setStaticWebhookTrigger(@Nullable Boolean staticWebhookTrigger) {
+    this.staticWebhookTrigger = staticWebhookTrigger;
+  }
+
   public IntegrationWorkflowModel workflowUuid(@Nullable String workflowUuid) {
     this.workflowUuid = workflowUuid;
     return this;
@@ -141,12 +164,13 @@ public class IntegrationWorkflowModel {
     return Objects.equals(this.description, integrationWorkflow.description) &&
         Objects.equals(this.inputs, integrationWorkflow.inputs) &&
         Objects.equals(this.label, integrationWorkflow.label) &&
+        Objects.equals(this.staticWebhookTrigger, integrationWorkflow.staticWebhookTrigger) &&
         Objects.equals(this.workflowUuid, integrationWorkflow.workflowUuid);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(description, inputs, label, workflowUuid);
+    return Objects.hash(description, inputs, label, staticWebhookTrigger, workflowUuid);
   }
 
   @Override
@@ -156,6 +180,7 @@ public class IntegrationWorkflowModel {
     sb.append("    description: ").append(toIndentedString(description)).append("\n");
     sb.append("    inputs: ").append(toIndentedString(inputs)).append("\n");
     sb.append("    label: ").append(toIndentedString(label)).append("\n");
+    sb.append("    staticWebhookTrigger: ").append(toIndentedString(staticWebhookTrigger)).append("\n");
     sb.append("    workflowUuid: ").append(toIndentedString(workflowUuid)).append("\n");
     sb.append("}");
     return sb.toString();

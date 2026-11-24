@@ -23,8 +23,8 @@ import com.bytechef.ee.platform.external.invocation.log.facade.ExternalInvocatio
 import com.bytechef.ee.platform.external.invocation.log.web.graphql.config.ExternalInvocationLogGraphQlTestConfiguration;
 import com.bytechef.platform.constant.PlatformType;
 import com.bytechef.platform.external.invocation.ExternalInvocationKind;
-import com.bytechef.platform.external.invocation.ExternalInvocationOutcome;
 import com.bytechef.platform.external.invocation.ExternalInvocationSource;
+import com.bytechef.platform.external.invocation.ExternalInvocationStatus;
 import java.lang.reflect.Method;
 import java.time.Instant;
 import java.util.Arrays;
@@ -84,7 +84,7 @@ class ExternalInvocationLogGraphQlControllerIntTest {
                         content {
                             source
                             kind
-                            outcome
+                            status
                             mcpServerId
                             workspaceId
                             workflowName
@@ -181,9 +181,9 @@ class ExternalInvocationLogGraphQlControllerIntTest {
         externalInvocationLog.setId(2L);
         externalInvocationLog.setSource(ExternalInvocationSource.A2A_SERVER);
         externalInvocationLog.setKind(ExternalInvocationKind.WORKFLOW);
-        externalInvocationLog.setToolName("Summarize");
+        externalInvocationLog.setInvocationName("Summarize");
         externalInvocationLog.setA2aServerId(4L);
-        externalInvocationLog.setOutcome(ExternalInvocationOutcome.SUCCESS);
+        externalInvocationLog.setStatus(ExternalInvocationStatus.SUCCESS);
         externalInvocationLog.setDurationMs(42);
 
         when(
@@ -202,6 +202,7 @@ class ExternalInvocationLogGraphQlControllerIntTest {
                     externalInvocationLogs(type: AUTOMATION, source: "A2A_SERVER", a2aServerId: 4) {
                         content {
                             source
+                            invocationName
                             a2aServerId
                             mcpServerId
                         }
@@ -212,6 +213,9 @@ class ExternalInvocationLogGraphQlControllerIntTest {
             .path("externalInvocationLogs.content[0].source")
             .entity(String.class)
             .isEqualTo("A2A_SERVER")
+            .path("externalInvocationLogs.content[0].invocationName")
+            .entity(String.class)
+            .isEqualTo("Summarize")
             .path("externalInvocationLogs.content[0].a2aServerId")
             .entity(Long.class)
             .isEqualTo(4L)
@@ -235,7 +239,7 @@ class ExternalInvocationLogGraphQlControllerIntTest {
         externalInvocationLog.setSource(ExternalInvocationSource.MCP_SERVER);
         externalInvocationLog.setKind(ExternalInvocationKind.WORKFLOW);
         externalInvocationLog.setJobId(11L);
-        externalInvocationLog.setOutcome(ExternalInvocationOutcome.SUCCESS);
+        externalInvocationLog.setStatus(ExternalInvocationStatus.SUCCESS);
         externalInvocationLog.setDurationMs(42);
         externalInvocationLog.setMcpServerId(5L);
         externalInvocationLog.setWorkspaceId(7L);

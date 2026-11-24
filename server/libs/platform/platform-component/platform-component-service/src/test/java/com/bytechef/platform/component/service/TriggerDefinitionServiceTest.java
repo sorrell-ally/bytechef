@@ -16,12 +16,16 @@
 
 package com.bytechef.platform.component.service;
 
+import static com.bytechef.component.definition.ComponentDsl.trigger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -30,11 +34,19 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.bytechef.component.definition.ActionDefinition.WebhookResponse;
+import com.bytechef.component.definition.DynamicOptionsProperty;
+import com.bytechef.component.definition.OptionsDataSource;
 import com.bytechef.component.definition.Parameters;
+import com.bytechef.component.definition.PropertiesDataSource;
+import com.bytechef.component.definition.Property;
+import com.bytechef.component.definition.Property.DynamicPropertiesProperty;
 import com.bytechef.component.definition.TriggerContext;
 import com.bytechef.component.definition.TriggerDefinition;
+import com.bytechef.component.definition.TriggerDefinition.OptionsFunction;
 import com.bytechef.component.definition.TriggerDefinition.PollFunction;
 import com.bytechef.component.definition.TriggerDefinition.PollOutput;
+import com.bytechef.component.definition.TriggerDefinition.PropertiesFunction;
 import com.bytechef.component.definition.TriggerDefinition.TriggerType;
 import com.bytechef.component.definition.TriggerDefinition.WebhookMethod;
 import com.bytechef.component.definition.TriggerDefinition.WebhookRequestFunction;
@@ -45,6 +57,7 @@ import com.bytechef.component.exception.ProviderException;
 import com.bytechef.platform.component.ComponentConnection;
 import com.bytechef.platform.component.ComponentDefinitionRegistry;
 import com.bytechef.platform.component.context.ContextFactory;
+import com.bytechef.platform.component.domain.WebhookTriggerFlags;
 import com.bytechef.platform.component.trigger.TriggerOutput;
 import com.bytechef.platform.component.trigger.WebhookRequest;
 import com.bytechef.platform.constant.PlatformType;
@@ -679,5 +692,137 @@ public class TriggerDefinitionServiceTest {
         return triggerDefinitionService.executeTrigger(
             "testComponent", 1, "testTrigger", null, null, null, Collections.emptyMap(), null, webhookRequest, null,
             null, PlatformType.AUTOMATION, false);
+    }
+
+    @Test
+    public void testExecuteWebhookResponseReturnsTheFunctionResult() {
+        WebhookResponse expectedWebhookResponse = WebhookResponse.redirect("https://example.com/thanks");
+        AtomicReference<Parameters> receivedInputParameters = new AtomicReference<>();
+
+        TriggerDefinition triggerDefinition = trigger("testTrigger")
+            .type(TriggerType.STATIC_WEBHOOK)
+            .webhookResponse((inputParameters, context) -> {
+                receivedInputParameters.set(inputParameters);
+
+                return expectedWebhookResponse;
+            });
+
+        when(componentDefinitionRegistry.getTriggerDefinition("testComponent", 1, "testTrigger"))
+            .thenReturn(triggerDefinition);
+
+        TriggerDefinitionServiceImpl triggerDefinitionService = new TriggerDefinitionServiceImpl(
+            componentDefinitionRegistry, contextFactory, eventPublisher);
+
+        WebhookResponse webhookResponse = triggerDefinitionService.executeWebhookResponse(
+            "testComponent", 1, "testTrigger", Map.of("redirectUrl", "https://example.com/thanks"));
+
+        assertSame(expectedWebhookResponse, webhookResponse);
+
+        Parameters inputParameters = receivedInputParameters.get();
+
+        assertEquals("https://example.com/thanks", inputParameters.getString("redirectUrl"));
+    }
+
+    @Test
+    public void testExecuteWebhookResponseReturnsNullWithoutFunction() {
+        when(componentDefinitionRegistry.getTriggerDefinition("testComponent", 1, "testTrigger"))
+            .thenReturn(trigger("testTrigger").type(TriggerType.STATIC_WEBHOOK));
+
+        TriggerDefinitionServiceImpl triggerDefinitionService = new TriggerDefinitionServiceImpl(
+            componentDefinitionRegistry, contextFactory, eventPublisher);
+
+        assertNull(triggerDefinitionService.executeWebhookResponse("testComponent", 1, "testTrigger", Map.of()));
+    }
+
+    @Test
+    public void testGetWebhookTriggerFlagsReportsWebhookResponse() {
+        when(componentDefinitionRegistry.getTriggerDefinition("testComponent", 1, "withResponse"))
+            .thenReturn(
+                trigger("withResponse")
+                    .type(TriggerType.STATIC_WEBHOOK)
+                    .webhookResponse((inputParameters, context) -> null));
+        when(componentDefinitionRegistry.getTriggerDefinition("testComponent", 1, "withoutResponse"))
+            .thenReturn(trigger("withoutResponse").type(TriggerType.STATIC_WEBHOOK));
+
+        TriggerDefinitionServiceImpl triggerDefinitionService = new TriggerDefinitionServiceImpl(
+            componentDefinitionRegistry, contextFactory, eventPublisher);
+
+        WebhookTriggerFlags withResponseFlags = triggerDefinitionService.getWebhookTriggerFlags(
+            "testComponent", 1, "withResponse");
+        WebhookTriggerFlags withoutResponseFlags = triggerDefinitionService.getWebhookTriggerFlags(
+            "testComponent", 1, "withoutResponse");
+
+        assertTrue(withResponseFlags.webhookResponse());
+        assertFalse(withoutResponseFlags.webhookResponse());
+    }
+
+    @Test
+    public void testExecuteOptionsPassesTheWorkflowIdToTheContext() throws Exception {
+        DynamicOptionsProperty<?> dynamicOptionsProperty = mock(
+            DynamicOptionsProperty.class, Mockito.withSettings()
+                .extraInterfaces(Property.class));
+        OptionsDataSource<?> optionsDataSource = mock(OptionsDataSource.class);
+        OptionsFunction<String> optionsFunction =
+            (inputParameters, connectionParameters, lookupDependsOnPaths, searchText, context) -> List.of();
+
+        doReturn(dynamicOptionsProperty).when(componentDefinitionRegistry)
+            .getTriggerProperty(
+                Mockito.eq("dataTable"), Mockito.eq(1), Mockito.eq("recordCreated"), Mockito.eq("table"),
+                Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any());
+        doReturn(Optional.of(optionsDataSource)).when(dynamicOptionsProperty)
+            .getOptionsDataSource();
+        doReturn(optionsFunction).when(optionsDataSource)
+            .getOptions();
+
+        TriggerDefinitionServiceImpl triggerDefinitionService = new TriggerDefinitionServiceImpl(
+            componentDefinitionRegistry, contextFactory, eventPublisher);
+
+        triggerDefinitionService.executeOptions(
+            "dataTable", 1, "recordCreated", "table", Map.of(), List.of(), null, null, "workflow-1");
+
+        Mockito.verify(contextFactory)
+            .createTriggerContext("dataTable", 1, "recordCreated", null, null, "workflow-1", null, null, null, true);
+    }
+
+    @Test
+    public void testExecuteOutputPassesTheWorkflowIdToTheContext() {
+        TriggerDefinition triggerDefinition = mock(TriggerDefinition.class);
+
+        when(componentDefinitionRegistry.getTriggerDefinition("dataTable", 1, "recordCreated"))
+            .thenReturn(triggerDefinition);
+
+        TriggerDefinitionServiceImpl triggerDefinitionService = new TriggerDefinitionServiceImpl(
+            componentDefinitionRegistry, contextFactory, eventPublisher);
+
+        triggerDefinitionService.executeOutput("dataTable", 1, "recordCreated", Map.of(), null, "workflow-1");
+
+        Mockito.verify(contextFactory)
+            .createTriggerContext("dataTable", 1, "recordCreated", null, null, "workflow-1", null, null, null, true);
+    }
+
+    @Test
+    public void testExecuteDynamicPropertiesPassesTheWorkflowIdToTheContext() throws Exception {
+        DynamicPropertiesProperty dynamicPropertiesProperty = mock(DynamicPropertiesProperty.class);
+        PropertiesDataSource<?> propertiesDataSource = mock(PropertiesDataSource.class);
+        PropertiesFunction propertiesFunction =
+            (inputParameters, connectionParameters, lookupDependsOnPaths, context) -> List.of();
+
+        doReturn(dynamicPropertiesProperty).when(componentDefinitionRegistry)
+            .getTriggerProperty(
+                Mockito.eq("dataTable"), Mockito.eq(1), Mockito.eq("recordCreated"), Mockito.eq("columns"),
+                Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any());
+        doReturn(propertiesDataSource).when(dynamicPropertiesProperty)
+            .getDynamicPropertiesDataSource();
+        doReturn(propertiesFunction).when(propertiesDataSource)
+            .getProperties();
+
+        TriggerDefinitionServiceImpl triggerDefinitionService = new TriggerDefinitionServiceImpl(
+            componentDefinitionRegistry, contextFactory, eventPublisher);
+
+        triggerDefinitionService.executeDynamicProperties(
+            "dataTable", 1, "recordCreated", Map.of(), "columns", List.of(), null, "workflow-1");
+
+        Mockito.verify(contextFactory)
+            .createTriggerContext("dataTable", 1, "recordCreated", null, null, "workflow-1", null, null, null, true);
     }
 }

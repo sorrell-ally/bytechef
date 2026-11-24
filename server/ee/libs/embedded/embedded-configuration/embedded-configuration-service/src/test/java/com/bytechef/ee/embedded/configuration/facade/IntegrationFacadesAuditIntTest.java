@@ -140,9 +140,6 @@ class IntegrationFacadesAuditIntTest {
     private IntegrationFacade integrationFacade;
 
     @Autowired
-    private IntegrationInstanceAdminFacade integrationInstanceAdminFacade;
-
-    @Autowired
     private IntegrationInstanceConfigurationFacade integrationInstanceConfigurationFacade;
 
     @Autowired
@@ -366,6 +363,32 @@ class IntegrationFacadesAuditIntTest {
         }
 
         @Test
+        void testRestoreIntegrationVersionRecordsTheIntegrationIdAndTheRestoredVersion() {
+            Integration integration = createPublishedIntegration();
+
+            integrationFacade.restoreIntegrationVersion(integration.getId(), 1);
+
+            assertThat(findSingleEvent(IntegrationAuditEvents.INTEGRATION_VERSION_RESTORED).getData())
+                .containsEntry("result", "SUCCESS")
+                .containsEntry("integrationId", String.valueOf(integration.getId()))
+                .containsEntry("integrationVersion", "1");
+        }
+
+        @Test
+        void testRestoreOfADraftIntegrationVersionRecordsAFailure() {
+            Integration integration = createIntegration();
+
+            assertThatThrownBy(() -> integrationFacade.restoreIntegrationVersion(integration.getId(), 1))
+                .isInstanceOf(ConfigurationException.class);
+
+            assertThat(findSingleEvent(IntegrationAuditEvents.INTEGRATION_VERSION_RESTORED).getData())
+                .containsEntry("result", "ERROR")
+                .containsEntry("errorClass", ConfigurationException.class.getName())
+                .containsEntry("integrationId", String.valueOf(integration.getId()))
+                .containsEntry("integrationVersion", "1");
+        }
+
+        @Test
         void testDeleteIntegrationRecordsTheIntegrationId() {
             Integration integration = createIntegration();
 
@@ -416,6 +439,9 @@ class IntegrationFacadesAuditIntTest {
         @Test
         void testCreateForAnUnpublishedIntegrationRecordsAFailure() {
             Integration integration = createIntegration();
+
+            integrationWorkflowService.addWorkflow(
+                integration.getId(), integration.getLastIntegrationVersion(), String.valueOf(UUID.randomUUID()));
 
             String name = "instance-configuration-" + UUID.randomUUID();
 
@@ -719,9 +745,11 @@ class IntegrationFacadesAuditIntTest {
             when(connectedUserService.getConnectedUser(CONNECTED_USER_ID))
                 .thenThrow(new NoSuchElementException("Connected user not found"));
 
+            Map<String, Object> connectionParameters = Map.of("token", "s3cr3t");
+
             assertThatThrownBy(
                 () -> connectedUserIntegrationFacade.provisionIntegrationInstance(
-                    CONNECTED_USER_ID, 7L, Map.of("token", "s3cr3t"), null, "admin"))
+                    CONNECTED_USER_ID, 7L, connectionParameters, null, "admin"))
                         .isInstanceOf(NoSuchElementException.class);
 
             assertThat(findSingleEvent(IntegrationAuditEvents.INTEGRATION_INSTANCE_PROVISIONED).getData())
@@ -743,7 +771,7 @@ class IntegrationFacadesAuditIntTest {
 
             stubOwnedConnection(connectionId);
 
-            integrationInstanceAdminFacade.updateIntegrationInstanceCredentials(
+            integrationInstanceFacade.updateIntegrationInstanceCredentials(
                 integrationInstance.getId(), Map.of("token", "s3cr3t"), 2);
 
             verify(connectionFacade).updateCredentials(eq(connectionId), any(), eq(2));
@@ -774,7 +802,7 @@ class IntegrationFacadesAuditIntTest {
                 .updateCredentials(eq(connectionId), any(), anyInt());
 
             assertThatThrownBy(
-                () -> integrationInstanceAdminFacade.updateIntegrationInstanceCredentials(
+                () -> integrationInstanceFacade.updateIntegrationInstanceCredentials(
                     integrationInstance.getId(), Map.of("token", "s3cr3t"), 2))
                         .isInstanceOf(ConfigurationException.class);
 

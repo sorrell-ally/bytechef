@@ -7,11 +7,17 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import ConnectedUserSheetPanelIntegrationListItem from '../ConnectedUserSheetPanelIntegrationListItem';
 
 const hoisted = vi.hoisted(() => ({
+    changeVersionMutateAsyncMock: vi.fn(),
     configurationsQueryMock: vi.fn(),
     integrationConfigurations: [] as unknown[] | undefined,
     integrationConfigurationsError: false,
+    integrationInstance: undefined as unknown,
+    integrationVersions: undefined as unknown[] | undefined,
+    integrationVersionsError: false,
     moveImpactQueryMock: vi.fn(),
     moveMutateAsyncMock: vi.fn(),
+    provisionableIntegrations: undefined as unknown[] | undefined,
+    workflows: [] as unknown[],
 }));
 
 vi.mock('@/ee/shared/queries/embedded/integrationInstanceConfigurations.queries', () => ({
@@ -38,15 +44,22 @@ vi.mock('@/ee/shared/queries/embedded/integrationInstances.queries', () => ({
         integrationInstanceConnection: (id: number) => ['integrationInstance', id, 'connection'],
     },
     useGetIntegrationInstanceConnectionQuery: () => ({data: undefined}),
-    useGetIntegrationInstanceQuery: () => ({data: undefined}),
+    useGetIntegrationInstanceQuery: () => ({data: hoisted.integrationInstance}),
 }));
 
 vi.mock('@/ee/shared/queries/embedded/provisionableIntegrations.queries', () => ({
-    useGetProvisionableIntegrationsQuery: () => ({data: undefined}),
+    useGetProvisionableIntegrationsQuery: () => ({data: hoisted.provisionableIntegrations}),
+}));
+
+vi.mock('@/ee/shared/queries/embedded/integrationVersions.queries', () => ({
+    useGetIntegrationVersionsQuery: () => ({
+        data: hoisted.integrationVersions,
+        isError: hoisted.integrationVersionsError,
+    }),
 }));
 
 vi.mock('@/ee/shared/queries/embedded/integrationWorkflows.queries', () => ({
-    useGetIntegrationVersionWorkflowsQuery: () => ({data: []}),
+    useGetIntegrationVersionWorkflowsQuery: () => ({data: hoisted.workflows}),
 }));
 
 vi.mock('@/ee/shared/mutations/embedded/integrationInstances.mutations', () => ({
@@ -56,11 +69,11 @@ vi.mock('@/ee/shared/mutations/embedded/integrationInstances.mutations', () => (
 }));
 
 vi.mock('@/ee/shared/mutations/embedded/integrationInstanceConfigurations.mutations', () => ({
+    useChangeIntegrationInstanceConfigurationConnectedUserVersionMutation: () => ({
+        isPending: false,
+        mutateAsync: hoisted.changeVersionMutateAsyncMock,
+    }),
     useMoveIntegrationInstanceConfigurationConnectedUsersMutation: () => ({mutateAsync: hoisted.moveMutateAsyncMock}),
-}));
-
-vi.mock('react-inlinesvg', () => ({
-    default: () => <svg data-testid="integration-icon" />,
 }));
 
 const componentDefinition = {icon: 'icon.svg', name: 'github', title: 'GitHub', version: 1};
@@ -121,23 +134,43 @@ describe('ConnectedUserSheetPanelIntegrationListItem', () => {
 
         hoisted.integrationConfigurations = [];
         hoisted.integrationConfigurationsError = false;
+        hoisted.integrationInstance = undefined;
+        hoisted.integrationVersions = undefined;
+        hoisted.integrationVersionsError = false;
+        hoisted.provisionableIntegrations = undefined;
+        hoisted.workflows = [];
     });
 
-    it("marks the integration with its component's icon", () => {
-        const {container} = renderItem();
+    it('leaves tool-only MCP workflows out of the workflows', () => {
+        hoisted.integrationInstance = {id: 40, integrationInstanceWorkflows: []};
+        hoisted.provisionableIntegrations = [
+            {integration: {id: 7}, mcpWorkflowUuids: ['u-1'], toolOnlyMcpWorkflowUuids: ['u-2']},
+        ];
+        hoisted.workflows = [
+            {id: 'workflow-1', label: 'Sync', workflowUuid: 'u-1'},
+            {id: 'workflow-2', label: 'Search', workflowUuid: 'u-2'},
+        ];
 
-        expect(screen.getByTestId('integration-icon')).toBeInTheDocument();
-        expect(container.querySelector('svg.lucide-component')).not.toBeInTheDocument();
+        renderItem();
+
+        expect(screen.getByText('1 workflow')).toBeInTheDocument();
     });
 
-    it('shows the Credentials action only for provisioned integrations', () => {
-        const {unmount} = renderItem({...connectedUserIntegrationInstance, provisioned: true});
+    it('titles the row with the configuration name only', () => {
+        hoisted.integrationInstance = {
+            id: 40,
+            integrationInstanceConfiguration: {name: 'Current Configuration'},
+            integrationInstanceWorkflows: [],
+        };
 
-        expect(screen.getByRole('button', {name: 'Credentials'})).toBeInTheDocument();
+        renderItem();
 
-        unmount();
+        expect(screen.getByText('Current Configuration')).toBeInTheDocument();
+        expect(screen.queryByText('GitHub')).not.toBeInTheDocument();
+    });
 
-        renderItem({...connectedUserIntegrationInstance, provisioned: false});
+    it('leaves the Credentials action to the Connections tab even for provisioned integrations', () => {
+        renderItem({...connectedUserIntegrationInstance, provisioned: true});
 
         expect(screen.queryByRole('button', {name: 'Credentials'})).not.toBeInTheDocument();
     });
@@ -147,9 +180,126 @@ describe('ConnectedUserSheetPanelIntegrationListItem', () => {
 
         expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
             'Change configuration…',
+            'Change version…',
             'Delete',
         ]);
         expect(hoisted.configurationsQueryMock).toHaveBeenCalledWith({environmentId: 1, integrationId: 7}, true);
+    });
+
+    it('opens the change version dialog with the published versions and calls the change endpoint', async () => {
+        hoisted.changeVersionMutateAsyncMock.mockResolvedValue({
+            movedConnectedUserIds: [9],
+            needsAttentionConnectedUserIds: [],
+            skipped: [],
+        });
+        hoisted.integrationVersions = [
+            {status: 'PUBLISHED', version: 1},
+            {status: 'PUBLISHED', version: 3},
+            {status: 'DRAFT', version: 4},
+        ];
+
+        await openMenu();
+
+        await userEvent.click(screen.getByRole('menuitem', {name: 'Change version'}));
+
+        expect(await screen.findByRole('heading', {name: 'Change version'})).toBeInTheDocument();
+
+        await userEvent.click(screen.getByRole('combobox', {name: 'Version'}));
+
+        expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual(['V3 (latest)']);
+
+        await userEvent.click(screen.getByRole('option', {name: 'V3 (latest)'}));
+
+        expect(screen.getByText('Moves this connected user to Other Configuration · V3.')).toBeInTheDocument();
+        expect(hoisted.moveImpactQueryMock).toHaveBeenLastCalledWith(1, {connectedUserIds: [9], targetId: 5}, true);
+
+        await userEvent.click(screen.getByRole('button', {name: 'Change'}));
+
+        await waitFor(() =>
+            expect(hoisted.changeVersionMutateAsyncMock).toHaveBeenCalledWith({
+                configurationChangeVersionRequest: {connectedUserId: 9, targetId: 5, version: 3},
+                id: 1,
+            })
+        );
+    });
+
+    it('disables Change version with a tooltip when no other published version exists', async () => {
+        hoisted.integrationVersions = [
+            {status: 'PUBLISHED', version: 1},
+            {status: 'DRAFT', version: 2},
+        ];
+
+        await openMenu();
+
+        const item = screen.getByRole('menuitem', {name: 'Change version'});
+
+        expect(item).toHaveAttribute('aria-disabled', 'true');
+
+        await userEvent.hover(item.parentElement as HTMLElement);
+
+        await waitFor(async () =>
+            expect((await screen.findAllByText('No other published version')).length).toBeGreaterThan(0)
+        );
+    });
+
+    it('disables Change version without a tooltip while the configurations load', async () => {
+        hoisted.integrationConfigurations = undefined;
+        hoisted.integrationVersions = [
+            {status: 'PUBLISHED', version: 1},
+            {status: 'PUBLISHED', version: 3},
+        ];
+
+        await openMenu();
+
+        const item = screen.getByRole('menuitem', {name: 'Change version'});
+
+        expect(item).toHaveAttribute('aria-disabled', 'true');
+
+        await userEvent.hover(item.parentElement as HTMLElement);
+
+        await expect(screen.findByText('No other published version', {}, {timeout: 1500})).rejects.toThrow();
+    });
+
+    it('disables Change version with a tooltip when the configurations fail to load', async () => {
+        hoisted.integrationConfigurations = undefined;
+        hoisted.integrationConfigurationsError = true;
+        hoisted.integrationVersions = [
+            {status: 'PUBLISHED', version: 1},
+            {status: 'PUBLISHED', version: 3},
+        ];
+
+        await openMenu();
+
+        const item = screen.getByRole('menuitem', {name: 'Change version'});
+
+        expect(item).toHaveAttribute('aria-disabled', 'true');
+
+        await userEvent.hover(item.parentElement as HTMLElement);
+
+        await waitFor(async () =>
+            expect(
+                (await screen.findAllByText("Couldn't load the configurations. Try again later.")).length
+            ).toBeGreaterThan(0)
+        );
+    });
+
+    it('disables Change version with a tooltip when the versions fail to load', async () => {
+        hoisted.integrationVersions = undefined;
+        hoisted.integrationVersionsError = true;
+
+        await openMenu();
+
+        const item = screen.getByRole('menuitem', {name: 'Change version'});
+
+        expect(item).toHaveAttribute('aria-disabled', 'true');
+
+        await userEvent.hover(item.parentElement as HTMLElement);
+
+        await waitFor(async () =>
+            expect((await screen.findAllByText("Couldn't load the versions. Try again later.")).length).toBeGreaterThan(
+                0
+            )
+        );
     });
 
     it('changes this user to another configuration, labelled by name rather than external id', async () => {
@@ -166,7 +316,8 @@ describe('ConnectedUserSheetPanelIntegrationListItem', () => {
         await userEvent.click(screen.getByRole('menuitem', {name: 'Change configuration'}));
 
         expect(await screen.findByRole('heading', {name: 'Change configuration'})).toBeInTheDocument();
-        expect(screen.getByText('Jane')).toBeInTheDocument();
+        expect(screen.getByText(/^Moving Jane from /)).toBeInTheDocument();
+        expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
 
         await userEvent.click(screen.getByRole('combobox', {name: 'Target'}));
 

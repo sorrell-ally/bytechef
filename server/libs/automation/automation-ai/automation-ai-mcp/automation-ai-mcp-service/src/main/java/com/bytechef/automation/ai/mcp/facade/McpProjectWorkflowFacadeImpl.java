@@ -19,9 +19,12 @@ package com.bytechef.automation.ai.mcp.facade;
 import com.bytechef.atlas.configuration.domain.Workflow;
 import com.bytechef.atlas.configuration.service.WorkflowService;
 import com.bytechef.automation.ai.mcp.audit.McpProjectAuditEvents;
+import com.bytechef.automation.ai.mcp.domain.McpProject;
 import com.bytechef.automation.ai.mcp.domain.McpProjectWorkflow;
+import com.bytechef.automation.ai.mcp.service.McpProjectService;
 import com.bytechef.automation.ai.mcp.service.McpProjectWorkflowService;
 import com.bytechef.automation.ai.mcp.util.McpWorkflowUtils;
+import com.bytechef.automation.configuration.domain.ProjectDeploymentWorkflow;
 import com.bytechef.automation.configuration.domain.ProjectWorkflow;
 import com.bytechef.automation.configuration.service.ProjectDeploymentWorkflowService;
 import com.bytechef.automation.configuration.service.ProjectWorkflowService;
@@ -29,6 +32,9 @@ import com.bytechef.platform.audit.AuditData;
 import com.bytechef.platform.audit.Audited;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import org.jspecify.annotations.Nullable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +48,10 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class McpProjectWorkflowFacadeImpl implements McpProjectWorkflowFacade {
 
+    private static final String INVALID_PROJECT_DEPLOYMENT_WORKFLOW =
+        "Invalid projectDeploymentWorkflowId for the given MCP project";
+
+    private final McpProjectService mcpProjectService;
     private final McpProjectWorkflowService mcpProjectWorkflowService;
     private final ProjectDeploymentWorkflowService projectDeploymentWorkflowService;
     private final ProjectWorkflowService projectWorkflowService;
@@ -49,10 +59,11 @@ public class McpProjectWorkflowFacadeImpl implements McpProjectWorkflowFacade {
 
     @SuppressFBWarnings("EI")
     public McpProjectWorkflowFacadeImpl(
-        McpProjectWorkflowService mcpProjectWorkflowService,
+        McpProjectService mcpProjectService, McpProjectWorkflowService mcpProjectWorkflowService,
         ProjectDeploymentWorkflowService projectDeploymentWorkflowService,
         ProjectWorkflowService projectWorkflowService, WorkflowService workflowService) {
 
+        this.mcpProjectService = mcpProjectService;
         this.mcpProjectWorkflowService = mcpProjectWorkflowService;
         this.projectDeploymentWorkflowService = projectDeploymentWorkflowService;
         this.projectWorkflowService = projectWorkflowService;
@@ -67,6 +78,8 @@ public class McpProjectWorkflowFacadeImpl implements McpProjectWorkflowFacade {
     })
     @PreAuthorize("hasPermission(#mcpProjectId, 'McpProject', 'MCP_EDIT')")
     public McpProjectWorkflow createMcpProjectWorkflow(long mcpProjectId, long projectDeploymentWorkflowId) {
+        validateProjectDeploymentWorkflow(mcpProjectId, projectDeploymentWorkflowId);
+
         return mcpProjectWorkflowService.create(mcpProjectId, projectDeploymentWorkflowId);
     }
 
@@ -107,6 +120,22 @@ public class McpProjectWorkflowFacadeImpl implements McpProjectWorkflowFacade {
     }
 
     @Override
+    @PreAuthorize("hasPermission(#projectId, 'Project', 'WORKFLOW_VIEW')")
+    @Transactional(readOnly = true)
+    public Workflow getToolEligibleWorkflow(long projectId, String workflowId) {
+        boolean belongsToProject = projectWorkflowService.getProjectWorkflows(projectId)
+            .stream()
+            .anyMatch(projectWorkflow -> Objects.equals(projectWorkflow.getWorkflowId(), workflowId));
+
+        if (!belongsToProject) {
+            throw new IllegalArgumentException(
+                "Workflow " + workflowId + " does not belong to project " + projectId);
+        }
+
+        return workflowService.getWorkflow(workflowId);
+    }
+
+    @Override
     @Audited(event = McpProjectAuditEvents.MCP_PROJECT_WORKFLOW_ENABLED_UPDATED, data = {
         @AuditData(key = "mcpProjectWorkflowId", value = "#mcpProjectWorkflowId"),
         @AuditData(key = "mcpProjectId", value = "#result?.mcpProjectId"),
@@ -115,5 +144,57 @@ public class McpProjectWorkflowFacadeImpl implements McpProjectWorkflowFacade {
     @PreAuthorize("hasPermission(#mcpProjectWorkflowId, 'McpProjectWorkflow', 'MCP_EDIT')")
     public McpProjectWorkflow updateMcpProjectWorkflowEnabled(long mcpProjectWorkflowId, boolean enabled) {
         return mcpProjectWorkflowService.updateEnabled(mcpProjectWorkflowId, enabled);
+    }
+
+    @Override
+    @PreAuthorize("hasPermission(#mcpProjectWorkflowId, 'McpProjectWorkflow', 'MCP_EDIT') and " +
+        "(#mcpProjectId == null or hasPermission(#mcpProjectId, 'McpProject', 'MCP_EDIT'))")
+    public McpProjectWorkflow updateMcpProjectWorkflow(
+        long mcpProjectWorkflowId, @Nullable Long mcpProjectId, @Nullable Long projectDeploymentWorkflowId) {
+
+        Optional<McpProjectWorkflow> mcpProjectWorkflowOptional = mcpProjectWorkflowService.fetchMcpProjectWorkflow(
+            mcpProjectWorkflowId);
+
+        McpProjectWorkflow mcpProjectWorkflow = mcpProjectWorkflowOptional.orElseThrow(
+            () -> new IllegalArgumentException("McpProjectWorkflow not found with id: " + mcpProjectWorkflowId));
+
+        Long targetMcpProjectId = mcpProjectId == null ? mcpProjectWorkflow.getMcpProjectId() : mcpProjectId;
+        Long targetProjectDeploymentWorkflowId = projectDeploymentWorkflowId == null
+            ? mcpProjectWorkflow.getProjectDeploymentWorkflowId() : projectDeploymentWorkflowId;
+
+        validateProjectDeploymentWorkflow(targetMcpProjectId, targetProjectDeploymentWorkflowId);
+
+        return mcpProjectWorkflowService.update(mcpProjectWorkflowId, mcpProjectId, projectDeploymentWorkflowId);
+    }
+
+    private void validateProjectDeploymentWorkflow(
+        @Nullable Long mcpProjectId, @Nullable Long projectDeploymentWorkflowId) {
+
+        if (mcpProjectId == null || projectDeploymentWorkflowId == null) {
+            throw new IllegalArgumentException(INVALID_PROJECT_DEPLOYMENT_WORKFLOW);
+        }
+
+        Optional<McpProject> mcpProjectOptional = mcpProjectService.fetchMcpProject(mcpProjectId);
+
+        McpProject mcpProject = mcpProjectOptional.orElseThrow(
+            () -> new IllegalArgumentException(INVALID_PROJECT_DEPLOYMENT_WORKFLOW));
+
+        Long projectDeploymentId = mcpProject.getProjectDeploymentId();
+
+        if (projectDeploymentId == null) {
+            throw new IllegalArgumentException(INVALID_PROJECT_DEPLOYMENT_WORKFLOW);
+        }
+
+        List<ProjectDeploymentWorkflow> projectDeploymentWorkflows =
+            projectDeploymentWorkflowService.getProjectDeploymentWorkflows(projectDeploymentId);
+
+        boolean owned = projectDeploymentWorkflows.stream()
+            .anyMatch(
+                projectDeploymentWorkflow -> Objects.equals(
+                    projectDeploymentWorkflow.getId(), projectDeploymentWorkflowId));
+
+        if (!owned) {
+            throw new IllegalArgumentException(INVALID_PROJECT_DEPLOYMENT_WORKFLOW);
+        }
     }
 }

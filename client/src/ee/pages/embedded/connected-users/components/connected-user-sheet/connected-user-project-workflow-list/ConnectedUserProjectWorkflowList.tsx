@@ -1,23 +1,36 @@
-import {Collapsible, CollapsibleContent, CollapsibleTrigger} from '@/components/ui/collapsible';
+import Badge from '@/components/Badge/Badge';
+import {Collapsible, CollapsibleContent} from '@/components/ui/collapsible';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip';
+import ConnectedUserVersionBadge from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserVersionBadge';
 import ConnectedUserProjectConfigurationMenu, {
     ConnectedUserCurrentConfigurationI,
 } from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/connected-user-project-workflow-list/ConnectedUserProjectConfigurationMenu';
+import ConnectedUserProjectConfigurationSwitch from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/connected-user-project-workflow-list/ConnectedUserProjectConfigurationSwitch';
 import ConnectedUserProjectWorkflowListItem, {
     ConnectedUserProjectWorkflowType,
     ConnectedUserWorkflowTemplateSourceI,
 } from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/connected-user-project-workflow-list/ConnectedUserProjectWorkflowListItem';
+import ListGroupHeader from '@/shared/components/ListGroupHeader';
+import ListItemExpandButton from '@/shared/components/ListItemExpandButton';
+import isCollapsibleRowClick from '@/shared/components/mcp-server/utils/isCollapsibleRowClick';
 import {FolderIcon} from 'lucide-react';
-import {useMemo} from 'react';
+import {useMemo, useState} from 'react';
 
 const OTHER_GROUP_KEY = 'other';
 
-const OTHER_GROUP_NAME = 'Other';
+const OTHER_GROUP_NAME = 'Created by this user';
+
+type ConnectedUserProjectConfigurationType = ConnectedUserCurrentConfigurationI & {
+    configurationEnabled: boolean;
+    enabled: boolean;
+    projectId: string;
+};
 
 interface ConnectedUserProjectWorkflowGroupI {
-    configuration?: ConnectedUserCurrentConfigurationI & {projectId: string};
+    configuration?: ConnectedUserProjectConfigurationType;
     connectedUserProjectWorkflows: ConnectedUserProjectWorkflowType[];
     key: string;
+    projectIds: Set<string>;
     projectName?: string;
 }
 
@@ -34,46 +47,47 @@ const ConnectedUserProjectWorkflowList = ({
     configurations,
     connectedUser,
     connectedUserProjectWorkflows,
+    lastPublishedVersionsByProjectId,
     workflowTemplateSourcesByWorkflowUuid,
 }: {
-    configurations?: Array<ConnectedUserCurrentConfigurationI & {projectId: string}>;
+    configurations?: ConnectedUserProjectConfigurationType[];
     connectedUser?: {connectedUserId: string; email?: string | null; externalId: string; name?: string | null};
     connectedUserProjectWorkflows: ConnectedUserProjectWorkflowType[];
+    lastPublishedVersionsByProjectId?: Map<string, number>;
     workflowTemplateSourcesByWorkflowUuid: Map<string, ConnectedUserWorkflowTemplateSourceI>;
 }) => {
+    const [openGroupKeys, setOpenGroupKeys] = useState<Set<string>>(new Set());
+
     const groups = useMemo(() => {
         const groupsByKey = new Map<string, ConnectedUserProjectWorkflowGroupI>();
 
         for (const connectedUserProjectWorkflow of connectedUserProjectWorkflows) {
-            const sourceWorkflowUuid =
-                connectedUserProjectWorkflow.automationUuid ?? connectedUserProjectWorkflow.copiedFromWorkflowUuid;
+            const referencedWorkflowUuid = connectedUserProjectWorkflow.automationUuid;
 
-            const projectName = sourceWorkflowUuid
-                ? workflowTemplateSourcesByWorkflowUuid.get(sourceWorkflowUuid)?.projectName
+            const workflowTemplateSource = referencedWorkflowUuid
+                ? workflowTemplateSourcesByWorkflowUuid.get(referencedWorkflowUuid)
                 : undefined;
 
-            const groupKey = projectName ? `project-${connectedUserProjectWorkflow.projectId}` : OTHER_GROUP_KEY;
+            const projectId = workflowTemplateSource?.projectId ?? connectedUserProjectWorkflow.projectId;
+
+            const groupKey = workflowTemplateSource ? `project-${projectId}` : OTHER_GROUP_KEY;
 
             const group = groupsByKey.get(groupKey) ?? {
                 connectedUserProjectWorkflows: [],
                 key: groupKey,
-                projectName,
+                projectIds: new Set<string>(),
+                projectName: workflowTemplateSource?.projectName,
             };
 
             group.connectedUserProjectWorkflows.push(connectedUserProjectWorkflow);
+            group.projectIds.add(projectId);
 
             groupsByKey.set(groupKey, group);
         }
 
         for (const group of groupsByKey.values()) {
-            const groupProjectIds = new Set(
-                group.connectedUserProjectWorkflows.map(
-                    (connectedUserProjectWorkflow) => connectedUserProjectWorkflow.projectId
-                )
-            );
-
-            if (groupProjectIds.size === 1) {
-                const [groupProjectId] = groupProjectIds;
+            if (group.projectIds.size === 1) {
+                const [groupProjectId] = group.projectIds;
 
                 group.configuration = configurations?.find(
                     (configuration) => configuration.projectId === groupProjectId
@@ -93,44 +107,137 @@ const ConnectedUserProjectWorkflowList = ({
         });
     }, [configurations, connectedUserProjectWorkflows, workflowTemplateSourcesByWorkflowUuid]);
 
+    const setGroupOpen = (groupKey: string, open: boolean) =>
+        setOpenGroupKeys((previousOpenGroupKeys) => {
+            const nextOpenGroupKeys = new Set(previousOpenGroupKeys);
+
+            if (open) {
+                nextOpenGroupKeys.add(groupKey);
+            } else {
+                nextOpenGroupKeys.delete(groupKey);
+            }
+
+            return nextOpenGroupKeys;
+        });
+
+    const renderWorkflowItems = (group: ConnectedUserProjectWorkflowGroupI) =>
+        group.connectedUserProjectWorkflows.map((connectedUserProjectWorkflow) => {
+            const sourceWorkflowUuid =
+                connectedUserProjectWorkflow.automationUuid ?? connectedUserProjectWorkflow.copiedFromWorkflowUuid;
+
+            const workflowTemplate = sourceWorkflowUuid
+                ? workflowTemplateSourcesByWorkflowUuid.get(sourceWorkflowUuid)?.workflowTemplate
+                : undefined;
+
+            return (
+                <ConnectedUserProjectWorkflowListItem
+                    configuration={group.configuration}
+                    connectedUserProjectWorkflow={connectedUserProjectWorkflow}
+                    key={connectedUserProjectWorkflow.id}
+                    projectName={group.projectName}
+                    workflowTemplate={workflowTemplate}
+                />
+            );
+        });
+
     return (
         <div>
-            {groups.map((group) => {
+            {groups.map((group, groupIndex) => {
                 const groupName = group.projectName ?? OTHER_GROUP_NAME;
-                const workflowCount = group.connectedUserProjectWorkflows.length;
+                const groupOpen = openGroupKeys.has(group.key);
                 const lastExecutionDate = getLastExecutionDate(group.connectedUserProjectWorkflows);
+                const workflowCount = group.connectedUserProjectWorkflows.length;
 
                 return (
-                    <Collapsible asChild key={group.key}>
-                        <section aria-label={groupName} className="mb-2 rounded border border-border/50">
-                            <div className="flex items-center justify-between rounded-md px-3 hover:bg-surface-neutral-primary-hover">
-                                <CollapsibleTrigger className="flex-1 py-3 text-left">
-                                    <div className="flex flex-col items-start justify-center gap-y-2">
-                                        <h3 className="flex min-h-8 items-center gap-2 text-base font-semibold">
-                                            <FolderIcon
-                                                aria-hidden="true"
-                                                className="size-6 shrink-0 text-content-neutral-secondary"
+                    <section aria-label={groupName} key={group.key}>
+                        <ListGroupHeader
+                            action={
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <span className="shrink-0">
+                                            <Badge
+                                                label={group.projectName ? 'Reference' : 'Copy'}
+                                                styleType="outline-outline"
+                                                weight="semibold"
                                             />
+                                        </span>
+                                    </TooltipTrigger>
 
-                                            {groupName}
-                                        </h3>
+                                    <TooltipContent>
+                                        {group.projectName
+                                            ? "Workflows that follow the configuration's project version"
+                                            : 'Workflows this user owns and edits in the workflow editor'}
+                                    </TooltipContent>
+                                </Tooltip>
+                            }
+                            className={groupIndex === 0 ? 'pt-0' : undefined}
+                            icon={<FolderIcon aria-hidden="true" className="size-5 shrink-0" />}
+                            name={groupName}
+                        />
 
-                                        <div className="flex min-h-7 items-center text-xs font-semibold text-muted-foreground">
-                                            {workflowCount === 1 ? '1 workflow' : `${workflowCount} workflows`}
+                        <Collapsible
+                            className="group rounded border border-border/50"
+                            onOpenChange={(open) => setGroupOpen(group.key, open)}
+                            open={groupOpen}
+                        >
+                            <div
+                                className="flex w-full cursor-pointer items-center justify-between rounded-md px-3 hover:bg-surface-neutral-primary-hover"
+                                onClick={(event) => {
+                                    if (isCollapsibleRowClick(event)) {
+                                        setGroupOpen(group.key, !groupOpen);
+                                    }
+                                }}
+                                role="presentation"
+                            >
+                                <ListItemExpandButton
+                                    label={group.configuration ? 'Toggle configuration' : 'Toggle workflows'}
+                                />
 
-                                            {group.configuration && (
-                                                <span className="ml-2 font-normal">
-                                                    {`${group.configuration.configurationName} · v${group.configuration.configurationProjectVersion}`}
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                </CollapsibleTrigger>
+                                <div className="flex flex-1 flex-col items-start justify-center gap-y-1 py-3">
+                                    {group.configuration ? (
+                                        <span className="flex min-h-6 items-center gap-x-2 text-base font-semibold">
+                                            {group.configuration.configurationName}
+                                        </span>
+                                    ) : (
+                                        <span className="flex min-h-6 items-center text-base font-semibold text-content-neutral-secondary">
+                                            No configuration
+                                        </span>
+                                    )}
+
+                                    <span className="flex min-h-6 items-center text-xs font-semibold text-muted-foreground">
+                                        {workflowCount === 1 ? '1 workflow' : `${workflowCount} workflows`}
+                                    </span>
+                                </div>
 
                                 <div className="flex items-center gap-x-2">
-                                    <div className="flex min-w-52 flex-col items-end justify-center gap-y-2">
+                                    <div className="flex w-28 shrink-0 justify-start">
+                                        {group.configuration && (
+                                            <ConnectedUserVersionBadge
+                                                newerVersionAvailable={
+                                                    (lastPublishedVersionsByProjectId?.get(
+                                                        group.configuration.projectId
+                                                    ) ?? 0) > group.configuration.configurationProjectVersion
+                                                }
+                                                tooltip="The project version"
+                                                version={group.configuration.configurationProjectVersion}
+                                            />
+                                        )}
+                                    </div>
+
+                                    <div className="flex w-72 shrink-0 flex-col items-end gap-y-1">
+                                        {group.configuration && connectedUser ? (
+                                            <div className="flex min-h-6 items-center">
+                                                <ConnectedUserProjectConfigurationSwitch
+                                                    configuration={group.configuration}
+                                                    connectedUserId={connectedUser.connectedUserId}
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div aria-hidden="true" className="min-h-6" />
+                                        )}
+
                                         <Tooltip>
-                                            <TooltipTrigger className="flex min-h-7 items-center text-xs text-content-neutral-secondary">
+                                            <TooltipTrigger className="flex min-h-6 items-center text-xs text-content-neutral-secondary">
                                                 {lastExecutionDate
                                                     ? `Executed at ${lastExecutionDate.toLocaleDateString()} ${lastExecutionDate.toLocaleTimeString()}`
                                                     : 'No executions'}
@@ -152,37 +259,17 @@ const ConnectedUserProjectWorkflowList = ({
                                 </div>
                             </div>
 
-                            <CollapsibleContent>
+                            <CollapsibleContent className="pl-8">
                                 <div className="flex w-full flex-col gap-y-1 pt-3">
-                                    <h4 className="flex justify-start px-3 text-sm font-semibold text-muted-foreground uppercase">
-                                        Workflows
-                                    </h4>
+                                    <h3 className="flex justify-start pl-3 text-sm heading-tertiary">Workflows</h3>
 
                                     <ul className="divide-y divide-stroke-neutral-primary">
-                                        {group.connectedUserProjectWorkflows.map((connectedUserProjectWorkflow) => {
-                                            const sourceWorkflowUuid =
-                                                connectedUserProjectWorkflow.automationUuid ??
-                                                connectedUserProjectWorkflow.copiedFromWorkflowUuid;
-
-                                            const workflowTemplate = sourceWorkflowUuid
-                                                ? workflowTemplateSourcesByWorkflowUuid.get(sourceWorkflowUuid)
-                                                      ?.workflowTemplate
-                                                : undefined;
-
-                                            return (
-                                                <ConnectedUserProjectWorkflowListItem
-                                                    connectedUserProjectWorkflow={connectedUserProjectWorkflow}
-                                                    key={connectedUserProjectWorkflow.id}
-                                                    projectName={group.projectName}
-                                                    workflowTemplate={workflowTemplate}
-                                                />
-                                            );
-                                        })}
+                                        {renderWorkflowItems(group)}
                                     </ul>
                                 </div>
                             </CollapsibleContent>
-                        </section>
-                    </Collapsible>
+                        </Collapsible>
+                    </section>
                 );
             })}
         </div>

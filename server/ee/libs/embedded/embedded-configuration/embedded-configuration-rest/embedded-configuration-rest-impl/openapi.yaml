@@ -22,6 +22,10 @@ tags:
     description: "The Embedded Tag Internal API"
   - name: "integration"
     description: "The Embedded Integration Internal API"
+  - name: "automation-project-code-workflow"
+    description: "The Embedded Automation Project Code Workflow Internal API"
+  - name: "integration-code-workflow"
+    description: "The Embedded Integration Code Workflow Internal API"
   - name: "unified-integration"
     description: "The Embedded Unified Integration Management Internal API"
   - name: "webhook-trigger-test"
@@ -406,6 +410,29 @@ paths:
                 items:
                   $ref: "#/components/schemas/Connection"
   /connected-users/{connectedUserId}/connections:
+    get:
+      description: "Get all connections a connected user can use, across every component."
+      summary: "Get all connections a connected user can use"
+      tags:
+        - "connection"
+      operationId: "getAllConnectedUserConnections"
+      parameters:
+        - name: "connectedUserId"
+          description: "The id of a connected user."
+          in: "path"
+          required: true
+          schema:
+            type: "integer"
+            format: "int64"
+      responses:
+        "200":
+          description: "The list of connections."
+          content:
+            application/json:
+              schema:
+                type: "array"
+                items:
+                  $ref: "#/components/schemas/Connection"
     post:
       description: "Create a new connection for the connected user."
       summary: "Create a new connection for the connected user"
@@ -434,6 +461,62 @@ paths:
               schema:
                 type: integer
                 format: int64
+  /connected-users/{connectedUserId}/connections/{connectionId}:
+    delete:
+      description: "Deletes a connection a connected user created or a tenant admin provisioned for them."
+      summary: "Deletes a connection of a connected user"
+      tags:
+        - "connection"
+      operationId: "deleteConnectedUserConnection"
+      parameters:
+        - name: "connectedUserId"
+          description: "The id of a connected user."
+          in: "path"
+          required: true
+          schema:
+            type: "integer"
+            format: "int64"
+        - name: "connectionId"
+          description: "The id of a connection."
+          in: "path"
+          required: true
+          schema:
+            type: "integer"
+            format: "int64"
+      responses:
+        "204":
+          description: "Successful operation."
+  /connected-users/{connectedUserId}/connections/{connectionId}/credentials:
+    put:
+      description: "Replaces the credentials of a connection a tenant admin provisioned for a connected user."
+      summary: "Replaces the credentials of a provisioned connected user connection"
+      tags:
+        - "connection"
+      operationId: "updateConnectedUserConnectionCredentials"
+      parameters:
+        - name: "connectedUserId"
+          description: "The id of a connected user."
+          in: "path"
+          required: true
+          schema:
+            type: "integer"
+            format: "int64"
+        - name: "connectionId"
+          description: "The id of a connection."
+          in: "path"
+          required: true
+          schema:
+            type: "integer"
+            format: "int64"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateConnectionCredentialsRequest"
+        required: true
+      responses:
+        "204":
+          description: "Successful operation."
   /connected-users/{connectedUserId}/integration-instances:
     post:
       description: "Provision an integration instance for the connected user on a chosen integration instance configuration."
@@ -796,6 +879,34 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ConfigurationMoveImpact"
+  /integration-instance-configurations/{id}/change-version:
+    post:
+      description: "Put one connected user on another published version of the integration, moving it to a configuration on that version or copying its current configuration to that version when none exists."
+      summary: "Change the integration version of one connected user"
+      tags:
+        - "integration-instance-configuration"
+      operationId: "changeIntegrationInstanceConfigurationConnectedUserVersion"
+      parameters:
+        - name: "id"
+          description: "The id of the source integration instance configuration."
+          in: "path"
+          required: true
+          schema:
+            type: "integer"
+            format: "int64"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfigurationChangeVersionRequest"
+        required: true
+      responses:
+        "200":
+          description: "The outcome of the move."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfigurationMoveResult"
   /integration-instance-configurations/{id}/move:
     post:
       description: "Move connected users from an integration instance configuration to another one."
@@ -1114,6 +1225,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Connection"
+    put:
+      description: "Switches an integration instance provisioned by a tenant admin to another connection of its connected user."
+      summary: "Switch the connection of a provisioned integration instance"
+      tags:
+        - "integration-instance"
+      operationId: "updateIntegrationInstanceConnection"
+      parameters:
+        - name: "id"
+          description: "The id of an integration instance."
+          in: "path"
+          required: true
+          schema:
+            type: "integer"
+            format: "int64"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateIntegrationInstanceConnectionRequest"
+        required: true
+      responses:
+        "204":
+          description: "Successful operation."
   /integration-instances/{id}/connection/credentials:
     put:
       description: "Replaces the credentials of the connection of an integration instance provisioned by a tenant admin."
@@ -1159,6 +1293,36 @@ paths:
           required: true
           schema:
             type: "boolean"
+      responses:
+        "204":
+          description: "Successful operation."
+  /integration-instances/{id}/workflows/{workflowId}:
+    put:
+      description: "Update the inputs of an integration instance workflow."
+      summary: "Update the inputs of an integration instance workflow"
+      tags:
+        - "integration-instance"
+      operationId: "updateIntegrationInstanceWorkflow"
+      parameters:
+        - name: "id"
+          description: "The id of an integration instance."
+          in: "path"
+          required: true
+          schema:
+            type: "integer"
+            format: "int64"
+        - name: "workflowId"
+          description: "The id of an integration instance workflow."
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateIntegrationInstanceWorkflowRequest"
+        required: true
       responses:
         "204":
           description: "Successful operation."
@@ -1262,6 +1426,63 @@ paths:
               schema:
                 type: integer
                 format: int64
+  /integrations/deploy:
+    post:
+      description: "Deploy a new code based integration."
+      summary: "Deploy a new code based integration"
+      tags:
+      - "integration-code-workflow"
+      operationId: "deployIntegration"
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: "object"
+              properties:
+                integrationFile:
+                  description: "The file of a code-native integration."
+                  type: "string"
+                  format: "binary"
+        required: true
+      responses:
+        "204":
+          description: "Successful operation."
+  /automation/projects/deploy:
+    post:
+      description: "Deploy a new automation code workflow into the embedded catalog."
+      summary: "Deploy a new automation code workflow into the embedded catalog"
+      tags:
+      - "automation-project-code-workflow"
+      operationId: "deployAutomationProjectCodeWorkflow"
+      parameters:
+        - name: "X-Environment"
+          description: "The environment."
+          in: "header"
+          required: false
+          schema:
+            $ref: '#/components/schemas/Environment'
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: "object"
+              properties:
+                projectFile:
+                  description: "The file of a code-native automation project."
+                  type: "string"
+                  format: "binary"
+                release:
+                  description: "Whether to also point the configuration of the request environment at the newly published version."
+                  type: "boolean"
+                  default: false
+        required: true
+      responses:
+        "200":
+          description: "Successful operation."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationProjectCodeWorkflowDeployResult"
   /integrations/categories:
     get:
       description: "Get integration categories."
@@ -1409,6 +1630,30 @@ paths:
                 type: "array"
                 items:
                   $ref: "#/components/schemas/IntegrationVersion"
+  /integrations/{id}/versions/{integrationVersion}/restore:
+    post:
+      description: "Replaces the draft workflows of an integration with the workflows of a published integration version."
+      summary: "Restores a published integration version into the draft."
+      tags:
+        - "integration"
+      operationId: "restoreIntegrationVersion"
+      parameters:
+        - name: "id"
+          description: "The id of an integration."
+          in: "path"
+          required: true
+          schema:
+            type: "integer"
+            format: "int64"
+        - name: "integrationVersion"
+          description: "The version of an integration."
+          in: "path"
+          required: true
+          schema:
+            type: "integer"
+      responses:
+        "204":
+          description: "Successful operation."
   /integrations/{id}/versions/{integrationVersion}/workflows:
     get:
       description: "Get workflows for particular integration version."
@@ -1714,6 +1959,15 @@ components:
         __version:
           type: "integer"
           format: "int32"
+    AutomationProjectCodeWorkflowDeployResult:
+      type: "object"
+      description: "The result of deploying an automation code workflow into the embedded catalog."
+      properties:
+        warnings:
+          description: "Deploy-time trigger validation warnings; a deployed workflow is still usable even with warnings."
+          type: "array"
+          items:
+            type: "string"
     Category:
       $ref: "../../../../../../libs/platform/platform-category/platform-category-rest/openapi.yaml#/components/schemas/Category"
     ConnectedUserProjectWorkflow:
@@ -1737,6 +1991,16 @@ components:
         - $ref: "../../../../../../libs/platform/platform-connection/platform-connection-rest/openapi/components/schemas/objects/connection_base.yaml"
         - type: "object"
           properties:
+            origin:
+              description: "How a connected user came to have the connection. INTERNAL is an admin connection shared\
+                \ with connected users, SELF_SERVE one the connected user created, PROVISIONED one an admin created\
+                \ for the connected user. Only set when listing a connected user's connections."
+              type: "string"
+              enum:
+                - "INTERNAL"
+                - "PROVISIONED"
+                - "SELF_SERVE"
+              readOnly: true
             shared:
               description: "When true, every connected user in the same environment may use this connection. Always\
                 \ forced to false when a connected user creates a connection for themselves."
@@ -1750,6 +2014,14 @@ components:
                 - "PENDING_REASSIGNMENT"
                 - "REVOKED"
               readOnly: true
+    UpdateIntegrationInstanceWorkflowRequest:
+      description: "The inputs of an integration instance workflow."
+      type: "object"
+      properties:
+        inputs:
+          description: "The input values, keyed by input name."
+          type: "object"
+          additionalProperties: true
     UpdateConnectionCredentialsRequest:
       description: "Contains the replacement credentials of a connection."
       type: "object"
@@ -1794,6 +2066,14 @@ components:
           properties:
             category:
               $ref: "#/components/schemas/Category"
+            codeWorkflow:
+              description: "Whether the integration is backed by a code workflow."
+              type: "boolean"
+              readOnly: true
+            codeWorkflowLanguage:
+              description: "The programming language of the code workflow, if the integration is code-backed."
+              type: "string"
+              readOnly: true
             developmentConfigurationCount:
               description: "The number of the integration's instance configurations in the Development environment. Only set by the integration list."
               type: "integer"
@@ -1808,6 +2088,10 @@ components:
               type: "array"
               items:
                 $ref: "#/components/schemas/Tag"
+            unpublishedChanges:
+              description: "If the integration's draft version differs from its last published version. Computed only by the integration list endpoint; false in every other response."
+              type: "boolean"
+              readOnly: true
             __version:
               type: "integer"
     IntegrationBasic:
@@ -1938,7 +2222,12 @@ components:
           items:
             $ref: "#/components/schemas/ProvisionableIntegrationInstanceConfiguration"
         mcpWorkflowUuids:
-          description: "The uuids of the integration's workflows that embedded MCP servers expose as tools."
+          description: "The uuids of the integration's workflows that embedded MCP servers expose as tools and that also have another trigger."
+          type: "array"
+          items:
+            type: "string"
+        toolOnlyMcpWorkflowUuids:
+          description: "The uuids of the integration's workflows that embedded MCP servers expose as tools and that have no other trigger."
           type: "array"
           items:
             type: "string"
@@ -2206,6 +2495,25 @@ components:
         workflowNodeName:
           description: "The action/trigger name to which a connection belongs."
           type: "string"
+    ConfigurationChangeVersionRequest:
+      description: "Which connected user moves to which version, and optionally to which configuration."
+      type: "object"
+      required:
+        - "connectedUserId"
+        - "version"
+      properties:
+        connectedUserId:
+          description: "The id of the connected user to move."
+          type: "integer"
+          format: "int64"
+        targetId:
+          description: "The id of an enabled configuration already on that version. When absent, one is chosen or a copy of the source is created."
+          type: "integer"
+          format: "int64"
+        version:
+          description: "The published version to move the connected user to."
+          type: "integer"
+          format: "int32"
     ConfigurationConnectedUser:
       description: "A connected user with an integration instance on a configuration."
       type: "object"
@@ -2301,10 +2609,11 @@ components:
           items:
             $ref: "#/components/schemas/ConfigurationMoveSkipped"
     ConfigurationMoveImpactWorkflow:
-      description: "A workflow of the target configuration that needs new required inputs or connections."
+      description: "A workflow of the target configuration that needs new required inputs or connections, or stays disabled until the configuration sets its internal-only inputs."
       type: "object"
       required:
         - "affectedConnectedUserCount"
+        - "awaitsConfiguration"
         - "label"
         - "newRequiredConnections"
         - "newRequiredInputs"
@@ -2313,6 +2622,9 @@ components:
         affectedConnectedUserCount:
           description: "The number of the moved connected users affected."
           type: "integer"
+        awaitsConfiguration:
+          description: "Whether the workflow stays disabled until the target configuration sets its required internal-only inputs."
+          type: "boolean"
         label:
           description: "The label of the workflow."
           type: "string"
@@ -2423,6 +2735,10 @@ components:
           type: "string"
           format: "date-time"
           readOnly: true
+        staticWebhookUrl:
+          description: "The static webhook url of the workflow for this integration instance, set when the workflow starts with a static webhook trigger."
+          type: "string"
+          readOnly: true
         workflowId:
           description: "The id of a workflow."
           type: "string"
@@ -2430,6 +2746,16 @@ components:
       $ref: "../../../../../../libs/platform/platform-rest/openapi/components/schemas/objects/page.yaml"
     Tag:
       $ref: "../../../../../../libs/platform/platform-tag/platform-tag-rest/openapi/components/schemas/objects/tag.yaml"
+    UpdateIntegrationInstanceConnectionRequest:
+      description: "Contains the connection an integration instance switches to."
+      type: "object"
+      required:
+        - "connectionId"
+      properties:
+        connectionId:
+          description: "The id of a connection of the integration instance's connected user."
+          type: "integer"
+          format: "int64"
     UpdateTagsRequest:
       description: "The request object that contains the array of tags."
       type: "object"

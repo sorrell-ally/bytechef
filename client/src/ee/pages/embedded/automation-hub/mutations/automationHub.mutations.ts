@@ -1,5 +1,5 @@
 import {AutomationHubKeys} from '@/ee/pages/embedded/automation-hub/queries/automationHub.queries';
-import {ConnectedUserProjectWorkflowApi, ConnectionApi} from '@/ee/shared/middleware/embedded/public';
+import {ConnectedUserProjectWorkflowApi, ConnectionApi, McpAutomationWorkflowApi} from '@bytechef/embedded-api';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 
 export const BLANK_DEFINITION = JSON.stringify({description: '', label: 'New automation', tasks: [], triggers: []});
@@ -35,7 +35,6 @@ export interface ProvisionReferenceRequestI {
     connections: Record<string, number>;
     inputs?: Record<string, unknown>;
     providedComponentNames?: string[];
-    providedInputNames?: string[];
     workflowUuid: string;
 }
 
@@ -43,11 +42,11 @@ export const useProvisionReferenceMutation = () => {
     const queryClient = useQueryClient();
 
     return useMutation<void, Error, ProvisionReferenceRequestI>({
-        mutationFn: ({connections, inputs, providedComponentNames = [], providedInputNames = [], workflowUuid}) =>
+        mutationFn: ({connections, inputs, providedComponentNames = [], workflowUuid}) =>
             new ConnectedUserProjectWorkflowApi().provisionFrontendWorkflowReference({
                 provisionWorkflowReferenceRequest: {
                     connections: omitKeys(connections, providedComponentNames),
-                    inputs: inputs && omitKeys(inputs, providedInputNames),
+                    inputs,
                 },
                 workflowUuid,
             }),
@@ -74,6 +73,25 @@ export const useSetAutomationEnabledMutation = () => {
             }
 
             await new ConnectedUserProjectWorkflowApi().disableFrontendProjectWorkflow({workflowUuid});
+        },
+        onSuccess: () => {
+            void queryClient.invalidateQueries({queryKey: AutomationHubKeys.automations});
+        },
+    });
+};
+
+export const useSetAutomationMcpEnabledMutation = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation<void, Error, SetAutomationEnabledRequestI>({
+        mutationFn: async ({enabled, workflowUuid}) => {
+            if (enabled) {
+                await new McpAutomationWorkflowApi().enableFrontendMcpAutomationWorkflow({workflowUuid});
+
+                return;
+            }
+
+            await new McpAutomationWorkflowApi().disableFrontendMcpAutomationWorkflow({workflowUuid});
         },
         onSuccess: () => {
             void queryClient.invalidateQueries({queryKey: AutomationHubKeys.automations});

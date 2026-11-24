@@ -99,13 +99,21 @@ paths:
               schema:
                 type: integer
                 format: int64
-  /connections/tags:
+  /workspaces/{id}/connection-tags:
     get:
-      description: "Get connection tags."
+      description: "Get connection tags for a workspace."
       summary: "Get connection tags"
       tags:
         - "connection-tag"
       operationId: "getConnectionTags"
+      parameters:
+        - name: "id"
+          description: "The id of a workspace."
+          in: "path"
+          required: true
+          schema:
+            type: "integer"
+            format: "int64"
       responses:
         "200":
           description: "The list of connection tags."
@@ -223,13 +231,21 @@ paths:
               schema:
                 type: integer
                 format: int64
-  /project-deployments/tags:
+  /workspaces/{id}/project-deployment-tags:
     get:
-      description: "Get project deployment tags."
+      description: "Get project deployment tags for a workspace."
       summary: "Get project deployment tags"
       tags:
       - "project-deployment-tag"
       operationId: "getProjectDeploymentTags"
+      parameters:
+        - name: "id"
+          description: "The id of a workspace."
+          in: "path"
+          required: true
+          schema:
+            type: "integer"
+            format: "int64"
       responses:
         "200":
           description: "The list of project deployment tags."
@@ -490,13 +506,21 @@ paths:
                 type: "array"
                 items:
                   $ref: "#/components/schemas/Category"
-  /projects/tags:
+  /workspaces/{id}/project-tags:
     get:
-      description: "Get project tags."
-      summary: "Get project tags."
+      description: "Get project tags for a workspace."
+      summary: "Get project tags for a workspace."
       tags:
       - "project-tag"
       operationId: "getProjectTags"
+      parameters:
+        - name: "id"
+          description: "The id of a workspace."
+          in: "path"
+          required: true
+          schema:
+            type: "integer"
+            format: "int64"
       responses:
         "200":
           description: "The list of project tags."
@@ -1347,6 +1371,14 @@ components:
           properties:
             category:
               $ref: "#/components/schemas/Category"
+            codeWorkflow:
+              description: "Whether the project is backed by a code workflow."
+              type: "boolean"
+              readOnly: true
+            codeWorkflowLanguage:
+              description: "The programming language of the code workflow, if the project is code-backed."
+              type: "string"
+              readOnly: true
             developmentDeploymentCount:
               description: "The number of the project's deployments in the Development environment. Only set by the workspace project list."
               type: "integer"
@@ -1361,6 +1393,10 @@ components:
               type: "array"
               items:
                 $ref: "#/components/schemas/Tag"
+            unpublishedChanges:
+              description: "If the project's draft version differs from its last published version. Computed only by the project list endpoints; false in every other response."
+              type: "boolean"
+              readOnly: true
             workspaceId:
               description: "The workspace id."
               type: "integer"

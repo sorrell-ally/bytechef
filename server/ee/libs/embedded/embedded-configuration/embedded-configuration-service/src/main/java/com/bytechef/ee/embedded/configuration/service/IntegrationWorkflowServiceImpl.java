@@ -41,6 +41,14 @@ public class IntegrationWorkflowServiceImpl implements IntegrationWorkflowServic
     }
 
     @Override
+    public IntegrationWorkflow addWorkflow(
+        long integrationId, int integrationVersion, String workflowId, UUID uuid) {
+
+        return integrationWorkflowRepository.save(
+            new IntegrationWorkflow(integrationId, integrationVersion, workflowId, uuid));
+    }
+
+    @Override
     public void delete(long integrationId, int integrationVersion, String workflowId) {
         integrationWorkflowRepository
             .findByIntegrationIdAndIntegrationVersionAndWorkflowId(integrationId, integrationVersion, workflowId)
@@ -60,6 +68,12 @@ public class IntegrationWorkflowServiceImpl implements IntegrationWorkflowServic
         } catch (IllegalArgumentException illegalArgumentException) {
             return Optional.empty();
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<IntegrationWorkflow> fetchWorkflowIntegrationWorkflow(String workflowId) {
+        return integrationWorkflowRepository.findByWorkflowId(workflowId);
     }
 
     @Override
@@ -144,13 +158,14 @@ public class IntegrationWorkflowServiceImpl implements IntegrationWorkflowServic
 
         Assert.notNull(integrationWorkflow, "'integrationWorkflow' must not be null");
 
-        update(integrationWorkflow);
+        IntegrationWorkflow draftIntegrationWorkflow = update(integrationWorkflow);
 
-        integrationWorkflow = new IntegrationWorkflow(
-            integrationId, oldIntegrationVersion, oldWorkflowId,
-            UUID.fromString(integrationWorkflow.getUuidAsString()));
+        IntegrationWorkflow publishedIntegrationWorkflow = new IntegrationWorkflow(
+            integrationId, oldIntegrationVersion, oldWorkflowId, draftIntegrationWorkflow.getUuid());
 
-        integrationWorkflowRepository.save(integrationWorkflow);
+        publishedIntegrationWorkflow.setPermissionExpression(draftIntegrationWorkflow.getPermissionExpression());
+
+        integrationWorkflowRepository.save(publishedIntegrationWorkflow);
     }
 
     @Override

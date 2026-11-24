@@ -18,16 +18,13 @@ package com.bytechef.platform.data.table.configuration.service;
 
 import com.bytechef.platform.data.table.configuration.domain.DataTable;
 import com.bytechef.platform.data.table.configuration.repository.DataTableRepository;
-import com.bytechef.platform.tag.domain.Tag;
-import com.bytechef.platform.tag.service.TagService;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 
 /**
@@ -37,91 +34,51 @@ import org.springframework.stereotype.Service;
 public class DataTableTagServiceImpl implements DataTableTagService {
 
     private final DataTableRepository dataTableRepository;
-    private final TagService tagService;
 
     @SuppressFBWarnings("EI")
-    public DataTableTagServiceImpl(DataTableRepository dataTableRepository, TagService tagService) {
+    public DataTableTagServiceImpl(DataTableRepository dataTableRepository) {
         this.dataTableRepository = dataTableRepository;
-        this.tagService = tagService;
     }
 
     @Override
-    public List<Tag> getAllTags() {
-        Set<Long> ids = new HashSet<>();
+    public List<Long> getTagIds(List<Long> dataTableIds) {
+        Set<Long> tagIds = new LinkedHashSet<>();
 
-        for (DataTable dataTable : dataTableRepository.findAll()) {
-            List<Long> tagIds = dataTable.getTagIds();
+        for (Long dataTableId : dataTableIds) {
+            DataTable dataTable = dataTableRepository.findById(dataTableId)
+                .orElse(null);
 
-            if (tagIds != null) {
-                ids.addAll(tagIds);
+            if (dataTable == null) {
+                continue;
+            }
+
+            List<Long> dataTableTagIds = dataTable.getTagIds();
+
+            if (dataTableTagIds != null) {
+                tagIds.addAll(dataTableTagIds);
             }
         }
 
-        if (ids.isEmpty()) {
-            return List.of();
-        }
-
-        return tagService.getTags(new ArrayList<>(ids));
+        return new ArrayList<>(tagIds);
     }
 
     @Override
-    public Map<String, List<Tag>> getTagsByTableName() {
-        Map<String, List<Tag>> map = new HashMap<>();
+    public Map<Long, List<Long>> getTagIdsByTableId() {
+        Map<Long, List<Long>> tagIdsByTableId = new HashMap<>();
 
-        List<DataTable> dataTables = new ArrayList<>();
-
-        dataTableRepository.findAll()
-            .forEach(dataTables::add);
-
-        Map<String, List<Long>> idsByName = dataTables.stream()
-            .collect(Collectors.toMap(
-                DataTable::getName,
-                dataTable -> dataTable.getTagIds() == null ? List.of() : dataTable.getTagIds()));
-
-        for (Map.Entry<String, List<Long>> entry : idsByName.entrySet()) {
-            List<Long> ids = entry.getValue();
-
-            map.put(entry.getKey(), ids == null || ids.isEmpty() ? List.of() : tagService.getTags(ids));
+        for (DataTable dataTable : dataTableRepository.findAll()) {
+            tagIdsByTableId.put(dataTable.getId(), dataTable.getTagIds());
         }
 
-        return map;
+        return tagIdsByTableId;
     }
 
     @Override
-    public void updateTags(long tableId, List<Tag> tags) {
+    public void updateTagIds(long tableId, List<Long> tagIds) {
         DataTable dataTable = dataTableRepository.findById(tableId)
             .orElseThrow(() -> new IllegalArgumentException("Data table with id=" + tableId + " not found"));
 
-        List<Tag> resolvedTags;
-
-        if (tags == null || tags.isEmpty()) {
-            resolvedTags = List.of();
-        } else {
-            List<Tag> tagsToSave = tags.stream()
-                .filter(t -> t.getId() == null)
-                .toList();
-
-            if (!tagsToSave.isEmpty()) {
-                List<Tag> savedTags = tagService.save(tagsToSave);
-
-                List<Tag> withIds = new ArrayList<>(tags);
-                int index = 0;
-
-                for (int i = 0; i < withIds.size(); i++) {
-                    Tag tag = withIds.get(i);
-
-                    if (tag.getId() == null) {
-                        withIds.set(i, savedTags.get(index++));
-                    }
-                }
-
-                resolvedTags = withIds;
-            } else {
-                resolvedTags = tags;
-            }
-        }
-
-        dataTable.setTags(resolvedTags);
+        dataTable.setTagIds(tagIds);
 
         dataTableRepository.save(dataTable);
     }

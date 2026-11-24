@@ -41,6 +41,7 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -89,6 +90,7 @@ class KnowledgeBaseDocumentFacadeImpl implements KnowledgeBaseDocumentFacade {
         @AuditData(key = "knowledgeBaseId", value = "#knowledgeBaseId"),
         @AuditData(key = "filename", value = "#filename")
     })
+    @PreAuthorize("hasPermission(#knowledgeBaseId, 'KnowledgeBase', 'KNOWLEDGE_BASE_EDIT')")
     public KnowledgeBaseDocument createKnowledgeBaseDocument(
         Long knowledgeBaseId, String filename, String contentType, long size, InputStream inputStream) {
 
@@ -156,6 +158,21 @@ class KnowledgeBaseDocumentFacadeImpl implements KnowledgeBaseDocumentFacade {
     }
 
     @Override
+    public KnowledgeBaseDocument saveKnowledgeBaseDocument(KnowledgeBaseDocument knowledgeBaseDocument) {
+        Long documentSize = knowledgeBaseDocument.getDocumentSize();
+
+        if (documentSize != null) {
+            long incomingBytes = documentSize - getStoredDocumentSize(knowledgeBaseDocument.getId());
+
+            if (incomingBytes > 0) {
+                knowledgeBaseStorageService.checkLimit(incomingBytes);
+            }
+        }
+
+        return knowledgeBaseDocumentService.saveKnowledgeBaseDocument(knowledgeBaseDocument);
+    }
+
+    @Override
     public void updateKnowledgeBaseDocumentTags(long knowledgeBaseDocumentId, List<String> tagNames) {
         knowledgeBaseDocumentTagService.updateTagNames(knowledgeBaseDocumentId, tagNames);
 
@@ -175,5 +192,15 @@ class KnowledgeBaseDocumentFacadeImpl implements KnowledgeBaseDocumentFacade {
 
             knowledgeBaseVectorStoreMetadataService.updateTagNames(vectorStoreId, updatedTagNames);
         }
+    }
+
+    private long getStoredDocumentSize(Long id) {
+        if (id == null) {
+            return 0;
+        }
+
+        return knowledgeBaseDocumentService.fetchKnowledgeBaseDocument(id)
+            .map(KnowledgeBaseDocument::getDocumentSize)
+            .orElse(0L);
     }
 }

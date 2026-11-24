@@ -130,7 +130,6 @@ const ProjectDeploymentsPanel = ({
                                 }}
                                 projectDeployments={projectDeployments}
                                 redirectOnSubmit={false}
-                                showTabs
                                 triggerNode={<Button icon={<RocketIcon />} label="Deploy" />}
                             />
                         }
@@ -164,6 +163,7 @@ const ProjectDeploymentsPanel = ({
                 >
                     <ProjectDeploymentList
                         componentDefinitions={componentDefinitions}
+                        divided
                         expandAll={expandAll}
                         hideOpenInProject
                         hideOpenWorkflowInProject={hideOpenWorkflowInProject}

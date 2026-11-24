@@ -9,6 +9,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
 const hoisted = vi.hoisted(() => ({
     captureIntegrationInstanceConfigurationEnabledMock: vi.fn(),
+    configurationDialogPropsMock: vi.fn(),
     configurationsQueryMock: vi.fn(),
     connectedUsers: [] as unknown[],
     deleteIntegrationInstanceConfigurationMock: vi.fn(),
@@ -77,7 +78,11 @@ vi.mock('@/shared/hooks/useAnalytics', () => ({
 vi.mock(
     '@/ee/pages/embedded/integration-instance-configurations/components/integration-instance-configuration-dialog/IntegrationInstanceConfigurationDialog',
     () => ({
-        default: () => <div data-testid="integration-instance-configuration-dialog" />,
+        default: (props: object) => {
+            hoisted.configurationDialogPropsMock(props);
+
+            return <div data-testid="integration-instance-configuration-dialog" />;
+        },
     })
 );
 
@@ -113,8 +118,8 @@ const renderItem = (
         </TooltipProvider>
     );
 
-const openMenu = async () => {
-    renderItem();
+const openMenu = async (...renderItemArguments: Parameters<typeof renderItem>) => {
+    renderItem(...renderItemArguments);
 
     screen
         .getAllByRole('button')
@@ -149,7 +154,7 @@ describe('IntegrationInstanceConfigurationListItem row click', () => {
 
         expect(getWorkflowsTrigger()).toHaveAttribute('aria-expanded', 'false');
 
-        await userEvent.click(screen.getByRole('menuitem', {name: 'Update Integration Version'}));
+        await userEvent.click(screen.getByRole('menuitem', {name: 'Change Integration Version'}));
 
         expect(await screen.findByTestId('integration-instance-configuration-dialog')).toBeInTheDocument();
         expect(getWorkflowsTrigger()).toHaveAttribute('aria-expanded', 'false');
@@ -183,11 +188,49 @@ describe('IntegrationInstanceConfigurationListItem integration icon', () => {
         expect(container.querySelector('svg.lucide-settings-2')).not.toBeInTheDocument();
     });
 
-    it('should show the configuration icon when showIntegrationIcon is false', () => {
+    it('should show no icon when showIntegrationIcon is false', () => {
         const {container} = renderItem({integration}, false);
 
         expect(screen.queryByTestId('integration-icon')).not.toBeInTheDocument();
-        expect(container.querySelector('svg.lucide-settings-2')).toBeInTheDocument();
+        expect(container.querySelector('svg.lucide-settings-2')).not.toBeInTheDocument();
+    });
+});
+
+describe('IntegrationInstanceConfigurationListItem last execution', () => {
+    beforeEach(() => {
+        windowResizeObserver();
+    });
+
+    afterEach(() => {
+        resetAll();
+        vi.clearAllMocks();
+    });
+
+    it('should show the latest execution date across the configuration workflows', () => {
+        const latestExecutionDate = new Date('2026-03-04T10:00:00Z');
+
+        renderItem({
+            integrationInstanceConfigurationWorkflows: [
+                {lastExecutionDate: new Date('2026-01-02T10:00:00Z'), workflowId: 'workflow-1'},
+                {lastExecutionDate: latestExecutionDate, workflowId: 'workflow-2'},
+                {workflowId: 'workflow-3'},
+            ],
+            lastModifiedDate: new Date('2026-05-06T10:00:00Z'),
+        } as Partial<IntegrationInstanceConfiguration>);
+
+        expect(
+            screen.getByText(
+                `Executed at ${latestExecutionDate.toLocaleDateString()} ${latestExecutionDate.toLocaleTimeString()}`
+            )
+        ).toBeInTheDocument();
+        expect(screen.queryByText(/Modified at/)).not.toBeInTheDocument();
+    });
+
+    it('should show No executions when no workflow has run, even if the configuration was modified', () => {
+        renderItem({lastModifiedDate: new Date('2026-05-06T10:00:00Z')} as Partial<IntegrationInstanceConfiguration>);
+
+        expect(screen.getByText('No executions')).toBeInTheDocument();
+        expect(screen.queryByText(/Modified at/)).not.toBeInTheDocument();
     });
 });
 
@@ -378,6 +421,16 @@ describe('IntegrationInstanceConfigurationListItem Move Users', () => {
         expect(await screen.findByText(/^2 MCP servers use one of these configurations\./)).toBeInTheDocument();
     });
 
+    it('lists MCP workflows in the edit dialog', async () => {
+        await openMenu();
+
+        await userEvent.click(screen.getByRole('menuitem', {name: 'Edit'}));
+
+        expect(hoisted.configurationDialogPropsMock).toHaveBeenLastCalledWith(
+            expect.not.objectContaining({excludeWorkflowIds: expect.anything()})
+        );
+    });
+
     it('disables Move Users with a tooltip when the integration has no other configuration in the environment', async () => {
         hoisted.integrationConfigurations = [{enabled: true, id: 1, integrationVersion: 1, name: 'Mine'}];
 
@@ -452,6 +505,7 @@ describe('IntegrationInstanceConfigurationListItem newer version', () => {
         renderItem();
 
         expect(screen.getByText('Newer version available')).toBeInTheDocument();
+        expect(screen.getByText('Newer version available')).not.toHaveClass('border-stroke-warning-primary');
     });
 
     it('should not show the newer version hint when only a draft is newer', () => {

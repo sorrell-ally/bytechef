@@ -175,6 +175,9 @@ bytechef:
         test-retention: 24h
         # Largest size of one Claude Code workspace; 0 means no limit
         max-size: 1GB
+    custom-component:
+      java:
+        enabled: true
   coordinator:
     # Whether this instance runs the coordinator (orchestrates job and trigger execution)
     enabled: true
@@ -206,6 +209,8 @@ bytechef:
     # Maximum JDBC connections. Shared by Quartz's 10 job-store threads, workflow task execution and request
     # threads, so it must stay comfortably above Quartz's thread count on its own.
     maximum-pool-size: 30
+  data-table:
+    maxSizeBytes:  52428800
   # Microservice discovery service provider. Possible value: REDIS.
   discovery-service:
     provider: REDIS
@@ -256,7 +261,16 @@ bytechef:
       control-provider: SQS
   oauth2:
     authorization-server:
-      enabled: false
+      # Built-in OAuth2 authorization server for MCP clients. It needs the self issuer below and a non-blank
+      # bytechef.public-url, which becomes the token issuer.
+      enabled: true
+    resource-server:
+      issuers:
+        - uri: ${bytechef.public-url}
+          # Tokens minted by the built-in authorization server
+          self: true
+          # JWT claim holding the ByteChef tenant id; the built-in authorization server mints it as tenant_id
+          tenant-claim: tenant_id
 #    predefinedApps:
 #      mailchimp:
 #        clientId: 123456789
@@ -303,8 +317,38 @@ bytechef:
       clustered: false
       # How often a clustered scheduler checks in, in milliseconds. default: 15000
       cluster-checkin-interval: 15000
+  script:
+    # Task runner allowlist. A runner absent from this map is disabled, which is the intended default for the
+    # out-of-process runners but not for GraalVM, the in-process runner every script action falls back to.
+    runners:
+      aws-batch:
+        # Enterprise. Runs script and commands tasks as AWS Batch jobs in the account the task's aws connection names.
+        enabled: false
+      graalvm:
+        enabled: true
+      kubernetes:
+        # Enterprise. Runs script and commands tasks as pods on the cluster the task's kubernetes connection names.
+        enabled: false
+    # Gives script and commands tasks on the process, docker, kubernetes and aws-batch runners the parameters of the
+    # connections they declare, in the JSON file BYTECHEF_CONNECTIONS_FILE names, masked in the captured output.
+    inject-connections: true
+    sandbox:
+      enabled: true
+      max-concurrent-executions: 16
+      max-cpu-time: 5m
+      max-heap-memory: 512MB
+    trusted:
+      # Lets a script task ask for mode: trusted, which runs it with full host access and no resource limits.
+      # Self-hosted default; set it to false on a multi-tenant deployment.
+      enabled: true
+    # Ceilings on what a remote task runner may cost this server: a held worker permit, captured log bytes, and
+    # bytes moved in or out of the execution. A runner may override them under its own properties.
+    runner-limits:
+      max-wait: PT1H
+      max-log-bytes: 1MB
+      max-transfer-bytes: 512MB
   security:
-    content-security-policy: "default-src 'self'; frame-src 'self' https://*.command.ai data:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.command.ai https://*.commandbar.com https://*.i.posthog.com https://cdn.jsdelivr.net https://storage.googleapis.com https://unpkg.com; style-src 'self' 'unsafe-inline' https://*.commandbar.com https://cdn.jsdelivr.net https://*.command.ai https://unpkg.com; img-src 'self' https://*.command.ai data:; font-src 'self' data:; media-src 'self' https://*.command.ai; connect-src 'self' https://*.command.ai https://*.i.posthog.com https://*.commandbar.com; worker-src blob: 'self';"
+    content-security-policy: "default-src 'self'; frame-src 'self' https://*.command.ai data:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.command.ai https://*.commandbar.com https://t.bytechef.io https://*.i.posthog.com https://cdn.jsdelivr.net https://storage.googleapis.com https://unpkg.com; style-src 'self' 'unsafe-inline' https://*.commandbar.com https://cdn.jsdelivr.net https://*.command.ai https://unpkg.com; img-src 'self' https://*.command.ai data:; font-src 'self' data:; media-src 'self' https://*.command.ai; connect-src 'self' https://*.command.ai https://t.bytechef.io https://*.i.posthog.com https://*.commandbar.com; worker-src blob: 'self';"
     social-login:
       enabled: false
       google:
@@ -373,6 +417,9 @@ bytechef:
       # kept separate so a burst of scheduled runs cannot leave an interactive caller waiting for a permit.
       sync-concurrency-limit: 5
   workflow:
+    code-workflow:
+      java:
+        enabled: true
     execution:
       agent:
         # Maximum nesting depth of sub-workflows called by AI agent tools default: 10

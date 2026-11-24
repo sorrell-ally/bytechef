@@ -12,8 +12,13 @@ import com.bytechef.commons.data.jdbc.converter.EncryptedStringToMapWrapperConve
 import com.bytechef.commons.data.jdbc.converter.MapWrapperToStringConverter;
 import com.bytechef.commons.data.jdbc.converter.StringToMapWrapperConverter;
 import com.bytechef.ee.embedded.ai.mcp.event.McpToolBeforeDeleteEventListener;
+import com.bytechef.ee.embedded.ai.mcp.service.McpAutomationProjectConfigurationServiceImpl;
+import com.bytechef.ee.embedded.ai.mcp.service.McpAutomationProjectConfigurationWorkflowServiceImpl;
+import com.bytechef.ee.embedded.ai.mcp.service.McpConnectedUserProjectWorkflowServiceImpl;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationComponentServiceImpl;
+import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceConfigurationWorkflowServiceImpl;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceToolServiceImpl;
+import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceWorkflowServiceImpl;
 import com.bytechef.ee.embedded.configuration.ownership.EmbeddedOwnerContributorConfiguration;
 import com.bytechef.ee.embedded.connected.user.security.ConnectedUserSecurity;
 import com.bytechef.encryption.Encryption;
@@ -35,18 +40,17 @@ import org.springframework.data.jdbc.repository.config.EnableJdbcAuditing;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * Boots the real {@link McpToolServiceImpl}, {@link McpIntegrationComponentServiceImpl},
- * {@link McpIntegrationInstanceToolServiceImpl} and {@link McpToolBeforeDeleteEventListener} on a PostgreSQL schema
- * built from every changelog on the test classpath.
- *
  * @version ee
  *
  * @author Ivica Cardic
  */
 @Import({
     ConnectedUserSecurity.class, EmbeddedOwnerContributorConfiguration.class, EncryptionImpl.class,
-    JacksonConfiguration.class, LiquibaseConfiguration.class, McpIntegrationComponentServiceImpl.class,
-    McpIntegrationInstanceToolServiceImpl.class, McpToolBeforeDeleteEventListener.class, McpToolServiceImpl.class,
+    JacksonConfiguration.class, LiquibaseConfiguration.class, McpAutomationProjectConfigurationServiceImpl.class,
+    McpAutomationProjectConfigurationWorkflowServiceImpl.class, McpConnectedUserProjectWorkflowServiceImpl.class,
+    McpIntegrationComponentServiceImpl.class,
+    McpIntegrationInstanceConfigurationWorkflowServiceImpl.class, McpIntegrationInstanceToolServiceImpl.class,
+    McpIntegrationInstanceWorkflowServiceImpl.class, McpToolBeforeDeleteEventListener.class, McpToolServiceImpl.class,
     PostgreSQLContainerConfiguration.class
 })
 @EnableAutoConfiguration

@@ -16,11 +16,12 @@ import com.bytechef.ee.embedded.configuration.dto.AutomationProjectConfiguration
 import com.bytechef.ee.embedded.configuration.dto.ConfigurationMoveImpactDTO;
 import com.bytechef.ee.embedded.configuration.dto.ConfigurationMoveResultDTO;
 import com.bytechef.ee.embedded.configuration.exception.AutomationProjectConfigurationErrorType;
-import com.bytechef.ee.embedded.configuration.facade.AutomationProjectConfigurationAdminFacade;
+import com.bytechef.ee.embedded.configuration.facade.AutomationProjectConfigurationFacade;
 import com.bytechef.exception.ConfigurationException;
 import com.bytechef.platform.annotation.ConditionalOnEEVersion;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
@@ -39,13 +40,13 @@ import org.springframework.stereotype.Controller;
 @ConditionalOnEEVersion
 public class AutomationProjectConfigurationGraphQlController {
 
-    private final AutomationProjectConfigurationAdminFacade automationProjectConfigurationAdminFacade;
+    private final AutomationProjectConfigurationFacade automationProjectConfigurationFacade;
 
     @SuppressFBWarnings("EI")
     public AutomationProjectConfigurationGraphQlController(
-        AutomationProjectConfigurationAdminFacade automationProjectConfigurationAdminFacade) {
+        AutomationProjectConfigurationFacade automationProjectConfigurationFacade) {
 
-        this.automationProjectConfigurationAdminFacade = automationProjectConfigurationAdminFacade;
+        this.automationProjectConfigurationFacade = automationProjectConfigurationFacade;
     }
 
     @QueryMapping
@@ -53,31 +54,55 @@ public class AutomationProjectConfigurationGraphQlController {
         @Argument String projectId, @Argument @Nullable String environmentId) {
 
         if (environmentId == null) {
-            return automationProjectConfigurationAdminFacade.getConfigurations(Long.parseLong(projectId));
+            return automationProjectConfigurationFacade.getConfigurations(Long.parseLong(projectId));
         }
 
-        return automationProjectConfigurationAdminFacade.getConfigurations(
+        return automationProjectConfigurationFacade.getConfigurations(
             Long.parseLong(projectId), Long.parseLong(environmentId));
     }
 
     @QueryMapping
     public AutomationProjectConfigurationWorkflowProvidableValuesDTO
         automationProjectConfigurationWorkflowProvidableValues(
-            @Argument String id, @Argument String workflowUuid) {
+            @Argument String id, @Argument String workflowUuid, @Argument @Nullable Integer projectVersion) {
 
-        return automationProjectConfigurationAdminFacade.getConfigurationWorkflowProvidableValues(
-            Long.parseLong(id), workflowUuid);
+        return automationProjectConfigurationFacade.getConfigurationWorkflowProvidableValues(
+            Long.parseLong(id), workflowUuid, projectVersion);
     }
 
     @QueryMapping
     public List<AutomationProjectConfigurationWorkflowProvidableValuesDTO.InputOption>
         automationProjectConfigurationWorkflowInputOptions(
-            @Argument String id, @Argument String workflowUuid, @Argument String inputName,
-            @Argument String propertyName, @Argument String connectionId,
+            @Argument String id, @Argument String workflowUuid, @Argument @Nullable Integer projectVersion,
+            @Argument String inputName, @Argument String propertyName, @Argument String connectionId,
             @Argument @Nullable Map<String, Object> lookupDependsOnValues, @Argument @Nullable String searchText) {
 
-        return automationProjectConfigurationAdminFacade.getConfigurationWorkflowInputOptions(
-            Long.parseLong(id), workflowUuid, inputName, propertyName, parseConnectionId(inputName, connectionId),
+        return automationProjectConfigurationFacade.getConfigurationWorkflowInputOptions(
+            Long.parseLong(id), workflowUuid, projectVersion, inputName, propertyName,
+            parseConnectionId(inputName, connectionId),
+            lookupDependsOnValues == null ? Map.of() : lookupDependsOnValues, searchText);
+    }
+
+    @QueryMapping
+    public AutomationProjectConfigurationWorkflowProvidableValuesDTO automationProjectWorkflowProvidableValues(
+        @Argument String projectId, @Argument String environmentId, @Argument int projectVersion,
+        @Argument String workflowUuid) {
+
+        return automationProjectConfigurationFacade.getProjectWorkflowProvidableValues(
+            Long.parseLong(projectId), Long.parseLong(environmentId), projectVersion, workflowUuid);
+    }
+
+    @QueryMapping
+    public List<AutomationProjectConfigurationWorkflowProvidableValuesDTO.InputOption>
+        automationProjectWorkflowInputOptions(
+            @Argument String projectId, @Argument String environmentId, @Argument int projectVersion,
+            @Argument String workflowUuid, @Argument String inputName, @Argument String propertyName,
+            @Argument String connectionId, @Argument @Nullable Map<String, Object> lookupDependsOnValues,
+            @Argument @Nullable String searchText) {
+
+        return automationProjectConfigurationFacade.getProjectWorkflowInputOptions(
+            Long.parseLong(projectId), Long.parseLong(environmentId), projectVersion, workflowUuid, inputName,
+            propertyName, parseConnectionId(inputName, connectionId),
             lookupDependsOnValues == null ? Map.of() : lookupDependsOnValues, searchText);
     }
 
@@ -85,28 +110,28 @@ public class AutomationProjectConfigurationGraphQlController {
     public AutomationProjectConfigurationVersionImpactDTO automationProjectConfigurationVersionImpact(
         @Argument String id, @Argument int projectVersion) {
 
-        return automationProjectConfigurationAdminFacade.getVersionImpact(Long.parseLong(id), projectVersion);
+        return automationProjectConfigurationFacade.getVersionImpact(Long.parseLong(id), projectVersion);
     }
 
     @QueryMapping
     public List<AutomationProjectConfigurationConnectedUserDTO>
         automationProjectConfigurationConnectedUsers(@Argument String id) {
 
-        return automationProjectConfigurationAdminFacade.getConfigurationConnectedUsers(Long.parseLong(id));
+        return automationProjectConfigurationFacade.getConfigurationConnectedUsers(Long.parseLong(id));
     }
 
     @QueryMapping
     public AutomationProjectConfigurationDeleteImpactDTO automationProjectConfigurationDeleteImpact(
         @Argument String id) {
 
-        return automationProjectConfigurationAdminFacade.getDeleteImpact(Long.parseLong(id));
+        return automationProjectConfigurationFacade.getDeleteImpact(Long.parseLong(id));
     }
 
     @QueryMapping
     public ConfigurationMoveImpactDTO automationProjectConfigurationUpgradeImpact(
         @Argument String targetId, @Argument List<String> connectedUserIds) {
 
-        return automationProjectConfigurationAdminFacade.getUpgradeImpact(
+        return automationProjectConfigurationFacade.getUpgradeImpact(
             Long.parseLong(targetId), toLongs(connectedUserIds));
     }
 
@@ -114,7 +139,7 @@ public class AutomationProjectConfigurationGraphQlController {
     public ConfigurationMoveImpactDTO automationProjectConfigurationMoveImpact(
         @Argument String sourceId, @Argument String targetId, @Argument List<String> connectedUserIds) {
 
-        return automationProjectConfigurationAdminFacade.getMoveImpact(
+        return automationProjectConfigurationFacade.getMoveImpact(
             Long.parseLong(sourceId), Long.parseLong(targetId), toLongs(connectedUserIds));
     }
 
@@ -125,21 +150,21 @@ public class AutomationProjectConfigurationGraphQlController {
         @Argument boolean automationHubVisible) {
 
         return String.valueOf(
-            automationProjectConfigurationAdminFacade.createConfiguration(
+            automationProjectConfigurationFacade.createConfiguration(
                 Long.parseLong(projectId), Long.parseLong(environmentId), name, permissionExpression, projectVersion,
                 enabled, automationHubVisible));
     }
 
     @MutationMapping
     public boolean deleteAutomationProjectConfiguration(@Argument String id) {
-        automationProjectConfigurationAdminFacade.deleteConfiguration(Long.parseLong(id));
+        automationProjectConfigurationFacade.deleteConfiguration(Long.parseLong(id));
 
         return true;
     }
 
     @MutationMapping
     public boolean enableAutomationProjectConfiguration(@Argument String id, @Argument boolean enable) {
-        automationProjectConfigurationAdminFacade.enableConfiguration(Long.parseLong(id), enable);
+        automationProjectConfigurationFacade.enableConfiguration(Long.parseLong(id), enable);
 
         return true;
     }
@@ -148,26 +173,72 @@ public class AutomationProjectConfigurationGraphQlController {
     public boolean enableAutomationProjectConfigurationWorkflow(
         @Argument String id, @Argument String workflowUuid, @Argument boolean enable) {
 
-        automationProjectConfigurationAdminFacade.enableConfigurationWorkflow(
+        automationProjectConfigurationFacade.enableConfigurationWorkflow(
             Long.parseLong(id), workflowUuid, enable);
 
         return true;
     }
 
     @MutationMapping
-    public ConfigurationMoveResultDTO moveAutomationProjectConfigurationConnectedUsers(
-        @Argument String sourceId, @Argument String targetId, @Argument List<String> connectedUserIds) {
+    public boolean enableConnectedUserAutomationProjectConfiguration(
+        @Argument String connectedUserId, @Argument String projectId, @Argument boolean enable) {
 
-        return automationProjectConfigurationAdminFacade.moveConnectedUsers(
-            Long.parseLong(sourceId), Long.parseLong(targetId), toLongs(connectedUserIds));
+        automationProjectConfigurationFacade.enableConnectedUserConfiguration(
+            Long.parseLong(connectedUserId), Long.parseLong(projectId), enable);
+
+        return true;
+    }
+
+    @MutationMapping
+    public ConfigurationMoveResultDTO changeAutomationProjectConfigurationConnectedUserVersion(
+        @Argument String sourceId, @Argument String connectedUserId, @Argument int projectVersion,
+        @Argument @Nullable String targetId, @Argument @Nullable List<ConfigurationMoveWorkflowInputs> workflowInputs) {
+
+        return automationProjectConfigurationFacade.changeConnectedUserVersion(
+            Long.parseLong(sourceId), Long.parseLong(connectedUserId), projectVersion,
+            targetId == null ? null : Long.valueOf(targetId), toWorkflowInputs(workflowInputs));
+    }
+
+    @MutationMapping
+    public ConfigurationMoveResultDTO moveAutomationProjectConfigurationConnectedUsers(
+        @Argument String sourceId, @Argument String targetId, @Argument List<String> connectedUserIds,
+        @Argument @Nullable List<ConfigurationMoveWorkflowInputs> workflowInputs) {
+
+        return automationProjectConfigurationFacade.moveConnectedUsers(
+            Long.parseLong(sourceId), Long.parseLong(targetId), toLongs(connectedUserIds),
+            toWorkflowInputs(workflowInputs));
     }
 
     @MutationMapping
     public ConfigurationMoveResultDTO upgradeAutomationProjectConfigurationConnectedUsers(
-        @Argument String targetId, @Argument List<String> connectedUserIds) {
+        @Argument String targetId, @Argument List<String> connectedUserIds,
+        @Argument @Nullable List<ConfigurationMoveWorkflowInputs> workflowInputs) {
 
-        return automationProjectConfigurationAdminFacade.upgradeConnectedUsers(
-            Long.parseLong(targetId), toLongs(connectedUserIds));
+        return automationProjectConfigurationFacade.upgradeConnectedUsers(
+            Long.parseLong(targetId), toLongs(connectedUserIds), toWorkflowInputs(workflowInputs));
+    }
+
+    private static Map<String, Map<String, Object>> toWorkflowInputs(
+        @Nullable List<ConfigurationMoveWorkflowInputs> workflowInputs) {
+
+        if (workflowInputs == null) {
+            return Map.of();
+        }
+
+        Map<String, Map<String, Object>> inputsByWorkflowUuid = new LinkedHashMap<>();
+
+        for (ConfigurationMoveWorkflowInputs workflowInput : workflowInputs) {
+            if (inputsByWorkflowUuid.putIfAbsent(workflowInput.workflowUuid(), workflowInput.inputs()) != null) {
+                throw new IllegalArgumentException(
+                    "Workflow %s has more than one set of inputs".formatted(workflowInput.workflowUuid()));
+            }
+        }
+
+        return inputsByWorkflowUuid;
+    }
+
+    @SuppressFBWarnings("EI")
+    public record ConfigurationMoveWorkflowInputs(String workflowUuid, Map<String, Object> inputs) {
     }
 
     @MutationMapping
@@ -175,7 +246,7 @@ public class AutomationProjectConfigurationGraphQlController {
         @Argument String id, @Argument String name, @Argument @Nullable String permissionExpression,
         @Argument int projectVersion, @Argument boolean enabled, @Argument boolean automationHubVisible) {
 
-        automationProjectConfigurationAdminFacade.updateConfiguration(
+        automationProjectConfigurationFacade.updateConfiguration(
             Long.parseLong(id), name, permissionExpression, projectVersion, enabled, automationHubVisible);
 
         return true;
@@ -186,7 +257,7 @@ public class AutomationProjectConfigurationGraphQlController {
         @Argument String id, @Argument String workflowUuid, @Argument Map<String, Object> providedConnections,
         @Argument Map<String, Object> providedInputs) {
 
-        automationProjectConfigurationAdminFacade.updateConfigurationWorkflow(
+        automationProjectConfigurationFacade.updateConfigurationWorkflow(
             Long.parseLong(id), workflowUuid, toConnectionIds(providedConnections),
             providedInputs == null ? Map.of() : providedInputs);
 

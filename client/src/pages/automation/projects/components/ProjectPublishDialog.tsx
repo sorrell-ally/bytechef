@@ -10,6 +10,7 @@ import {
 } from '@/components/Dialog';
 import {Label} from '@/components/ui/label';
 import {Textarea} from '@/components/ui/textarea';
+import {PUBLISH_DESCRIPTION_PLACEHOLDER} from '@/shared/constants';
 import {useAnalytics} from '@/shared/hooks/useAnalytics';
 import {Project} from '@/shared/middleware/automation/configuration';
 import {usePublishProjectMutation} from '@/shared/mutations/automation/projects.mutations';
@@ -52,7 +53,11 @@ const ProjectPublishDialog = ({onClose, project}: {onClose: () => void; project:
                         <div className="flex flex-col space-y-2">
                             <Label>Description</Label>
 
-                            <Textarea className="h-28" onChange={(event) => setDescription(event.target.value)} />
+                            <Textarea
+                                className="h-28"
+                                onChange={(event) => setDescription(event.target.value)}
+                                placeholder={PUBLISH_DESCRIPTION_PLACEHOLDER}
+                            />
                         </div>
                     </DialogBody>
 

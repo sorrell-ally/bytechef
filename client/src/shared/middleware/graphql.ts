@@ -469,6 +469,27 @@ export type A2aServersQueryVariables = Exact<{
 
 export type A2aServersQuery = { a2aServers: Array<{ authenticationRequired: boolean, description: string | null, enabled: boolean, environmentId: string, id: string, lastModifiedDate: any, name: string, secretKey: string | null, tags: Array<{ id: string, name: string } | null> | null } | null> | null };
 
+export type AutomationGettingStartedQueryVariables = Exact<{
+  workspaceId: string | number;
+}>;
+
+
+export type AutomationGettingStartedQuery = { automationGettingStarted: { completed: boolean, deployed: boolean, httpClientAdded: boolean, live: boolean, loggerAdded: boolean, projectCreated: boolean, published: boolean, workflowCreated: boolean, firstRun: { date: string, errorMessage: string | null, jobId: string, projectDeploymentEnabled: boolean | null, projectDeploymentId: string, status: string } | null, lastFailedRun: { date: string, errorMessage: string | null, jobId: string, projectDeploymentEnabled: boolean | null, projectDeploymentId: string, status: string } | null } };
+
+export type AutomationGettingStartedCompletedQueryVariables = Exact<{
+  workspaceId: string | number;
+}>;
+
+
+export type AutomationGettingStartedCompletedQuery = { automationGettingStartedCompleted: boolean };
+
+export type ConnectionWorkflowsQueryVariables = Exact<{
+  connectionId: string | number;
+}>;
+
+
+export type ConnectionWorkflowsQuery = { connectionWorkflows: Array<{ id: string, projectId: string, projectName: string, projectVersion: number, usage: Types.ConnectionWorkflowUsage, workflowId: string, workflowName: string, workflowUuid: string | null }> };
+
 export type CreateA2aProjectMutationVariables = Exact<{
   input: Types.CreateA2aProjectInput;
 }>;
@@ -569,6 +590,15 @@ export type DisconnectConnectionMutationVariables = Exact<{
 
 export type DisconnectConnectionMutation = { disconnectConnection: boolean };
 
+export type DisconnectConnectionFromWorkflowMutationVariables = Exact<{
+  connectionId: string | number;
+  id: string | number;
+  usage: Types.ConnectionWorkflowUsage;
+}>;
+
+
+export type DisconnectConnectionFromWorkflowMutation = { disconnectConnectionFromWorkflow: boolean };
+
 export type ExportSharedProjectMutationVariables = Exact<{
   id: string | number;
   description?: string | null | undefined;
@@ -609,7 +639,20 @@ export type McpProjectWorkflowPropertiesQueryVariables = Exact<{
 
 
 export type McpProjectWorkflowPropertiesQuery = { mcpProjectWorkflowProperties: Array<
-    | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, arrayDefaultValue: Array<any> | null }
+    | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, arrayDefaultValue: Array<any> | null, items: Array<
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, arrayDefaultValue: Array<any> | null }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, booleanDefaultValue: boolean | null }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, integerDefaultValue: any }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, numberDefaultValue: number | null }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, objectDefaultValue: any }
+        | { controlType: Types.ControlType, defaultValue: string | null, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+      > | null }
     | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, booleanDefaultValue: boolean | null }
     | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
     | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
@@ -618,7 +661,20 @@ export type McpProjectWorkflowPropertiesQuery = { mcpProjectWorkflowProperties: 
     | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, integerDefaultValue: any }
     | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
     | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, numberDefaultValue: number | null }
-    | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, objectDefaultValue: any }
+    | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, objectDefaultValue: any, properties: Array<
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, arrayDefaultValue: Array<any> | null }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, booleanDefaultValue: boolean | null }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, integerDefaultValue: any }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, numberDefaultValue: number | null }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, objectDefaultValue: any }
+        | { controlType: Types.ControlType, defaultValue: string | null, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+      > | null }
     | { controlType: Types.ControlType, defaultValue: string | null, label: string | null, maxLength: number | null, minLength: number | null, placeholder: string | null, regex: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
     | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
    | null> | null };
@@ -714,6 +770,53 @@ export type ToolEligibleProjectVersionWorkflowsQueryVariables = Exact<{
 
 
 export type ToolEligibleProjectVersionWorkflowsQuery = { toolEligibleProjectVersionWorkflows: Array<{ id: string, workflow: { id: string, label: string } }> };
+
+export type ToolEligibleWorkflowPropertiesQueryVariables = Exact<{
+  projectId: string | number;
+  workflowId: string;
+}>;
+
+
+export type ToolEligibleWorkflowPropertiesQuery = { toolEligibleWorkflowProperties: Array<
+    | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, arrayDefaultValue: Array<any> | null, items: Array<
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, arrayDefaultValue: Array<any> | null }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, booleanDefaultValue: boolean | null }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, integerDefaultValue: any }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, numberDefaultValue: number | null }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, objectDefaultValue: any }
+        | { controlType: Types.ControlType, defaultValue: string | null, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+      > | null }
+    | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, booleanDefaultValue: boolean | null }
+    | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+    | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+    | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+    | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+    | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, integerDefaultValue: any }
+    | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+    | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, numberDefaultValue: number | null }
+    | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, objectDefaultValue: any, properties: Array<
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, arrayDefaultValue: Array<any> | null }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, booleanDefaultValue: boolean | null }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, integerDefaultValue: any }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, numberDefaultValue: number | null }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, objectDefaultValue: any }
+        | { controlType: Types.ControlType, defaultValue: string | null, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+      > | null }
+    | { controlType: Types.ControlType, defaultValue: string | null, label: string | null, maxLength: number | null, minLength: number | null, placeholder: string | null, regex: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+    | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+   | null> | null };
 
 export type UpdateA2aProjectMutationVariables = Exact<{
   id: string | number;
@@ -869,9 +972,21 @@ export type CreateDataTableMutationVariables = Exact<{
 
 export type CreateDataTableMutation = { createDataTable: boolean };
 
+export type DataTableLinkOptionsQueryVariables = Exact<{
+  environmentId: string | number;
+  tableId: string | number;
+  columnName: string;
+  search?: string | null | undefined;
+  limit?: number | null | undefined;
+}>;
+
+
+export type DataTableLinkOptionsQuery = { dataTableLinkOptions: Array<{ id: string, label: string }> };
+
 export type DataTableRowsQueryVariables = Exact<{
   environmentId: string | number;
   tableId: string | number;
+  expand?: Array<string> | string | null | undefined;
 }>;
 
 
@@ -882,17 +997,27 @@ export type DataTableRowsPageQueryVariables = Exact<{
   tableId: string | number;
   limit?: number | null | undefined;
   offset?: number | null | undefined;
+  expand?: Array<string> | string | null | undefined;
 }>;
 
 
 export type DataTableRowsPageQuery = { dataTableRowsPage: { hasMore: boolean, nextOffset: number | null, items: Array<{ id: string, values: any }> } };
 
-export type DataTableTagsQueryVariables = Exact<{ [key: string]: never; }>;
+export type DataTableStorageUsageQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type DataTableStorageUsageQuery = { dataTableStorageUsage: { limitBytes: any, percentage: number, unlimited: boolean, usedBytes: any } };
+
+export type DataTableTagsQueryVariables = Exact<{
+  workspaceId: string | number;
+}>;
 
 
 export type DataTableTagsQuery = { dataTableTags: Array<{ id: string, name: string }> };
 
-export type DataTableTagsByTableQueryVariables = Exact<{ [key: string]: never; }>;
+export type DataTableTagsByTableQueryVariables = Exact<{
+  workspaceId: string | number;
+}>;
 
 
 export type DataTableTagsByTableQuery = { dataTableTagsByTable: Array<{ tableId: string, tags: Array<{ id: string, name: string }> }> };
@@ -903,7 +1028,7 @@ export type DataTablesQueryVariables = Exact<{
 }>;
 
 
-export type DataTablesQuery = { dataTables: Array<{ id: string, baseName: string, lastModifiedDate: any, columns: Array<{ id: string, name: string, type: Types.ColumnType }> }> };
+export type DataTablesQuery = { dataTables: Array<{ id: string, baseName: string, lastModifiedDate: any, columns: Array<{ id: string, name: string, type: Types.ColumnType, link: { targetDataTableId: string, targetDataTableName: string, onDelete: Types.LinkDeleteRule, displayColumnName: string | null } | null }> }> };
 
 export type DeleteDataTableRowMutationVariables = Exact<{
   input: Types.DeleteRowInput;
@@ -1111,12 +1236,16 @@ export type KnowledgeBaseStorageUsageQueryVariables = Exact<{ [key: string]: nev
 
 export type KnowledgeBaseStorageUsageQuery = { knowledgeBaseStorageUsage: { limitBytes: any, percentage: number, unlimited: boolean, usedBytes: any } };
 
-export type KnowledgeBaseTagsQueryVariables = Exact<{ [key: string]: never; }>;
+export type KnowledgeBaseTagsQueryVariables = Exact<{
+  workspaceId: string | number;
+}>;
 
 
 export type KnowledgeBaseTagsQuery = { knowledgeBaseTags: Array<{ id: string, name: string }> | null };
 
-export type KnowledgeBaseTagsByKnowledgeBaseQueryVariables = Exact<{ [key: string]: never; }>;
+export type KnowledgeBaseTagsByKnowledgeBaseQueryVariables = Exact<{
+  workspaceId: string | number;
+}>;
 
 
 export type KnowledgeBaseTagsByKnowledgeBaseQuery = { knowledgeBaseTagsByKnowledgeBase: Array<{ knowledgeBaseId: string, tags: Array<{ id: string, name: string }> }> | null };
@@ -1186,10 +1315,97 @@ export type AutomationSearchQuery = { automationSearch: Array<
     | { projectId: string, label: string, id: string, name: string, description: string | null, type: Types.SearchAssetType }
   > };
 
+export type CodeWorkflowSourceQueryVariables = Exact<{
+  projectId: string | number;
+}>;
+
+
+export type CodeWorkflowSourceQuery = { codeWorkflowSource: string };
+
+export type CreateCodeWorkflowMutationVariables = Exact<{
+  workspaceId: string | number;
+  name: string;
+  language: Types.CodeWorkflowLanguage;
+  description?: string | null | undefined;
+  categoryId?: string | number | null | undefined;
+  tags?: Array<string> | string | null | undefined;
+}>;
+
+
+export type CreateCodeWorkflowMutation = { createCodeWorkflow: string };
+
+export type UpdateCodeWorkflowSourceMutationVariables = Exact<{
+  projectId: string | number;
+  content: string;
+}>;
+
+
+export type UpdateCodeWorkflowSourceMutation = { updateCodeWorkflowSource: boolean };
+
+export type DeleteEmbeddedAiAutoMemoryMutationVariables = Exact<{
+  id: string | number;
+  principalType: Types.AiAutoMemoryPrincipalType;
+  principalId: string | number;
+  environment: number;
+}>;
+
+
+export type DeleteEmbeddedAiAutoMemoryMutation = { deleteEmbeddedAiAutoMemory: boolean };
+
+export type EmbeddedAiAutoMemoriesQueryVariables = Exact<{
+  environment: number;
+  connectedUserId?: string | number | null | undefined;
+  memoryType?: Types.AiAutoMemoryType | null | undefined;
+}>;
+
+
+export type EmbeddedAiAutoMemoriesQuery = { embeddedAiAutoMemories: Array<{ id: string, name: string, title: string, description: string | null, memoryType: Types.AiAutoMemoryType, content: string, environmentId: any, version: any, createdAt: any, updatedAt: any, principalType: Types.AiAutoMemoryPrincipalType, principalId: any, connectedUser: { id: string, name: string | null, email: string | null, externalId: string } | null, integration: { id: string, name: string | null, componentName: string | null } | null, automation: { id: string, name: string | null } | null }> };
+
+export type EmbeddedAiAutoMemoryConnectedUsersQueryVariables = Exact<{
+  environment: number;
+}>;
+
+
+export type EmbeddedAiAutoMemoryConnectedUsersQuery = { embeddedAiAutoMemoryConnectedUsers: Array<{ id: string, name: string | null, email: string | null, externalId: string, memoryCount: number }> };
+
+export type UpdateEmbeddedAiAutoMemoryMutationVariables = Exact<{
+  input: Types.UpdateEmbeddedAiAutoMemoryInput;
+}>;
+
+
+export type UpdateEmbeddedAiAutoMemoryMutation = { updateEmbeddedAiAutoMemory: { id: string, version: any } };
+
 export type AutomationProjectCategoriesQueryVariables = Exact<{ [key: string]: never; }>;
 
 
 export type AutomationProjectCategoriesQuery = { automationProjectCategories: Array<{ id: string, name: string }> };
+
+export type AutomationProjectCodeWorkflowSourceQueryVariables = Exact<{
+  automationProjectId: string | number;
+}>;
+
+
+export type AutomationProjectCodeWorkflowSourceQuery = { automationProjectCodeWorkflowSource: { content: string, language: Types.CodeWorkflowLanguage } };
+
+export type CreateAutomationProjectCodeWorkflowMutationVariables = Exact<{
+  name: string;
+  language: Types.CodeWorkflowLanguage;
+  description?: string | null | undefined;
+  category?: string | null | undefined;
+  tags?: Array<string> | string | null | undefined;
+  permissionExpression?: string | null | undefined;
+}>;
+
+
+export type CreateAutomationProjectCodeWorkflowMutation = { createAutomationProjectCodeWorkflow: string };
+
+export type UpdateAutomationProjectCodeWorkflowSourceMutationVariables = Exact<{
+  automationProjectId: string | number;
+  content: string;
+}>;
+
+
+export type UpdateAutomationProjectCodeWorkflowSourceMutation = { updateAutomationProjectCodeWorkflowSource: boolean };
 
 export type AutomationProjectConfigurationConnectedUsersQueryVariables = Exact<{
   id: string | number;
@@ -1212,7 +1428,7 @@ export type AutomationProjectConfigurationMoveImpactQueryVariables = Exact<{
 }>;
 
 
-export type AutomationProjectConfigurationMoveImpactQuery = { automationProjectConfigurationMoveImpact: { workflows: Array<{ workflowUuid: string, label: string, newRequiredInputs: Array<string>, newRequiredConnections: Array<string>, affectedConnectedUserCount: number }>, skipped: Array<{ connectedUserId: string, reason: string, workflowLabels: Array<string> }> } };
+export type AutomationProjectConfigurationMoveImpactQuery = { automationProjectConfigurationMoveImpact: { workflows: Array<{ workflowUuid: string, label: string, newRequiredInputs: Array<string>, newRequiredConnections: Array<string>, affectedConnectedUserCount: number, awaitsConfiguration: boolean }>, skipped: Array<{ connectedUserId: string, reason: string, workflowLabels: Array<string> }> } };
 
 export type AutomationProjectConfigurationUpgradeImpactQueryVariables = Exact<{
   targetId: string | number;
@@ -1220,7 +1436,7 @@ export type AutomationProjectConfigurationUpgradeImpactQueryVariables = Exact<{
 }>;
 
 
-export type AutomationProjectConfigurationUpgradeImpactQuery = { automationProjectConfigurationUpgradeImpact: { workflows: Array<{ workflowUuid: string, label: string, newRequiredInputs: Array<string>, newRequiredConnections: Array<string>, affectedConnectedUserCount: number }>, skipped: Array<{ connectedUserId: string, reason: string, workflowLabels: Array<string> }> } };
+export type AutomationProjectConfigurationUpgradeImpactQuery = { automationProjectConfigurationUpgradeImpact: { workflows: Array<{ workflowUuid: string, label: string, newRequiredInputs: Array<string>, newRequiredConnections: Array<string>, affectedConnectedUserCount: number, awaitsConfiguration: boolean }>, skipped: Array<{ connectedUserId: string, reason: string, workflowLabels: Array<string> }> } };
 
 export type AutomationProjectConfigurationVersionImpactQueryVariables = Exact<{
   id: string | number;
@@ -1228,11 +1444,12 @@ export type AutomationProjectConfigurationVersionImpactQueryVariables = Exact<{
 }>;
 
 
-export type AutomationProjectConfigurationVersionImpactQuery = { automationProjectConfigurationVersionImpact: { workflows: Array<{ workflowUuid: string, label: string, newRequiredInputs: Array<string>, newRequiredConnections: Array<string>, affectedConnectedUserCount: number }> } };
+export type AutomationProjectConfigurationVersionImpactQuery = { automationProjectConfigurationVersionImpact: { workflows: Array<{ workflowUuid: string, label: string, newRequiredInputs: Array<string>, newRequiredConnections: Array<string>, affectedConnectedUserCount: number, awaitsConfiguration: boolean }> } };
 
 export type AutomationProjectConfigurationWorkflowInputOptionsQueryVariables = Exact<{
   id: string | number;
   workflowUuid: string | number;
+  projectVersion?: number | null | undefined;
   inputName: string;
   propertyName: string;
   connectionId: string | number;
@@ -1246,10 +1463,11 @@ export type AutomationProjectConfigurationWorkflowInputOptionsQuery = { automati
 export type AutomationProjectConfigurationWorkflowProvidableValuesQueryVariables = Exact<{
   id: string | number;
   workflowUuid: string | number;
+  projectVersion?: number | null | undefined;
 }>;
 
 
-export type AutomationProjectConfigurationWorkflowProvidableValuesQuery = { automationProjectConfigurationWorkflowProvidableValues: { providedConnections: any, providedInputs: any, connectionSlots: Array<{ componentName: string, title: string, required: boolean, providableConnections: Array<{ id: string, name: string }> }>, inputs: Array<{ name: string, label: string | null, type: string | null, required: boolean, componentName: string | null, componentVersion: number | null, groupName: string | null, optionConnections: Array<{ id: string, name: string }> }> } };
+export type AutomationProjectConfigurationWorkflowProvidableValuesQuery = { automationProjectConfigurationWorkflowProvidableValues: { providedConnections: any, providedInputs: any, connectionSlots: Array<{ componentName: string, title: string, required: boolean, providableConnections: Array<{ id: string, name: string }> }>, inputs: Array<{ name: string, label: string | null, type: string | null, required: boolean, internalOnly: boolean, componentName: string | null, componentVersion: number | null, groupName: string | null, optionConnections: Array<{ id: string, name: string }> }> } };
 
 export type AutomationProjectConfigurationsQueryVariables = Exact<{
   projectId: string | number;
@@ -1281,6 +1499,14 @@ export type AutomationProjectVersionWorkflowChangesQueryVariables = Exact<{
 
 export type AutomationProjectVersionWorkflowChangesQuery = { automationProjectVersionWorkflowChanges: { baseVersion: number | null, version: number, workflows: Array<{ workflowUuid: string, label: string | null, changeType: Types.WorkflowChangeType, changeCount: number }> } };
 
+export type AutomationProjectVersionWorkflowsQueryVariables = Exact<{
+  id: string | number;
+  projectVersion: number;
+}>;
+
+
+export type AutomationProjectVersionWorkflowsQuery = { automationProjectVersionWorkflows: Array<{ workflowUuid: string, label: string | null }> };
+
 export type AutomationProjectVersionsQueryVariables = Exact<{
   id: string | number;
 }>;
@@ -1288,12 +1514,37 @@ export type AutomationProjectVersionsQueryVariables = Exact<{
 
 export type AutomationProjectVersionsQuery = { automationProjectVersions: Array<{ version: number, status: string, publishedDate: string | null, description: string | null }> };
 
+export type AutomationProjectWorkflowInputOptionsQueryVariables = Exact<{
+  projectId: string | number;
+  environmentId: string | number;
+  projectVersion: number;
+  workflowUuid: string | number;
+  inputName: string;
+  propertyName: string;
+  connectionId: string | number;
+  lookupDependsOnValues?: any;
+  searchText?: string | null | undefined;
+}>;
+
+
+export type AutomationProjectWorkflowInputOptionsQuery = { automationProjectWorkflowInputOptions: Array<{ label: string | null, value: string, description: string | null }> };
+
+export type AutomationProjectWorkflowProvidableValuesQueryVariables = Exact<{
+  projectId: string | number;
+  environmentId: string | number;
+  projectVersion: number;
+  workflowUuid: string | number;
+}>;
+
+
+export type AutomationProjectWorkflowProvidableValuesQuery = { automationProjectWorkflowProvidableValues: { providedConnections: any, providedInputs: any, connectionSlots: Array<{ componentName: string, title: string, required: boolean, providableConnections: Array<{ id: string, name: string }> }>, inputs: Array<{ name: string, label: string | null, type: string | null, required: boolean, internalOnly: boolean, componentName: string | null, componentVersion: number | null, groupName: string | null, optionConnections: Array<{ id: string, name: string }> }> } };
+
 export type AutomationProjectsQueryVariables = Exact<{
   environmentId?: string | number | null | undefined;
 }>;
 
 
-export type AutomationProjectsQuery = { automationProjects: Array<{ id: string, name: string, description: string | null, categoryId: string | null, tagIds: Array<string>, published: boolean, version: number, lastPublishedVersion: number | null, permissionExpression: string | null, configurationCount: number, lastPublishedDate: string | null, workflowTemplates: Array<{ workflowUuid: string, workflowId: string, label: string | null, description: string | null, permissionExpression: string | null, lastModifiedDate: string | null, triggers: Array<{ name: string, title: string | null, icon: string | null }>, components: Array<{ name: string, title: string | null, icon: string | null }> }> }> };
+export type AutomationProjectsQuery = { automationProjects: Array<{ id: string, name: string, description: string | null, categoryId: string | null, tagIds: Array<string>, published: boolean, version: number, lastPublishedVersion: number | null, permissionExpression: string | null, codeWorkflowProject: boolean, codeWorkflowLanguage: Types.CodeWorkflowLanguage | null, codeWorkflowDraftPublishable: boolean | null, configurationCount: number, lastPublishedDate: string | null, unpublishedChanges: boolean, workflowTemplates: Array<{ workflowUuid: string, workflowId: string, label: string | null, description: string | null, permissionExpression: string | null, lastModifiedDate: string | null, triggers: Array<{ name: string, title: string | null, icon: string | null }>, components: Array<{ name: string, title: string | null, icon: string | null }> }> }> };
 
 export type CreateAutomationProjectMutationVariables = Exact<{
   name: string;
@@ -1366,12 +1617,46 @@ export type PublishAutomationProjectMutationVariables = Exact<{
 
 export type PublishAutomationProjectMutation = { publishAutomationProject: boolean };
 
+export type ChangeAutomationProjectConfigurationConnectedUserVersionMutationVariables = Exact<{
+  sourceId: string | number;
+  connectedUserId: string | number;
+  projectVersion: number;
+  targetId?: string | number | null | undefined;
+  workflowInputs?: Array<Types.ConfigurationMoveWorkflowInputs> | Types.ConfigurationMoveWorkflowInputs | null | undefined;
+}>;
+
+
+export type ChangeAutomationProjectConfigurationConnectedUserVersionMutation = { changeAutomationProjectConfigurationConnectedUserVersion: { movedConnectedUserIds: Array<string>, needsAttentionConnectedUserIds: Array<string>, skipped: Array<{ connectedUserId: string, reason: string, workflowLabels: Array<string> }> } };
+
+export type ConnectedUserCatalogWorkflowCopiesQueryVariables = Exact<{
+  automationUuids: Array<string | number> | string | number;
+  environmentId: string | number;
+}>;
+
+
+export type ConnectedUserCatalogWorkflowCopiesQuery = { connectedUserCatalogWorkflowCopies: Array<{ copiedFromWorkflowUuid: string, workflowUuid: string, externalUserId: string, connectedUserName: string | null, connectedUserEmail: string | null, enabled: boolean }> };
+
+export type ConnectedUserCodeWorkflowReferencesQueryVariables = Exact<{
+  automationUuids: Array<string | number> | string | number;
+  environmentId: string | number;
+}>;
+
+
+export type ConnectedUserCodeWorkflowReferencesQuery = { connectedUserCodeWorkflowReferences: Array<{ automationUuid: string, externalUserId: string, environment: string, enabled: boolean, dangling: boolean, danglingReason: string | null }> };
+
 export type ConnectedUserMcpServersQueryVariables = Exact<{
   connectedUserId: string | number;
 }>;
 
 
-export type ConnectedUserMcpServersQuery = { connectedUserMcpServers: Array<{ id: string, name: string, enabled: boolean, environmentId: string, lastModifiedDate: string | null, tools: Array<{ id: string, componentName: string, componentVersion: number, integrationInstanceId: string, name: string, enabled: boolean }>, workflows: Array<{ integrationInstanceId: string, componentName: string, integrationVersion: number, workflowId: string, name: string, description: string | null, enabled: boolean, lastExecutionDate: string | null }> }> };
+export type ConnectedUserMcpServersQuery = { connectedUserMcpServers: Array<{ id: string, name: string, enabled: boolean, environmentId: string, lastModifiedDate: string | null, tools: Array<{ id: string, componentName: string, componentVersion: number, integrationInstanceId: string, name: string, enabled: boolean }>, workflows: Array<{ id: string, integrationInstanceId: string, componentName: string, integrationVersion: number, workflowId: string, name: string, description: string | null, enabled: boolean, lastExecutionDate: string | null }>, automations: Array<{ id: string, connectedUserProjectWorkflowId: string, automationName: string, workflowUuid: string, name: string, description: string | null, enabled: boolean, available: boolean, lastExecutionDate: string | null }> }> };
+
+export type ConnectedUserProjectWorkflowReferenceValuesQueryVariables = Exact<{
+  id: string | number;
+}>;
+
+
+export type ConnectedUserProjectWorkflowReferenceValuesQuery = { connectedUserProjectWorkflowReferenceValues: { inputs: any, connections: Array<{ componentName: string, connectionId: string }> } };
 
 export type ConnectedUserProjectsQueryVariables = Exact<{
   connectedUserId?: string | number | null | undefined;
@@ -1379,7 +1664,7 @@ export type ConnectedUserProjectsQueryVariables = Exact<{
 }>;
 
 
-export type ConnectedUserProjectsQuery = { connectedUserProjects: Array<{ id: string, environmentId: string, lastExecutionDate: string | null, projectId: string, projectVersion: number | null, connectedUser: { id: string, environmentId: string, externalId: string }, connectedUserProjectWorkflows: Array<{ id: string, automationUuid: string | null, connectedUserId: string, copiedFromWorkflowUuid: string | null, enabled: boolean, lastExecutionDate: string | null, projectId: string, staticWebhookUrl: string | null, workflowUuid: string, workflowVersion: number | null, workflow: { id: string, label: string, triggers: Array<{ name: string, type: string, parameters: any }> } }>, automationProjectConfigurations: Array<{ projectId: string, configurationId: string, configurationName: string, configurationProjectVersion: number }> }> };
+export type ConnectedUserProjectsQuery = { connectedUserProjects: Array<{ id: string, environmentId: string, lastExecutionDate: string | null, projectId: string, projectVersion: number | null, connectedUser: { id: string, environmentId: string, externalId: string }, connectedUserProjectWorkflows: Array<{ id: string, attentionReason: string | null, automationUuid: string | null, connectedUserId: string, copiedFromWorkflowUuid: string | null, enabled: boolean, lastExecutionDate: string | null, projectId: string, provisionedBy: string | null, staticWebhookUrl: string | null, toolOnly: boolean, workflowUuid: string, workflowVersion: number | null, workflow: { id: string, label: string, triggers: Array<{ name: string, type: string, parameters: any }> } }>, automationProjectConfigurations: Array<{ projectId: string, configurationId: string, configurationName: string, configurationProjectVersion: number, configurationEnabled: boolean, enabled: boolean }> }> };
 
 export type CreateAutomationProjectConfigurationMutationVariables = Exact<{
   projectId: string | number;
@@ -1408,6 +1693,13 @@ export type CreateEmbeddedMcpServerMutationVariables = Exact<{
 
 
 export type CreateEmbeddedMcpServerMutation = { createEmbeddedMcpServer: { enabled: boolean, environmentId: string, id: string, name: string, type: Types.PlatformType } | null };
+
+export type CreateMcpAutomationProjectConfigurationMutationVariables = Exact<{
+  input: Types.CreateMcpAutomationProjectConfigurationInput;
+}>;
+
+
+export type CreateMcpAutomationProjectConfigurationMutation = { createMcpAutomationProjectConfiguration: { id: string, mcpServerId: string, automationProjectConfigurationId: string, automationProjectConfigurationName: string, automationProjectConfigurationEnabled: boolean, projectId: string, projectVersion: number, workflows: Array<{ id: string, workflowUuid: string, label: string | null, parameters: any, enabled: boolean, available: boolean }> } };
 
 export type CreateMcpIntegrationInstanceConfigurationMutationVariables = Exact<{
   input: Types.CreateMcpIntegrationInstanceConfigurationInput;
@@ -1459,6 +1751,20 @@ export type DeleteEmbeddedMcpToolMutationVariables = Exact<{
 
 export type DeleteEmbeddedMcpToolMutation = { deleteEmbeddedMcpTool: boolean | null };
 
+export type DeleteMcpAutomationProjectConfigurationMutationVariables = Exact<{
+  id: string | number;
+}>;
+
+
+export type DeleteMcpAutomationProjectConfigurationMutation = { deleteMcpAutomationProjectConfiguration: boolean | null };
+
+export type DeleteMcpAutomationProjectConfigurationWorkflowMutationVariables = Exact<{
+  id: string | number;
+}>;
+
+
+export type DeleteMcpAutomationProjectConfigurationWorkflowMutation = { deleteMcpAutomationProjectConfigurationWorkflow: boolean | null };
+
 export type DeleteMcpIntegrationInstanceConfigurationMutationVariables = Exact<{
   id: string | number;
 }>;
@@ -1486,6 +1792,16 @@ export type DuplicateAutomationProjectWorkflowMutationVariables = Exact<{
 
 
 export type DuplicateAutomationProjectWorkflowMutation = { duplicateAutomationProjectWorkflow: string };
+
+export type EmbeddedGettingStartedQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type EmbeddedGettingStartedQuery = { embeddedGettingStarted: { apiBaseUrl: string | null, apiKeyCreated: boolean, completed: boolean, componentName: string | null, componentVersion: number | null, firstCallMade: boolean, integrationConfigurationCreated: boolean, integrationConfigurationEnabled: boolean, integrationCreated: boolean, integrationHasWorkflows: boolean, integrationId: any, integrationInstanceConfigurationId: any, integrationPublished: boolean, testUserAdded: boolean, testUserConnected: boolean, testUserExternalId: string | null, testUserId: any, lastFailedCall: { createdDate: any, errorMessage: string | null, status: string } | null } };
+
+export type EmbeddedGettingStartedCompletedQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type EmbeddedGettingStartedCompletedQuery = { embeddedGettingStartedCompleted: boolean };
 
 export type EmbeddedMcpComponentsByServerIdQueryVariables = Exact<{
   mcpServerId: string | number;
@@ -1528,6 +1844,24 @@ export type EnableAutomationProjectConfigurationWorkflowMutationVariables = Exac
 
 export type EnableAutomationProjectConfigurationWorkflowMutation = { enableAutomationProjectConfigurationWorkflow: boolean };
 
+export type EnableConnectedUserAutomationProjectConfigurationMutationVariables = Exact<{
+  connectedUserId: string | number;
+  projectId: string | number;
+  enable: boolean;
+}>;
+
+
+export type EnableConnectedUserAutomationProjectConfigurationMutation = { enableConnectedUserAutomationProjectConfiguration: boolean };
+
+export type EnableConnectedUserMcpAutomationMutationVariables = Exact<{
+  connectedUserId: string | number;
+  id: string | number;
+  enable: boolean;
+}>;
+
+
+export type EnableConnectedUserMcpAutomationMutation = { enableConnectedUserMcpAutomation: { id: string, enabled: boolean } | null };
+
 export type EnableConnectedUserMcpServerMutationVariables = Exact<{
   connectedUserId: string | number;
   mcpServerId: string | number;
@@ -1545,6 +1879,14 @@ export type EnableConnectedUserMcpToolMutationVariables = Exact<{
 
 export type EnableConnectedUserMcpToolMutation = { enableConnectedUserMcpTool: boolean | null };
 
+export type EnableConnectedUserMcpWorkflowMutationVariables = Exact<{
+  id: string | number;
+  enable: boolean;
+}>;
+
+
+export type EnableConnectedUserMcpWorkflowMutation = { enableConnectedUserMcpWorkflow: boolean | null };
+
 export type EnableConnectedUserProjectWorkflowMutationVariables = Exact<{
   id: string | number;
   enable: boolean;
@@ -1552,6 +1894,13 @@ export type EnableConnectedUserProjectWorkflowMutationVariables = Exact<{
 
 
 export type EnableConnectedUserProjectWorkflowMutation = { enableConnectedUserProjectWorkflow: boolean | null };
+
+export type IntegrationConnectionWorkflowsQueryVariables = Exact<{
+  connectionId: string | number;
+}>;
+
+
+export type IntegrationConnectionWorkflowsQuery = { integrationConnectionWorkflows: Array<{ id: string, parentId: string, parentName: string, parentType: Types.IntegrationConnectionWorkflowParentType, parentVersion: number, usage: Types.IntegrationConnectionWorkflowUsage, workflowId: string, workflowName: string, workflowUuid: string | null }> };
 
 export type IntegrationVersionWorkflowChangeQueryVariables = Exact<{
   integrationId: string | number;
@@ -1582,6 +1931,40 @@ export type IntegrationWorkflowsByIntegrationIdQueryVariables = Exact<{
 
 export type IntegrationWorkflowsByIntegrationIdQuery = { integrationWorkflowsByIntegrationId: Array<{ id: string, label: string, description: string | null, integrationWorkflowId: string, workflowUuid: string | null, permissionExpression: string | null, workflowTaskComponentNames: Array<string>, workflowTriggerComponentNames: Array<string>, createdBy: string | null, createdDate: any, lastModifiedBy: string | null, lastModifiedDate: any }> };
 
+export type McpAutomationProjectConfigurationToolWorkflowUuidsQueryVariables = Exact<{
+  automationProjectConfigurationId: string | number;
+}>;
+
+
+export type McpAutomationProjectConfigurationToolWorkflowUuidsQuery = { mcpAutomationProjectConfigurationToolWorkflowUuids: Array<string> };
+
+export type McpAutomationProjectConfigurationWorkflowPropertiesQueryVariables = Exact<{
+  mcpAutomationProjectConfigurationWorkflowId: string | number;
+}>;
+
+
+export type McpAutomationProjectConfigurationWorkflowPropertiesQuery = { mcpAutomationProjectConfigurationWorkflowProperties: Array<
+    | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, arrayDefaultValue: Array<any> | null }
+    | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, booleanDefaultValue: boolean | null }
+    | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+    | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+    | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+    | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+    | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, integerDefaultValue: any }
+    | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+    | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, numberDefaultValue: number | null }
+    | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, objectDefaultValue: any }
+    | { controlType: Types.ControlType, defaultValue: string | null, label: string | null, maxLength: number | null, minLength: number | null, placeholder: string | null, regex: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+    | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+   | null> | null };
+
+export type McpAutomationProjectConfigurationsByServerIdQueryVariables = Exact<{
+  mcpServerId: string | number;
+}>;
+
+
+export type McpAutomationProjectConfigurationsByServerIdQuery = { mcpAutomationProjectConfigurationsByServerId: Array<{ id: string, mcpServerId: string, automationProjectConfigurationId: string, automationProjectConfigurationName: string, automationProjectConfigurationEnabled: boolean, projectId: string, projectName: string, projectVersion: number, workflows: Array<{ id: string, workflowUuid: string, workflowId: string | null, label: string | null, parameters: any, enabled: boolean, available: boolean }> }> };
+
 export type McpComponentDefinitionsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
@@ -1598,7 +1981,20 @@ export type McpIntegrationInstanceConfigurationWorkflowPropertiesQueryVariables 
 
 
 export type McpIntegrationInstanceConfigurationWorkflowPropertiesQuery = { mcpIntegrationInstanceConfigurationWorkflowProperties: Array<
-    | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, arrayDefaultValue: Array<any> | null }
+    | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, arrayDefaultValue: Array<any> | null, items: Array<
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, arrayDefaultValue: Array<any> | null }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, booleanDefaultValue: boolean | null }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, integerDefaultValue: any }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, numberDefaultValue: number | null }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, objectDefaultValue: any }
+        | { controlType: Types.ControlType, defaultValue: string | null, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+      > | null }
     | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, booleanDefaultValue: boolean | null }
     | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
     | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
@@ -1607,7 +2003,20 @@ export type McpIntegrationInstanceConfigurationWorkflowPropertiesQuery = { mcpIn
     | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, integerDefaultValue: any }
     | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
     | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, numberDefaultValue: number | null }
-    | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, objectDefaultValue: any }
+    | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, objectDefaultValue: any, properties: Array<
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, arrayDefaultValue: Array<any> | null }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, booleanDefaultValue: boolean | null }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, integerDefaultValue: any }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, numberDefaultValue: number | null }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, objectDefaultValue: any }
+        | { controlType: Types.ControlType, defaultValue: string | null, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+      > | null }
     | { controlType: Types.ControlType, defaultValue: string | null, label: string | null, maxLength: number | null, minLength: number | null, placeholder: string | null, regex: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
     | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
    | null> | null };
@@ -1628,6 +2037,7 @@ export type MoveAutomationProjectConfigurationConnectedUsersMutationVariables = 
   sourceId: string | number;
   targetId: string | number;
   connectedUserIds: Array<string | number> | string | number;
+  workflowInputs?: Array<Types.ConfigurationMoveWorkflowInputs> | Types.ConfigurationMoveWorkflowInputs | null | undefined;
 }>;
 
 
@@ -1655,14 +2065,116 @@ export type ProvisionableConnectedUserMcpServersQueryVariables = Exact<{
 }>;
 
 
-export type ProvisionableConnectedUserMcpServersQuery = { provisionableConnectedUserMcpServers: Array<{ id: string, name: string, provisioned: boolean, coveredComponentNames: Array<string>, missingComponentNames: Array<string> }> };
+export type ProvisionableConnectedUserMcpServersQuery = { provisionableConnectedUserMcpServers: Array<{ id: string, name: string, provisioned: boolean, coveredComponentNames: Array<string>, missingComponentNames: Array<string>, coveredAutomationNames: Array<string>, missingAutomationNames: Array<string> }> };
 
 export type ProvisionableConnectedUserProjectsQueryVariables = Exact<{
   connectedUserId: string | number;
 }>;
 
 
-export type ProvisionableConnectedUserProjectsQuery = { provisionableConnectedUserProjects: Array<{ projectId: string, name: string, projectVersion: number, assignedConfigurationId: string | null, workflows: Array<{ workflowUuid: string, label: string | null, provisioned: boolean, dangling: boolean, inputs: Array<{ name: string, label: string | null, type: string | null, required: boolean }> }>, configurations: Array<{ id: string, name: string, projectVersion: number, selfServe: boolean, workflows: Array<{ workflowUuid: string, label: string | null, provisioned: boolean, dangling: boolean, inputs: Array<{ name: string, label: string | null, type: string | null, required: boolean }> }> }> }> };
+export type ProvisionableConnectedUserProjectsQuery = { provisionableConnectedUserProjects: Array<{ projectId: string, name: string, projectVersion: number, assignedConfigurationId: string | null, workflows: Array<{ workflowUuid: string, label: string | null, provisioned: boolean, dangling: boolean, inputs: Array<{ name: string, label: string | null, type: string | null, required: boolean }> }>, configurations: Array<{ id: string, name: string, projectVersion: number, selfServe: boolean, workflows: Array<{ workflowUuid: string, label: string | null, provisioned: boolean, dangling: boolean, inputs: Array<{ name: string, label: string | null, type: string | null, required: boolean }>, components: Array<{ name: string, title: string | null, icon: string | null }> }> }> }> };
+
+export type RestoreAutomationProjectVersionMutationVariables = Exact<{
+  id: string | number;
+  projectVersion: number;
+}>;
+
+
+export type RestoreAutomationProjectVersionMutation = { restoreAutomationProjectVersion: boolean };
+
+export type ToolEligibleAutomationProjectConfigurationWorkflowPropertiesQueryVariables = Exact<{
+  automationProjectConfigurationId: string | number;
+  workflowUuid: string;
+}>;
+
+
+export type ToolEligibleAutomationProjectConfigurationWorkflowPropertiesQuery = { toolEligibleAutomationProjectConfigurationWorkflowProperties: Array<
+    | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, arrayDefaultValue: Array<any> | null, items: Array<
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, arrayDefaultValue: Array<any> | null }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, booleanDefaultValue: boolean | null }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, integerDefaultValue: any }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, numberDefaultValue: number | null }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, objectDefaultValue: any }
+        | { controlType: Types.ControlType, defaultValue: string | null, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+      > | null }
+    | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, booleanDefaultValue: boolean | null }
+    | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+    | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+    | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+    | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+    | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, integerDefaultValue: any }
+    | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+    | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, numberDefaultValue: number | null }
+    | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, objectDefaultValue: any, properties: Array<
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, arrayDefaultValue: Array<any> | null }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, booleanDefaultValue: boolean | null }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, integerDefaultValue: any }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, numberDefaultValue: number | null }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, objectDefaultValue: any }
+        | { controlType: Types.ControlType, defaultValue: string | null, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+      > | null }
+    | { controlType: Types.ControlType, defaultValue: string | null, label: string | null, maxLength: number | null, minLength: number | null, placeholder: string | null, regex: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+    | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+   | null> | null };
+
+export type ToolEligibleIntegrationInstanceConfigurationWorkflowPropertiesQueryVariables = Exact<{
+  integrationInstanceConfigurationId: string | number;
+  workflowId: string;
+}>;
+
+
+export type ToolEligibleIntegrationInstanceConfigurationWorkflowPropertiesQuery = { toolEligibleIntegrationInstanceConfigurationWorkflowProperties: Array<
+    | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, arrayDefaultValue: Array<any> | null, items: Array<
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, arrayDefaultValue: Array<any> | null }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, booleanDefaultValue: boolean | null }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, integerDefaultValue: any }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, numberDefaultValue: number | null }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, objectDefaultValue: any }
+        | { controlType: Types.ControlType, defaultValue: string | null, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+      > | null }
+    | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, booleanDefaultValue: boolean | null }
+    | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+    | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+    | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+    | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+    | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, integerDefaultValue: any }
+    | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+    | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, numberDefaultValue: number | null }
+    | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, objectDefaultValue: any, properties: Array<
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, arrayDefaultValue: Array<any> | null }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, booleanDefaultValue: boolean | null }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, integerDefaultValue: any }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, numberDefaultValue: number | null }
+        | { controlType: Types.ControlType, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType, objectDefaultValue: any }
+        | { controlType: Types.ControlType, defaultValue: string | null, label: string | null, placeholder: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+        | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+      > | null }
+    | { controlType: Types.ControlType, defaultValue: string | null, label: string | null, maxLength: number | null, minLength: number | null, placeholder: string | null, regex: string | null, advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+    | { advancedOption: boolean | null, description: string | null, displayCondition: string | null, expressionEnabled: boolean | null, hidden: boolean | null, name: string | null, required: boolean | null, type: Types.PropertyType }
+   | null> | null };
 
 export type ToolEligibleIntegrationInstanceConfigurationWorkflowsQueryVariables = Exact<{
   integrationInstanceConfigurationId: string | number;
@@ -1757,6 +2269,30 @@ export type UpdateIntegrationWorkflowPermissionExpressionMutationVariables = Exa
 
 export type UpdateIntegrationWorkflowPermissionExpressionMutation = { updateIntegrationWorkflowPermissionExpression: { id: string, permissionExpression: string | null } | null };
 
+export type UpdateMcpAutomationProjectConfigurationMutationVariables = Exact<{
+  id: string | number;
+  input: Types.UpdateMcpAutomationProjectConfigurationInput;
+}>;
+
+
+export type UpdateMcpAutomationProjectConfigurationMutation = { updateMcpAutomationProjectConfiguration: { id: string, mcpServerId: string, automationProjectConfigurationId: string, automationProjectConfigurationName: string, automationProjectConfigurationEnabled: boolean, projectId: string, projectVersion: number, workflows: Array<{ id: string, workflowUuid: string, label: string | null, parameters: any, enabled: boolean, available: boolean }> } };
+
+export type UpdateMcpAutomationProjectConfigurationWorkflowEnabledMutationVariables = Exact<{
+  id: string | number;
+  enabled: boolean;
+}>;
+
+
+export type UpdateMcpAutomationProjectConfigurationWorkflowEnabledMutation = { updateMcpAutomationProjectConfigurationWorkflowEnabled: { id: string, enabled: boolean, available: boolean } };
+
+export type UpdateMcpAutomationProjectConfigurationWorkflowParametersMutationVariables = Exact<{
+  id: string | number;
+  parameters: any;
+}>;
+
+
+export type UpdateMcpAutomationProjectConfigurationWorkflowParametersMutation = { updateMcpAutomationProjectConfigurationWorkflowParameters: { id: string, parameters: any } };
+
 export type UpdateMcpIntegrationInstanceConfigurationMutationVariables = Exact<{
   id: string | number;
   input: Types.UpdateMcpIntegrationInstanceConfigurationInput;
@@ -1764,14 +2300,6 @@ export type UpdateMcpIntegrationInstanceConfigurationMutationVariables = Exact<{
 
 
 export type UpdateMcpIntegrationInstanceConfigurationMutation = { updateMcpIntegrationInstanceConfiguration: { id: string, integrationInstanceConfigurationId: string, mcpServerId: string } | null };
-
-export type UpdateMcpIntegrationInstanceConfigurationVersionMutationVariables = Exact<{
-  id: string | number;
-  input: Types.UpdateMcpIntegrationInstanceConfigurationVersionInput;
-}>;
-
-
-export type UpdateMcpIntegrationInstanceConfigurationVersionMutation = { updateMcpIntegrationInstanceConfigurationVersion: boolean | null };
 
 export type UpdateMcpIntegrationInstanceConfigurationWorkflowMutationVariables = Exact<{
   id: string | number;
@@ -1784,6 +2312,7 @@ export type UpdateMcpIntegrationInstanceConfigurationWorkflowMutation = { update
 export type UpgradeAutomationProjectConfigurationConnectedUsersMutationVariables = Exact<{
   targetId: string | number;
   connectedUserIds: Array<string | number> | string | number;
+  workflowInputs?: Array<Types.ConfigurationMoveWorkflowInputs> | Types.ConfigurationMoveWorkflowInputs | null | undefined;
 }>;
 
 
@@ -1793,7 +2322,7 @@ export type ExternalInvocationLogsQueryVariables = Exact<{
   type: Types.PlatformType;
   environmentId?: string | number | null | undefined;
   source?: string | null | undefined;
-  outcome?: string | null | undefined;
+  status?: string | null | undefined;
   mcpServerId?: any;
   a2aServerId?: any;
   connectedUserId?: any;
@@ -1804,14 +2333,14 @@ export type ExternalInvocationLogsQueryVariables = Exact<{
 }>;
 
 
-export type ExternalInvocationLogsQuery = { externalInvocationLogs: { number: number, size: number, totalElements: number, totalPages: number, content: Array<{ id: string, source: string, kind: string, toolName: string | null, componentName: string | null, componentVersion: number | null, operationName: string | null, connectionId: any, environment: number | null, externalUserId: string | null, connectedUserId: any, integrationInstanceId: any, mcpServerId: any, a2aServerId: any, jobId: any, workflowName: string | null, outcome: string, errorType: string | null, errorMessage: string | null, durationMs: number, createdDate: any }> } };
+export type ExternalInvocationLogsQuery = { externalInvocationLogs: { number: number, size: number, totalElements: number, totalPages: number, content: Array<{ id: string, source: string, kind: string, invocationName: string | null, componentName: string | null, componentVersion: number | null, operationName: string | null, connectionId: any, environment: number | null, externalUserId: string | null, connectedUserId: any, integrationInstanceId: any, mcpServerId: any, a2aServerId: any, jobId: any, workflowName: string | null, status: string, errorType: string | null, errorMessage: string | null, durationMs: number, createdDate: any }> } };
 
 export type WorkspaceExternalInvocationLogsQueryVariables = Exact<{
   type: Types.PlatformType;
   workspaceId: string | number;
   environmentId: string | number;
   source?: string | null | undefined;
-  outcome?: string | null | undefined;
+  status?: string | null | undefined;
   mcpServerId?: any;
   a2aServerId?: any;
   connectedUserId?: any;
@@ -1822,7 +2351,35 @@ export type WorkspaceExternalInvocationLogsQueryVariables = Exact<{
 }>;
 
 
-export type WorkspaceExternalInvocationLogsQuery = { workspaceExternalInvocationLogs: { number: number, size: number, totalElements: number, totalPages: number, content: Array<{ id: string, source: string, kind: string, toolName: string | null, componentName: string | null, componentVersion: number | null, operationName: string | null, connectionId: any, environment: number | null, externalUserId: string | null, connectedUserId: any, integrationInstanceId: any, mcpServerId: any, a2aServerId: any, jobId: any, workflowName: string | null, outcome: string, errorType: string | null, errorMessage: string | null, durationMs: number, createdDate: any }> } };
+export type WorkspaceExternalInvocationLogsQuery = { workspaceExternalInvocationLogs: { number: number, size: number, totalElements: number, totalPages: number, content: Array<{ id: string, source: string, kind: string, invocationName: string | null, componentName: string | null, componentVersion: number | null, operationName: string | null, connectionId: any, environment: number | null, externalUserId: string | null, connectedUserId: any, integrationInstanceId: any, mcpServerId: any, a2aServerId: any, jobId: any, workflowName: string | null, status: string, errorType: string | null, errorMessage: string | null, durationMs: number, createdDate: any }> } };
+
+export type CreateIntegrationCodeWorkflowMutationVariables = Exact<{
+  componentName: string;
+  language: Types.CodeWorkflowLanguage;
+  name?: string | null | undefined;
+  description?: string | null | undefined;
+  categoryId?: string | number | null | undefined;
+  tags?: Array<string> | string | null | undefined;
+  permissionExpression?: string | null | undefined;
+}>;
+
+
+export type CreateIntegrationCodeWorkflowMutation = { createIntegrationCodeWorkflow: string };
+
+export type IntegrationCodeWorkflowSourceQueryVariables = Exact<{
+  integrationId: string | number;
+}>;
+
+
+export type IntegrationCodeWorkflowSourceQuery = { integrationCodeWorkflowSource: string };
+
+export type UpdateIntegrationCodeWorkflowSourceMutationVariables = Exact<{
+  integrationId: string | number;
+  content: string;
+}>;
+
+
+export type UpdateIntegrationCodeWorkflowSourceMutation = { updateIntegrationCodeWorkflowSource: boolean };
 
 export type AiDefaultModelQueryVariables = Exact<{
   environment: string | number;
@@ -2147,7 +2704,7 @@ export type ComponentDefinitionSearchQueryVariables = Exact<{
 }>;
 
 
-export type ComponentDefinitionSearchQuery = { componentDefinitionSearch: Array<{ name: string, title: string | null, icon: string | null, description: string | null, version: number | null, actionsCount: number | null, triggersCount: number | null, clusterElementsCount: any, clusterRoot: boolean | null, componentCategories: Array<{ name: string, label: string | null }> | null, actions: Array<{ name: string, title: string | null, description: string | null }> | null, triggers: Array<{ name: string, title: string | null, description: string | null }> | null, clusterElements: Array<{ type: { name: string | null, label: string | null } | null }> | null }> };
+export type ComponentDefinitionSearchQuery = { componentDefinitionSearch: Array<{ name: string, title: string | null, icon: string | null, description: string | null, version: number | null, actionsCount: number | null, triggersCount: number | null, clusterElementsCount: any, clusterRoot: boolean | null, deprecated: boolean | null, componentCategories: Array<{ name: string, label: string | null }> | null, actions: Array<{ deprecated: boolean | null, name: string, title: string | null, description: string | null }> | null, triggers: Array<{ name: string, title: string | null, description: string | null }> | null, clusterElements: Array<{ type: { name: string | null, label: string | null } | null }> | null }> };
 
 export type ComponentPropertyDisplayConditionsQueryVariables = Exact<{
   componentName: string;
@@ -2281,12 +2838,20 @@ export type SaveWorkflowTestConfigurationConnectionMutationVariables = Exact<{
 
 export type SaveWorkflowTestConfigurationConnectionMutation = { saveWorkflowTestConfigurationConnection: boolean | null };
 
+export type StopScriptTestMutationVariables = Exact<{
+  executionId: string;
+}>;
+
+
+export type StopScriptTestMutation = { stopScriptTest: boolean };
+
 export type TestClusterElementScriptMutationVariables = Exact<{
   workflowId: string;
   workflowNodeName: string;
   clusterElementType: string;
   clusterElementWorkflowNodeName: string;
   environmentId: any;
+  executionId?: string | null | undefined;
   inputParameters?: any;
 }>;
 
@@ -2297,6 +2862,7 @@ export type TestWorkflowNodeScriptMutationVariables = Exact<{
   workflowId: string;
   workflowNodeName: string;
   environmentId: any;
+  executionId?: string | null | undefined;
   inputParameters?: any;
 }>;
 
@@ -2380,12 +2946,20 @@ export type WorkflowNodeScriptInputQueryVariables = Exact<{
 
 export type WorkflowNodeScriptInputQuery = { workflowNodeScriptInput: any };
 
+export type CreateCustomComponentMutationVariables = Exact<{
+  name: string;
+  language: Types.CustomComponentLanguage;
+}>;
+
+
+export type CreateCustomComponentMutation = { createCustomComponent: { id: string, name: string, language: Types.CustomComponentLanguage | null } };
+
 export type CustomComponentQueryVariables = Exact<{
   id: string | number;
 }>;
 
 
-export type CustomComponentQuery = { customComponent: { id: string, name: string, title: string | null, description: string | null, icon: string | null, componentVersion: number | null, enabled: boolean | null, language: Types.CustomComponentLanguage | null, createdBy: string | null, createdDate: any, lastModifiedBy: string | null, lastModifiedDate: any, version: number | null } | null };
+export type CustomComponentQuery = { customComponent: { id: string, name: string, title: string | null, description: string | null, icon: string | null, componentVersion: number | null, enabled: boolean | null, language: Types.CustomComponentLanguage | null, createdBy: string | null, createdDate: any, lastModifiedBy: string | null, lastModifiedDate: any, status: Types.CustomComponentStatus | null, publishedDate: any, version: number | null } | null };
 
 export type CustomComponentDefinitionQueryVariables = Exact<{
   id: string | number;
@@ -2394,10 +2968,17 @@ export type CustomComponentDefinitionQueryVariables = Exact<{
 
 export type CustomComponentDefinitionQuery = { customComponentDefinition: { actions: Array<{ name: string, title: string | null, description: string | null }>, triggers: Array<{ name: string, title: string | null, description: string | null }> } | null };
 
+export type CustomComponentSourceQueryVariables = Exact<{
+  id: string | number;
+}>;
+
+
+export type CustomComponentSourceQuery = { customComponentSource: string };
+
 export type CustomComponentsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type CustomComponentsQuery = { customComponents: Array<{ id: string, name: string, title: string | null, description: string | null, icon: string | null, componentVersion: number | null, enabled: boolean | null, language: Types.CustomComponentLanguage | null, createdBy: string | null, createdDate: any, lastModifiedBy: string | null, lastModifiedDate: any, version: number | null }> };
+export type CustomComponentsQuery = { customComponents: Array<{ id: string, name: string, title: string | null, description: string | null, icon: string | null, componentVersion: number | null, enabled: boolean | null, language: Types.CustomComponentLanguage | null, createdBy: string | null, createdDate: any, lastModifiedBy: string | null, lastModifiedDate: any, status: Types.CustomComponentStatus | null, publishedDate: any, version: number | null }> };
 
 export type DeleteCustomComponentMutationVariables = Exact<{
   id: string | number;
@@ -2413,6 +2994,21 @@ export type EnableCustomComponentMutationVariables = Exact<{
 
 
 export type EnableCustomComponentMutation = { enableCustomComponent: boolean };
+
+export type PublishCustomComponentMutationVariables = Exact<{
+  id: string | number;
+}>;
+
+
+export type PublishCustomComponentMutation = { publishCustomComponent: { id: string, publishedDate: any, status: Types.CustomComponentStatus | null } };
+
+export type UpdateCustomComponentSourceMutationVariables = Exact<{
+  id: string | number;
+  content: string;
+}>;
+
+
+export type UpdateCustomComponentSourceMutation = { updateCustomComponentSource: { id: string, componentVersion: number | null, status: Types.CustomComponentStatus | null } };
 
 export type DeleteRegisteredClientMutationVariables = Exact<{
   id: string | number;
@@ -4282,6 +4878,106 @@ export const useA2aServersQuery = <
   }
     )};
 
+export const AutomationGettingStartedDocument = new TypedDocumentString(`
+    query automationGettingStarted($workspaceId: ID!) {
+  automationGettingStarted(workspaceId: $workspaceId) {
+    completed
+    deployed
+    firstRun {
+      date
+      errorMessage
+      jobId
+      projectDeploymentEnabled
+      projectDeploymentId
+      status
+    }
+    httpClientAdded
+    lastFailedRun {
+      date
+      errorMessage
+      jobId
+      projectDeploymentEnabled
+      projectDeploymentId
+      status
+    }
+    live
+    loggerAdded
+    projectCreated
+    published
+    workflowCreated
+  }
+}
+    `);
+
+export const useAutomationGettingStartedQuery = <
+      TData = AutomationGettingStartedQuery,
+      TError = unknown
+    >(
+      variables: AutomationGettingStartedQueryVariables,
+      options?: Omit<UseQueryOptions<AutomationGettingStartedQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<AutomationGettingStartedQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<AutomationGettingStartedQuery, TError, TData>(
+      {
+    queryKey: ['automationGettingStarted', variables],
+    queryFn: fetcher<AutomationGettingStartedQuery, AutomationGettingStartedQueryVariables>(AutomationGettingStartedDocument, variables),
+    ...options
+  }
+    )};
+
+export const AutomationGettingStartedCompletedDocument = new TypedDocumentString(`
+    query automationGettingStartedCompleted($workspaceId: ID!) {
+  automationGettingStartedCompleted(workspaceId: $workspaceId)
+}
+    `);
+
+export const useAutomationGettingStartedCompletedQuery = <
+      TData = AutomationGettingStartedCompletedQuery,
+      TError = unknown
+    >(
+      variables: AutomationGettingStartedCompletedQueryVariables,
+      options?: Omit<UseQueryOptions<AutomationGettingStartedCompletedQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<AutomationGettingStartedCompletedQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<AutomationGettingStartedCompletedQuery, TError, TData>(
+      {
+    queryKey: ['automationGettingStartedCompleted', variables],
+    queryFn: fetcher<AutomationGettingStartedCompletedQuery, AutomationGettingStartedCompletedQueryVariables>(AutomationGettingStartedCompletedDocument, variables),
+    ...options
+  }
+    )};
+
+export const ConnectionWorkflowsDocument = new TypedDocumentString(`
+    query ConnectionWorkflows($connectionId: ID!) {
+  connectionWorkflows(connectionId: $connectionId) {
+    id
+    projectId
+    projectName
+    projectVersion
+    usage
+    workflowId
+    workflowName
+    workflowUuid
+  }
+}
+    `);
+
+export const useConnectionWorkflowsQuery = <
+      TData = ConnectionWorkflowsQuery,
+      TError = unknown
+    >(
+      variables: ConnectionWorkflowsQueryVariables,
+      options?: Omit<UseQueryOptions<ConnectionWorkflowsQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<ConnectionWorkflowsQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<ConnectionWorkflowsQuery, TError, TData>(
+      {
+    queryKey: ['ConnectionWorkflows', variables],
+    queryFn: fetcher<ConnectionWorkflowsQuery, ConnectionWorkflowsQueryVariables>(ConnectionWorkflowsDocument, variables),
+    ...options
+  }
+    )};
+
 export const CreateA2aProjectDocument = new TypedDocumentString(`
     mutation createA2aProject($input: CreateA2aProjectInput!) {
   createA2aProject(input: $input) {
@@ -4567,6 +5263,29 @@ export const useDisconnectConnectionMutation = <
   }
     )};
 
+export const DisconnectConnectionFromWorkflowDocument = new TypedDocumentString(`
+    mutation DisconnectConnectionFromWorkflow($connectionId: ID!, $id: ID!, $usage: ConnectionWorkflowUsage!) {
+  disconnectConnectionFromWorkflow(
+    connectionId: $connectionId
+    id: $id
+    usage: $usage
+  )
+}
+    `);
+
+export const useDisconnectConnectionFromWorkflowMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<DisconnectConnectionFromWorkflowMutation, TError, DisconnectConnectionFromWorkflowMutationVariables, TContext>) => {
+    
+    return useMutation<DisconnectConnectionFromWorkflowMutation, TError, DisconnectConnectionFromWorkflowMutationVariables, TContext>(
+      {
+    mutationKey: ['DisconnectConnectionFromWorkflow'],
+    mutationFn: (variables?: DisconnectConnectionFromWorkflowMutationVariables) => fetcher<DisconnectConnectionFromWorkflowMutation, DisconnectConnectionFromWorkflowMutationVariables>(DisconnectConnectionFromWorkflowDocument, variables)(),
+    ...options
+  }
+    )};
+
 export const ExportSharedProjectDocument = new TypedDocumentString(`
     mutation exportSharedProject($id: ID!, $description: String) {
   exportSharedProject(id: $id, description: $description)
@@ -4692,6 +5411,52 @@ export const McpProjectWorkflowPropertiesDocument = new TypedDocumentString(`
     ... on ArrayProperty {
       arrayDefaultValue: defaultValue
       controlType
+      items {
+        advancedOption
+        description
+        displayCondition
+        expressionEnabled
+        hidden
+        name
+        required
+        type
+        ... on StringProperty {
+          controlType
+          defaultValue
+          label
+          placeholder
+        }
+        ... on IntegerProperty {
+          controlType
+          integerDefaultValue: defaultValue
+          label
+          placeholder
+        }
+        ... on NumberProperty {
+          controlType
+          label
+          numberDefaultValue: defaultValue
+          placeholder
+        }
+        ... on BooleanProperty {
+          booleanDefaultValue: defaultValue
+          controlType
+          label
+          placeholder
+        }
+        ... on ArrayProperty {
+          arrayDefaultValue: defaultValue
+          controlType
+          label
+          placeholder
+        }
+        ... on ObjectProperty {
+          controlType
+          label
+          objectDefaultValue: defaultValue
+          placeholder
+        }
+      }
       label
       placeholder
     }
@@ -4700,6 +5465,52 @@ export const McpProjectWorkflowPropertiesDocument = new TypedDocumentString(`
       label
       objectDefaultValue: defaultValue
       placeholder
+      properties {
+        advancedOption
+        description
+        displayCondition
+        expressionEnabled
+        hidden
+        name
+        required
+        type
+        ... on StringProperty {
+          controlType
+          defaultValue
+          label
+          placeholder
+        }
+        ... on IntegerProperty {
+          controlType
+          integerDefaultValue: defaultValue
+          label
+          placeholder
+        }
+        ... on NumberProperty {
+          controlType
+          label
+          numberDefaultValue: defaultValue
+          placeholder
+        }
+        ... on BooleanProperty {
+          booleanDefaultValue: defaultValue
+          controlType
+          label
+          placeholder
+        }
+        ... on ArrayProperty {
+          arrayDefaultValue: defaultValue
+          controlType
+          label
+          placeholder
+        }
+        ... on ObjectProperty {
+          controlType
+          label
+          objectDefaultValue: defaultValue
+          placeholder
+        }
+      }
     }
   }
 }
@@ -5169,6 +5980,168 @@ export const useToolEligibleProjectVersionWorkflowsQuery = <
       {
     queryKey: ['toolEligibleProjectVersionWorkflows', variables],
     queryFn: fetcher<ToolEligibleProjectVersionWorkflowsQuery, ToolEligibleProjectVersionWorkflowsQueryVariables>(ToolEligibleProjectVersionWorkflowsDocument, variables),
+    ...options
+  }
+    )};
+
+export const ToolEligibleWorkflowPropertiesDocument = new TypedDocumentString(`
+    query toolEligibleWorkflowProperties($projectId: ID!, $workflowId: String!) {
+  toolEligibleWorkflowProperties(projectId: $projectId, workflowId: $workflowId) {
+    advancedOption
+    description
+    displayCondition
+    expressionEnabled
+    hidden
+    name
+    required
+    type
+    ... on StringProperty {
+      controlType
+      defaultValue
+      label
+      maxLength
+      minLength
+      placeholder
+      regex
+    }
+    ... on IntegerProperty {
+      controlType
+      integerDefaultValue: defaultValue
+      label
+      placeholder
+    }
+    ... on NumberProperty {
+      controlType
+      label
+      numberDefaultValue: defaultValue
+      placeholder
+    }
+    ... on BooleanProperty {
+      booleanDefaultValue: defaultValue
+      controlType
+      label
+      placeholder
+    }
+    ... on ArrayProperty {
+      arrayDefaultValue: defaultValue
+      controlType
+      items {
+        advancedOption
+        description
+        displayCondition
+        expressionEnabled
+        hidden
+        name
+        required
+        type
+        ... on StringProperty {
+          controlType
+          defaultValue
+          label
+          placeholder
+        }
+        ... on IntegerProperty {
+          controlType
+          integerDefaultValue: defaultValue
+          label
+          placeholder
+        }
+        ... on NumberProperty {
+          controlType
+          label
+          numberDefaultValue: defaultValue
+          placeholder
+        }
+        ... on BooleanProperty {
+          booleanDefaultValue: defaultValue
+          controlType
+          label
+          placeholder
+        }
+        ... on ArrayProperty {
+          arrayDefaultValue: defaultValue
+          controlType
+          label
+          placeholder
+        }
+        ... on ObjectProperty {
+          controlType
+          label
+          objectDefaultValue: defaultValue
+          placeholder
+        }
+      }
+      label
+      placeholder
+    }
+    ... on ObjectProperty {
+      controlType
+      label
+      objectDefaultValue: defaultValue
+      placeholder
+      properties {
+        advancedOption
+        description
+        displayCondition
+        expressionEnabled
+        hidden
+        name
+        required
+        type
+        ... on StringProperty {
+          controlType
+          defaultValue
+          label
+          placeholder
+        }
+        ... on IntegerProperty {
+          controlType
+          integerDefaultValue: defaultValue
+          label
+          placeholder
+        }
+        ... on NumberProperty {
+          controlType
+          label
+          numberDefaultValue: defaultValue
+          placeholder
+        }
+        ... on BooleanProperty {
+          booleanDefaultValue: defaultValue
+          controlType
+          label
+          placeholder
+        }
+        ... on ArrayProperty {
+          arrayDefaultValue: defaultValue
+          controlType
+          label
+          placeholder
+        }
+        ... on ObjectProperty {
+          controlType
+          label
+          objectDefaultValue: defaultValue
+          placeholder
+        }
+      }
+    }
+  }
+}
+    `);
+
+export const useToolEligibleWorkflowPropertiesQuery = <
+      TData = ToolEligibleWorkflowPropertiesQuery,
+      TError = unknown
+    >(
+      variables: ToolEligibleWorkflowPropertiesQueryVariables,
+      options?: Omit<UseQueryOptions<ToolEligibleWorkflowPropertiesQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<ToolEligibleWorkflowPropertiesQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<ToolEligibleWorkflowPropertiesQuery, TError, TData>(
+      {
+    queryKey: ['toolEligibleWorkflowProperties', variables],
+    queryFn: fetcher<ToolEligibleWorkflowPropertiesQuery, ToolEligibleWorkflowPropertiesQueryVariables>(ToolEligibleWorkflowPropertiesDocument, variables),
     ...options
   }
     )};
@@ -5687,9 +6660,40 @@ export const useCreateDataTableMutation = <
   }
     )};
 
+export const DataTableLinkOptionsDocument = new TypedDocumentString(`
+    query dataTableLinkOptions($environmentId: ID!, $tableId: ID!, $columnName: String!, $search: String, $limit: Int) {
+  dataTableLinkOptions(
+    environmentId: $environmentId
+    tableId: $tableId
+    columnName: $columnName
+    search: $search
+    limit: $limit
+  ) {
+    id
+    label
+  }
+}
+    `);
+
+export const useDataTableLinkOptionsQuery = <
+      TData = DataTableLinkOptionsQuery,
+      TError = unknown
+    >(
+      variables: DataTableLinkOptionsQueryVariables,
+      options?: Omit<UseQueryOptions<DataTableLinkOptionsQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<DataTableLinkOptionsQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<DataTableLinkOptionsQuery, TError, TData>(
+      {
+    queryKey: ['dataTableLinkOptions', variables],
+    queryFn: fetcher<DataTableLinkOptionsQuery, DataTableLinkOptionsQueryVariables>(DataTableLinkOptionsDocument, variables),
+    ...options
+  }
+    )};
+
 export const DataTableRowsDocument = new TypedDocumentString(`
-    query dataTableRows($environmentId: ID!, $tableId: ID!) {
-  dataTableRows(environmentId: $environmentId, tableId: $tableId) {
+    query dataTableRows($environmentId: ID!, $tableId: ID!, $expand: [String!]) {
+  dataTableRows(environmentId: $environmentId, tableId: $tableId, expand: $expand) {
     id
     values
   }
@@ -5713,12 +6717,13 @@ export const useDataTableRowsQuery = <
     )};
 
 export const DataTableRowsPageDocument = new TypedDocumentString(`
-    query dataTableRowsPage($environmentId: ID!, $tableId: ID!, $limit: Int, $offset: Int) {
+    query dataTableRowsPage($environmentId: ID!, $tableId: ID!, $limit: Int, $offset: Int, $expand: [String!]) {
   dataTableRowsPage(
     environmentId: $environmentId
     tableId: $tableId
     limit: $limit
     offset: $offset
+    expand: $expand
   ) {
     items {
       id
@@ -5746,9 +6751,36 @@ export const useDataTableRowsPageQuery = <
   }
     )};
 
+export const DataTableStorageUsageDocument = new TypedDocumentString(`
+    query DataTableStorageUsage {
+  dataTableStorageUsage {
+    limitBytes
+    percentage
+    unlimited
+    usedBytes
+  }
+}
+    `);
+
+export const useDataTableStorageUsageQuery = <
+      TData = DataTableStorageUsageQuery,
+      TError = unknown
+    >(
+      variables?: DataTableStorageUsageQueryVariables,
+      options?: Omit<UseQueryOptions<DataTableStorageUsageQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<DataTableStorageUsageQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<DataTableStorageUsageQuery, TError, TData>(
+      {
+    queryKey: variables === undefined ? ['DataTableStorageUsage'] : ['DataTableStorageUsage', variables],
+    queryFn: fetcher<DataTableStorageUsageQuery, DataTableStorageUsageQueryVariables>(DataTableStorageUsageDocument, variables),
+    ...options
+  }
+    )};
+
 export const DataTableTagsDocument = new TypedDocumentString(`
-    query dataTableTags {
-  dataTableTags {
+    query dataTableTags($workspaceId: ID!) {
+  dataTableTags(workspaceId: $workspaceId) {
     id
     name
   }
@@ -5759,21 +6791,21 @@ export const useDataTableTagsQuery = <
       TData = DataTableTagsQuery,
       TError = unknown
     >(
-      variables?: DataTableTagsQueryVariables,
+      variables: DataTableTagsQueryVariables,
       options?: Omit<UseQueryOptions<DataTableTagsQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<DataTableTagsQuery, TError, TData>['queryKey'] }
     ) => {
     
     return useQuery<DataTableTagsQuery, TError, TData>(
       {
-    queryKey: variables === undefined ? ['dataTableTags'] : ['dataTableTags', variables],
+    queryKey: ['dataTableTags', variables],
     queryFn: fetcher<DataTableTagsQuery, DataTableTagsQueryVariables>(DataTableTagsDocument, variables),
     ...options
   }
     )};
 
 export const DataTableTagsByTableDocument = new TypedDocumentString(`
-    query dataTableTagsByTable {
-  dataTableTagsByTable {
+    query dataTableTagsByTable($workspaceId: ID!) {
+  dataTableTagsByTable(workspaceId: $workspaceId) {
     tableId
     tags {
       id
@@ -5787,13 +6819,13 @@ export const useDataTableTagsByTableQuery = <
       TData = DataTableTagsByTableQuery,
       TError = unknown
     >(
-      variables?: DataTableTagsByTableQueryVariables,
+      variables: DataTableTagsByTableQueryVariables,
       options?: Omit<UseQueryOptions<DataTableTagsByTableQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<DataTableTagsByTableQuery, TError, TData>['queryKey'] }
     ) => {
     
     return useQuery<DataTableTagsByTableQuery, TError, TData>(
       {
-    queryKey: variables === undefined ? ['dataTableTagsByTable'] : ['dataTableTagsByTable', variables],
+    queryKey: ['dataTableTagsByTable', variables],
     queryFn: fetcher<DataTableTagsByTableQuery, DataTableTagsByTableQueryVariables>(DataTableTagsByTableDocument, variables),
     ...options
   }
@@ -5809,6 +6841,12 @@ export const DataTablesDocument = new TypedDocumentString(`
       id
       name
       type
+      link {
+        targetDataTableId
+        targetDataTableName
+        onDelete
+        displayColumnName
+      }
     }
   }
 }
@@ -6557,8 +7595,8 @@ export const useKnowledgeBaseStorageUsageQuery = <
     )};
 
 export const KnowledgeBaseTagsDocument = new TypedDocumentString(`
-    query knowledgeBaseTags {
-  knowledgeBaseTags {
+    query knowledgeBaseTags($workspaceId: ID!) {
+  knowledgeBaseTags(workspaceId: $workspaceId) {
     id
     name
   }
@@ -6569,21 +7607,21 @@ export const useKnowledgeBaseTagsQuery = <
       TData = KnowledgeBaseTagsQuery,
       TError = unknown
     >(
-      variables?: KnowledgeBaseTagsQueryVariables,
+      variables: KnowledgeBaseTagsQueryVariables,
       options?: Omit<UseQueryOptions<KnowledgeBaseTagsQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<KnowledgeBaseTagsQuery, TError, TData>['queryKey'] }
     ) => {
     
     return useQuery<KnowledgeBaseTagsQuery, TError, TData>(
       {
-    queryKey: variables === undefined ? ['knowledgeBaseTags'] : ['knowledgeBaseTags', variables],
+    queryKey: ['knowledgeBaseTags', variables],
     queryFn: fetcher<KnowledgeBaseTagsQuery, KnowledgeBaseTagsQueryVariables>(KnowledgeBaseTagsDocument, variables),
     ...options
   }
     )};
 
 export const KnowledgeBaseTagsByKnowledgeBaseDocument = new TypedDocumentString(`
-    query knowledgeBaseTagsByKnowledgeBase {
-  knowledgeBaseTagsByKnowledgeBase {
+    query knowledgeBaseTagsByKnowledgeBase($workspaceId: ID!) {
+  knowledgeBaseTagsByKnowledgeBase(workspaceId: $workspaceId) {
     knowledgeBaseId
     tags {
       id
@@ -6597,13 +7635,13 @@ export const useKnowledgeBaseTagsByKnowledgeBaseQuery = <
       TData = KnowledgeBaseTagsByKnowledgeBaseQuery,
       TError = unknown
     >(
-      variables?: KnowledgeBaseTagsByKnowledgeBaseQueryVariables,
+      variables: KnowledgeBaseTagsByKnowledgeBaseQueryVariables,
       options?: Omit<UseQueryOptions<KnowledgeBaseTagsByKnowledgeBaseQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<KnowledgeBaseTagsByKnowledgeBaseQuery, TError, TData>['queryKey'] }
     ) => {
     
     return useQuery<KnowledgeBaseTagsByKnowledgeBaseQuery, TError, TData>(
       {
-    queryKey: variables === undefined ? ['knowledgeBaseTagsByKnowledgeBase'] : ['knowledgeBaseTagsByKnowledgeBase', variables],
+    queryKey: ['knowledgeBaseTagsByKnowledgeBase', variables],
     queryFn: fetcher<KnowledgeBaseTagsByKnowledgeBaseQuery, KnowledgeBaseTagsByKnowledgeBaseQueryVariables>(KnowledgeBaseTagsByKnowledgeBaseDocument, variables),
     ...options
   }
@@ -6800,6 +7838,201 @@ export const useAutomationSearchQuery = <
   }
     )};
 
+export const CodeWorkflowSourceDocument = new TypedDocumentString(`
+    query codeWorkflowSource($projectId: ID!) {
+  codeWorkflowSource(projectId: $projectId)
+}
+    `);
+
+export const useCodeWorkflowSourceQuery = <
+      TData = CodeWorkflowSourceQuery,
+      TError = unknown
+    >(
+      variables: CodeWorkflowSourceQueryVariables,
+      options?: Omit<UseQueryOptions<CodeWorkflowSourceQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<CodeWorkflowSourceQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<CodeWorkflowSourceQuery, TError, TData>(
+      {
+    queryKey: ['codeWorkflowSource', variables],
+    queryFn: fetcher<CodeWorkflowSourceQuery, CodeWorkflowSourceQueryVariables>(CodeWorkflowSourceDocument, variables),
+    ...options
+  }
+    )};
+
+export const CreateCodeWorkflowDocument = new TypedDocumentString(`
+    mutation createCodeWorkflow($workspaceId: ID!, $name: String!, $language: CodeWorkflowLanguage!, $description: String, $categoryId: ID, $tags: [String!]) {
+  createCodeWorkflow(
+    workspaceId: $workspaceId
+    name: $name
+    language: $language
+    description: $description
+    categoryId: $categoryId
+    tags: $tags
+  )
+}
+    `);
+
+export const useCreateCodeWorkflowMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<CreateCodeWorkflowMutation, TError, CreateCodeWorkflowMutationVariables, TContext>) => {
+    
+    return useMutation<CreateCodeWorkflowMutation, TError, CreateCodeWorkflowMutationVariables, TContext>(
+      {
+    mutationKey: ['createCodeWorkflow'],
+    mutationFn: (variables?: CreateCodeWorkflowMutationVariables) => fetcher<CreateCodeWorkflowMutation, CreateCodeWorkflowMutationVariables>(CreateCodeWorkflowDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const UpdateCodeWorkflowSourceDocument = new TypedDocumentString(`
+    mutation updateCodeWorkflowSource($projectId: ID!, $content: String!) {
+  updateCodeWorkflowSource(projectId: $projectId, content: $content)
+}
+    `);
+
+export const useUpdateCodeWorkflowSourceMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<UpdateCodeWorkflowSourceMutation, TError, UpdateCodeWorkflowSourceMutationVariables, TContext>) => {
+    
+    return useMutation<UpdateCodeWorkflowSourceMutation, TError, UpdateCodeWorkflowSourceMutationVariables, TContext>(
+      {
+    mutationKey: ['updateCodeWorkflowSource'],
+    mutationFn: (variables?: UpdateCodeWorkflowSourceMutationVariables) => fetcher<UpdateCodeWorkflowSourceMutation, UpdateCodeWorkflowSourceMutationVariables>(UpdateCodeWorkflowSourceDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const DeleteEmbeddedAiAutoMemoryDocument = new TypedDocumentString(`
+    mutation deleteEmbeddedAiAutoMemory($id: ID!, $principalType: AiAutoMemoryPrincipalType!, $principalId: ID!, $environment: Int!) {
+  deleteEmbeddedAiAutoMemory(
+    id: $id
+    principalType: $principalType
+    principalId: $principalId
+    environment: $environment
+  )
+}
+    `);
+
+export const useDeleteEmbeddedAiAutoMemoryMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<DeleteEmbeddedAiAutoMemoryMutation, TError, DeleteEmbeddedAiAutoMemoryMutationVariables, TContext>) => {
+    
+    return useMutation<DeleteEmbeddedAiAutoMemoryMutation, TError, DeleteEmbeddedAiAutoMemoryMutationVariables, TContext>(
+      {
+    mutationKey: ['deleteEmbeddedAiAutoMemory'],
+    mutationFn: (variables?: DeleteEmbeddedAiAutoMemoryMutationVariables) => fetcher<DeleteEmbeddedAiAutoMemoryMutation, DeleteEmbeddedAiAutoMemoryMutationVariables>(DeleteEmbeddedAiAutoMemoryDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const EmbeddedAiAutoMemoriesDocument = new TypedDocumentString(`
+    query embeddedAiAutoMemories($environment: Int!, $connectedUserId: ID, $memoryType: AiAutoMemoryType) {
+  embeddedAiAutoMemories(
+    environment: $environment
+    connectedUserId: $connectedUserId
+    memoryType: $memoryType
+  ) {
+    id
+    name
+    title
+    description
+    memoryType
+    content
+    environmentId
+    version
+    createdAt
+    updatedAt
+    principalType
+    principalId
+    connectedUser {
+      id
+      name
+      email
+      externalId
+    }
+    integration {
+      id
+      name
+      componentName
+    }
+    automation {
+      id
+      name
+    }
+  }
+}
+    `);
+
+export const useEmbeddedAiAutoMemoriesQuery = <
+      TData = EmbeddedAiAutoMemoriesQuery,
+      TError = unknown
+    >(
+      variables: EmbeddedAiAutoMemoriesQueryVariables,
+      options?: Omit<UseQueryOptions<EmbeddedAiAutoMemoriesQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<EmbeddedAiAutoMemoriesQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<EmbeddedAiAutoMemoriesQuery, TError, TData>(
+      {
+    queryKey: ['embeddedAiAutoMemories', variables],
+    queryFn: fetcher<EmbeddedAiAutoMemoriesQuery, EmbeddedAiAutoMemoriesQueryVariables>(EmbeddedAiAutoMemoriesDocument, variables),
+    ...options
+  }
+    )};
+
+export const EmbeddedAiAutoMemoryConnectedUsersDocument = new TypedDocumentString(`
+    query embeddedAiAutoMemoryConnectedUsers($environment: Int!) {
+  embeddedAiAutoMemoryConnectedUsers(environment: $environment) {
+    id
+    name
+    email
+    externalId
+    memoryCount
+  }
+}
+    `);
+
+export const useEmbeddedAiAutoMemoryConnectedUsersQuery = <
+      TData = EmbeddedAiAutoMemoryConnectedUsersQuery,
+      TError = unknown
+    >(
+      variables: EmbeddedAiAutoMemoryConnectedUsersQueryVariables,
+      options?: Omit<UseQueryOptions<EmbeddedAiAutoMemoryConnectedUsersQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<EmbeddedAiAutoMemoryConnectedUsersQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<EmbeddedAiAutoMemoryConnectedUsersQuery, TError, TData>(
+      {
+    queryKey: ['embeddedAiAutoMemoryConnectedUsers', variables],
+    queryFn: fetcher<EmbeddedAiAutoMemoryConnectedUsersQuery, EmbeddedAiAutoMemoryConnectedUsersQueryVariables>(EmbeddedAiAutoMemoryConnectedUsersDocument, variables),
+    ...options
+  }
+    )};
+
+export const UpdateEmbeddedAiAutoMemoryDocument = new TypedDocumentString(`
+    mutation updateEmbeddedAiAutoMemory($input: UpdateEmbeddedAiAutoMemoryInput!) {
+  updateEmbeddedAiAutoMemory(input: $input) {
+    id
+    version
+  }
+}
+    `);
+
+export const useUpdateEmbeddedAiAutoMemoryMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<UpdateEmbeddedAiAutoMemoryMutation, TError, UpdateEmbeddedAiAutoMemoryMutationVariables, TContext>) => {
+    
+    return useMutation<UpdateEmbeddedAiAutoMemoryMutation, TError, UpdateEmbeddedAiAutoMemoryMutationVariables, TContext>(
+      {
+    mutationKey: ['updateEmbeddedAiAutoMemory'],
+    mutationFn: (variables?: UpdateEmbeddedAiAutoMemoryMutationVariables) => fetcher<UpdateEmbeddedAiAutoMemoryMutation, UpdateEmbeddedAiAutoMemoryMutationVariables>(UpdateEmbeddedAiAutoMemoryDocument, variables)(),
+    ...options
+  }
+    )};
+
 export const AutomationProjectCategoriesDocument = new TypedDocumentString(`
     query automationProjectCategories {
   automationProjectCategories {
@@ -6821,6 +8054,79 @@ export const useAutomationProjectCategoriesQuery = <
       {
     queryKey: variables === undefined ? ['automationProjectCategories'] : ['automationProjectCategories', variables],
     queryFn: fetcher<AutomationProjectCategoriesQuery, AutomationProjectCategoriesQueryVariables>(AutomationProjectCategoriesDocument, variables),
+    ...options
+  }
+    )};
+
+export const AutomationProjectCodeWorkflowSourceDocument = new TypedDocumentString(`
+    query automationProjectCodeWorkflowSource($automationProjectId: ID!) {
+  automationProjectCodeWorkflowSource(automationProjectId: $automationProjectId) {
+    content
+    language
+  }
+}
+    `);
+
+export const useAutomationProjectCodeWorkflowSourceQuery = <
+      TData = AutomationProjectCodeWorkflowSourceQuery,
+      TError = unknown
+    >(
+      variables: AutomationProjectCodeWorkflowSourceQueryVariables,
+      options?: Omit<UseQueryOptions<AutomationProjectCodeWorkflowSourceQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<AutomationProjectCodeWorkflowSourceQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<AutomationProjectCodeWorkflowSourceQuery, TError, TData>(
+      {
+    queryKey: ['automationProjectCodeWorkflowSource', variables],
+    queryFn: fetcher<AutomationProjectCodeWorkflowSourceQuery, AutomationProjectCodeWorkflowSourceQueryVariables>(AutomationProjectCodeWorkflowSourceDocument, variables),
+    ...options
+  }
+    )};
+
+export const CreateAutomationProjectCodeWorkflowDocument = new TypedDocumentString(`
+    mutation createAutomationProjectCodeWorkflow($name: String!, $language: CodeWorkflowLanguage!, $description: String, $category: String, $tags: [String!], $permissionExpression: String) {
+  createAutomationProjectCodeWorkflow(
+    name: $name
+    language: $language
+    description: $description
+    category: $category
+    tags: $tags
+    permissionExpression: $permissionExpression
+  )
+}
+    `);
+
+export const useCreateAutomationProjectCodeWorkflowMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<CreateAutomationProjectCodeWorkflowMutation, TError, CreateAutomationProjectCodeWorkflowMutationVariables, TContext>) => {
+    
+    return useMutation<CreateAutomationProjectCodeWorkflowMutation, TError, CreateAutomationProjectCodeWorkflowMutationVariables, TContext>(
+      {
+    mutationKey: ['createAutomationProjectCodeWorkflow'],
+    mutationFn: (variables?: CreateAutomationProjectCodeWorkflowMutationVariables) => fetcher<CreateAutomationProjectCodeWorkflowMutation, CreateAutomationProjectCodeWorkflowMutationVariables>(CreateAutomationProjectCodeWorkflowDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const UpdateAutomationProjectCodeWorkflowSourceDocument = new TypedDocumentString(`
+    mutation updateAutomationProjectCodeWorkflowSource($automationProjectId: ID!, $content: String!) {
+  updateAutomationProjectCodeWorkflowSource(
+    automationProjectId: $automationProjectId
+    content: $content
+  )
+}
+    `);
+
+export const useUpdateAutomationProjectCodeWorkflowSourceMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<UpdateAutomationProjectCodeWorkflowSourceMutation, TError, UpdateAutomationProjectCodeWorkflowSourceMutationVariables, TContext>) => {
+    
+    return useMutation<UpdateAutomationProjectCodeWorkflowSourceMutation, TError, UpdateAutomationProjectCodeWorkflowSourceMutationVariables, TContext>(
+      {
+    mutationKey: ['updateAutomationProjectCodeWorkflowSource'],
+    mutationFn: (variables?: UpdateAutomationProjectCodeWorkflowSourceMutationVariables) => fetcher<UpdateAutomationProjectCodeWorkflowSourceMutation, UpdateAutomationProjectCodeWorkflowSourceMutationVariables>(UpdateAutomationProjectCodeWorkflowSourceDocument, variables)(),
     ...options
   }
     )};
@@ -6890,6 +8196,7 @@ export const AutomationProjectConfigurationMoveImpactDocument = new TypedDocumen
       newRequiredInputs
       newRequiredConnections
       affectedConnectedUserCount
+      awaitsConfiguration
     }
     skipped {
       connectedUserId
@@ -6928,6 +8235,7 @@ export const AutomationProjectConfigurationUpgradeImpactDocument = new TypedDocu
       newRequiredInputs
       newRequiredConnections
       affectedConnectedUserCount
+      awaitsConfiguration
     }
     skipped {
       connectedUserId
@@ -6966,6 +8274,7 @@ export const AutomationProjectConfigurationVersionImpactDocument = new TypedDocu
       newRequiredInputs
       newRequiredConnections
       affectedConnectedUserCount
+      awaitsConfiguration
     }
   }
 }
@@ -6988,10 +8297,11 @@ export const useAutomationProjectConfigurationVersionImpactQuery = <
     )};
 
 export const AutomationProjectConfigurationWorkflowInputOptionsDocument = new TypedDocumentString(`
-    query automationProjectConfigurationWorkflowInputOptions($id: ID!, $workflowUuid: ID!, $inputName: String!, $propertyName: String!, $connectionId: ID!, $lookupDependsOnValues: Map, $searchText: String) {
+    query automationProjectConfigurationWorkflowInputOptions($id: ID!, $workflowUuid: ID!, $projectVersion: Int, $inputName: String!, $propertyName: String!, $connectionId: ID!, $lookupDependsOnValues: Map, $searchText: String) {
   automationProjectConfigurationWorkflowInputOptions(
     id: $id
     workflowUuid: $workflowUuid
+    projectVersion: $projectVersion
     inputName: $inputName
     propertyName: $propertyName
     connectionId: $connectionId
@@ -7022,10 +8332,11 @@ export const useAutomationProjectConfigurationWorkflowInputOptionsQuery = <
     )};
 
 export const AutomationProjectConfigurationWorkflowProvidableValuesDocument = new TypedDocumentString(`
-    query automationProjectConfigurationWorkflowProvidableValues($id: ID!, $workflowUuid: ID!) {
+    query automationProjectConfigurationWorkflowProvidableValues($id: ID!, $workflowUuid: ID!, $projectVersion: Int) {
   automationProjectConfigurationWorkflowProvidableValues(
     id: $id
     workflowUuid: $workflowUuid
+    projectVersion: $projectVersion
   ) {
     connectionSlots {
       componentName
@@ -7041,6 +8352,7 @@ export const AutomationProjectConfigurationWorkflowProvidableValuesDocument = ne
       label
       type
       required
+      internalOnly
       componentName
       componentVersion
       groupName
@@ -7223,6 +8535,31 @@ export const useAutomationProjectVersionWorkflowChangesQuery = <
   }
     )};
 
+export const AutomationProjectVersionWorkflowsDocument = new TypedDocumentString(`
+    query automationProjectVersionWorkflows($id: ID!, $projectVersion: Int!) {
+  automationProjectVersionWorkflows(id: $id, projectVersion: $projectVersion) {
+    workflowUuid
+    label
+  }
+}
+    `);
+
+export const useAutomationProjectVersionWorkflowsQuery = <
+      TData = AutomationProjectVersionWorkflowsQuery,
+      TError = unknown
+    >(
+      variables: AutomationProjectVersionWorkflowsQueryVariables,
+      options?: Omit<UseQueryOptions<AutomationProjectVersionWorkflowsQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<AutomationProjectVersionWorkflowsQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<AutomationProjectVersionWorkflowsQuery, TError, TData>(
+      {
+    queryKey: ['automationProjectVersionWorkflows', variables],
+    queryFn: fetcher<AutomationProjectVersionWorkflowsQuery, AutomationProjectVersionWorkflowsQueryVariables>(AutomationProjectVersionWorkflowsDocument, variables),
+    ...options
+  }
+    )};
+
 export const AutomationProjectVersionsDocument = new TypedDocumentString(`
     query automationProjectVersions($id: ID!) {
   automationProjectVersions(id: $id) {
@@ -7250,6 +8587,95 @@ export const useAutomationProjectVersionsQuery = <
   }
     )};
 
+export const AutomationProjectWorkflowInputOptionsDocument = new TypedDocumentString(`
+    query automationProjectWorkflowInputOptions($projectId: ID!, $environmentId: ID!, $projectVersion: Int!, $workflowUuid: ID!, $inputName: String!, $propertyName: String!, $connectionId: ID!, $lookupDependsOnValues: Map, $searchText: String) {
+  automationProjectWorkflowInputOptions(
+    projectId: $projectId
+    environmentId: $environmentId
+    projectVersion: $projectVersion
+    workflowUuid: $workflowUuid
+    inputName: $inputName
+    propertyName: $propertyName
+    connectionId: $connectionId
+    lookupDependsOnValues: $lookupDependsOnValues
+    searchText: $searchText
+  ) {
+    label
+    value
+    description
+  }
+}
+    `);
+
+export const useAutomationProjectWorkflowInputOptionsQuery = <
+      TData = AutomationProjectWorkflowInputOptionsQuery,
+      TError = unknown
+    >(
+      variables: AutomationProjectWorkflowInputOptionsQueryVariables,
+      options?: Omit<UseQueryOptions<AutomationProjectWorkflowInputOptionsQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<AutomationProjectWorkflowInputOptionsQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<AutomationProjectWorkflowInputOptionsQuery, TError, TData>(
+      {
+    queryKey: ['automationProjectWorkflowInputOptions', variables],
+    queryFn: fetcher<AutomationProjectWorkflowInputOptionsQuery, AutomationProjectWorkflowInputOptionsQueryVariables>(AutomationProjectWorkflowInputOptionsDocument, variables),
+    ...options
+  }
+    )};
+
+export const AutomationProjectWorkflowProvidableValuesDocument = new TypedDocumentString(`
+    query automationProjectWorkflowProvidableValues($projectId: ID!, $environmentId: ID!, $projectVersion: Int!, $workflowUuid: ID!) {
+  automationProjectWorkflowProvidableValues(
+    projectId: $projectId
+    environmentId: $environmentId
+    projectVersion: $projectVersion
+    workflowUuid: $workflowUuid
+  ) {
+    connectionSlots {
+      componentName
+      title
+      required
+      providableConnections {
+        id
+        name
+      }
+    }
+    inputs {
+      name
+      label
+      type
+      required
+      internalOnly
+      componentName
+      componentVersion
+      groupName
+      optionConnections {
+        id
+        name
+      }
+    }
+    providedConnections
+    providedInputs
+  }
+}
+    `);
+
+export const useAutomationProjectWorkflowProvidableValuesQuery = <
+      TData = AutomationProjectWorkflowProvidableValuesQuery,
+      TError = unknown
+    >(
+      variables: AutomationProjectWorkflowProvidableValuesQueryVariables,
+      options?: Omit<UseQueryOptions<AutomationProjectWorkflowProvidableValuesQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<AutomationProjectWorkflowProvidableValuesQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<AutomationProjectWorkflowProvidableValuesQuery, TError, TData>(
+      {
+    queryKey: ['automationProjectWorkflowProvidableValues', variables],
+    queryFn: fetcher<AutomationProjectWorkflowProvidableValuesQuery, AutomationProjectWorkflowProvidableValuesQueryVariables>(AutomationProjectWorkflowProvidableValuesDocument, variables),
+    ...options
+  }
+    )};
+
 export const AutomationProjectsDocument = new TypedDocumentString(`
     query automationProjects($environmentId: ID) {
   automationProjects(environmentId: $environmentId) {
@@ -7262,8 +8688,12 @@ export const AutomationProjectsDocument = new TypedDocumentString(`
     version
     lastPublishedVersion
     permissionExpression
+    codeWorkflowProject
+    codeWorkflowLanguage
+    codeWorkflowDraftPublishable
     configurationCount
     lastPublishedDate
+    unpublishedChanges
     workflowTemplates {
       workflowUuid
       workflowId
@@ -7478,6 +8908,103 @@ export const usePublishAutomationProjectMutation = <
   }
     )};
 
+export const ChangeAutomationProjectConfigurationConnectedUserVersionDocument = new TypedDocumentString(`
+    mutation changeAutomationProjectConfigurationConnectedUserVersion($sourceId: ID!, $connectedUserId: ID!, $projectVersion: Int!, $targetId: ID, $workflowInputs: [ConfigurationMoveWorkflowInputs!]) {
+  changeAutomationProjectConfigurationConnectedUserVersion(
+    sourceId: $sourceId
+    connectedUserId: $connectedUserId
+    projectVersion: $projectVersion
+    targetId: $targetId
+    workflowInputs: $workflowInputs
+  ) {
+    movedConnectedUserIds
+    needsAttentionConnectedUserIds
+    skipped {
+      connectedUserId
+      reason
+      workflowLabels
+    }
+  }
+}
+    `);
+
+export const useChangeAutomationProjectConfigurationConnectedUserVersionMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<ChangeAutomationProjectConfigurationConnectedUserVersionMutation, TError, ChangeAutomationProjectConfigurationConnectedUserVersionMutationVariables, TContext>) => {
+    
+    return useMutation<ChangeAutomationProjectConfigurationConnectedUserVersionMutation, TError, ChangeAutomationProjectConfigurationConnectedUserVersionMutationVariables, TContext>(
+      {
+    mutationKey: ['changeAutomationProjectConfigurationConnectedUserVersion'],
+    mutationFn: (variables?: ChangeAutomationProjectConfigurationConnectedUserVersionMutationVariables) => fetcher<ChangeAutomationProjectConfigurationConnectedUserVersionMutation, ChangeAutomationProjectConfigurationConnectedUserVersionMutationVariables>(ChangeAutomationProjectConfigurationConnectedUserVersionDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const ConnectedUserCatalogWorkflowCopiesDocument = new TypedDocumentString(`
+    query connectedUserCatalogWorkflowCopies($automationUuids: [ID!]!, $environmentId: ID!) {
+  connectedUserCatalogWorkflowCopies(
+    automationUuids: $automationUuids
+    environmentId: $environmentId
+  ) {
+    copiedFromWorkflowUuid
+    workflowUuid
+    externalUserId
+    connectedUserName
+    connectedUserEmail
+    enabled
+  }
+}
+    `);
+
+export const useConnectedUserCatalogWorkflowCopiesQuery = <
+      TData = ConnectedUserCatalogWorkflowCopiesQuery,
+      TError = unknown
+    >(
+      variables: ConnectedUserCatalogWorkflowCopiesQueryVariables,
+      options?: Omit<UseQueryOptions<ConnectedUserCatalogWorkflowCopiesQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<ConnectedUserCatalogWorkflowCopiesQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<ConnectedUserCatalogWorkflowCopiesQuery, TError, TData>(
+      {
+    queryKey: ['connectedUserCatalogWorkflowCopies', variables],
+    queryFn: fetcher<ConnectedUserCatalogWorkflowCopiesQuery, ConnectedUserCatalogWorkflowCopiesQueryVariables>(ConnectedUserCatalogWorkflowCopiesDocument, variables),
+    ...options
+  }
+    )};
+
+export const ConnectedUserCodeWorkflowReferencesDocument = new TypedDocumentString(`
+    query connectedUserCodeWorkflowReferences($automationUuids: [ID!]!, $environmentId: ID!) {
+  connectedUserCodeWorkflowReferences(
+    automationUuids: $automationUuids
+    environmentId: $environmentId
+  ) {
+    automationUuid
+    externalUserId
+    environment
+    enabled
+    dangling
+    danglingReason
+  }
+}
+    `);
+
+export const useConnectedUserCodeWorkflowReferencesQuery = <
+      TData = ConnectedUserCodeWorkflowReferencesQuery,
+      TError = unknown
+    >(
+      variables: ConnectedUserCodeWorkflowReferencesQueryVariables,
+      options?: Omit<UseQueryOptions<ConnectedUserCodeWorkflowReferencesQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<ConnectedUserCodeWorkflowReferencesQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<ConnectedUserCodeWorkflowReferencesQuery, TError, TData>(
+      {
+    queryKey: ['connectedUserCodeWorkflowReferences', variables],
+    queryFn: fetcher<ConnectedUserCodeWorkflowReferencesQuery, ConnectedUserCodeWorkflowReferencesQueryVariables>(ConnectedUserCodeWorkflowReferencesDocument, variables),
+    ...options
+  }
+    )};
+
 export const ConnectedUserMcpServersDocument = new TypedDocumentString(`
     query connectedUserMcpServers($connectedUserId: ID!) {
   connectedUserMcpServers(connectedUserId: $connectedUserId) {
@@ -7495,6 +9022,7 @@ export const ConnectedUserMcpServersDocument = new TypedDocumentString(`
       enabled
     }
     workflows {
+      id
       integrationInstanceId
       componentName
       integrationVersion
@@ -7502,6 +9030,17 @@ export const ConnectedUserMcpServersDocument = new TypedDocumentString(`
       name
       description
       enabled
+      lastExecutionDate
+    }
+    automations {
+      id
+      connectedUserProjectWorkflowId
+      automationName
+      workflowUuid
+      name
+      description
+      enabled
+      available
       lastExecutionDate
     }
   }
@@ -7524,6 +9063,34 @@ export const useConnectedUserMcpServersQuery = <
   }
     )};
 
+export const ConnectedUserProjectWorkflowReferenceValuesDocument = new TypedDocumentString(`
+    query connectedUserProjectWorkflowReferenceValues($id: ID!) {
+  connectedUserProjectWorkflowReferenceValues(id: $id) {
+    connections {
+      componentName
+      connectionId
+    }
+    inputs
+  }
+}
+    `);
+
+export const useConnectedUserProjectWorkflowReferenceValuesQuery = <
+      TData = ConnectedUserProjectWorkflowReferenceValuesQuery,
+      TError = unknown
+    >(
+      variables: ConnectedUserProjectWorkflowReferenceValuesQueryVariables,
+      options?: Omit<UseQueryOptions<ConnectedUserProjectWorkflowReferenceValuesQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<ConnectedUserProjectWorkflowReferenceValuesQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<ConnectedUserProjectWorkflowReferenceValuesQuery, TError, TData>(
+      {
+    queryKey: ['connectedUserProjectWorkflowReferenceValues', variables],
+    queryFn: fetcher<ConnectedUserProjectWorkflowReferenceValuesQuery, ConnectedUserProjectWorkflowReferenceValuesQueryVariables>(ConnectedUserProjectWorkflowReferenceValuesDocument, variables),
+    ...options
+  }
+    )};
+
 export const ConnectedUserProjectsDocument = new TypedDocumentString(`
     query connectedUserProjects($connectedUserId: ID, $environmentId: ID) {
   connectedUserProjects(
@@ -7538,13 +9105,16 @@ export const ConnectedUserProjectsDocument = new TypedDocumentString(`
     }
     connectedUserProjectWorkflows {
       id
+      attentionReason
       automationUuid
       connectedUserId
       copiedFromWorkflowUuid
       enabled
       lastExecutionDate
       projectId
+      provisionedBy
       staticWebhookUrl
+      toolOnly
       workflowUuid
       workflowVersion
       workflow {
@@ -7562,6 +9132,8 @@ export const ConnectedUserProjectsDocument = new TypedDocumentString(`
       configurationId
       configurationName
       configurationProjectVersion
+      configurationEnabled
+      enabled
     }
     environmentId
     lastExecutionDate
@@ -7667,6 +9239,41 @@ export const useCreateEmbeddedMcpServerMutation = <
       {
     mutationKey: ['createEmbeddedMcpServer'],
     mutationFn: (variables?: CreateEmbeddedMcpServerMutationVariables) => fetcher<CreateEmbeddedMcpServerMutation, CreateEmbeddedMcpServerMutationVariables>(CreateEmbeddedMcpServerDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const CreateMcpAutomationProjectConfigurationDocument = new TypedDocumentString(`
+    mutation createMcpAutomationProjectConfiguration($input: CreateMcpAutomationProjectConfigurationInput!) {
+  createMcpAutomationProjectConfiguration(input: $input) {
+    id
+    mcpServerId
+    automationProjectConfigurationId
+    automationProjectConfigurationName
+    automationProjectConfigurationEnabled
+    projectId
+    projectVersion
+    workflows {
+      id
+      workflowUuid
+      label
+      parameters
+      enabled
+      available
+    }
+  }
+}
+    `);
+
+export const useCreateMcpAutomationProjectConfigurationMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<CreateMcpAutomationProjectConfigurationMutation, TError, CreateMcpAutomationProjectConfigurationMutationVariables, TContext>) => {
+    
+    return useMutation<CreateMcpAutomationProjectConfigurationMutation, TError, CreateMcpAutomationProjectConfigurationMutationVariables, TContext>(
+      {
+    mutationKey: ['createMcpAutomationProjectConfiguration'],
+    mutationFn: (variables?: CreateMcpAutomationProjectConfigurationMutationVariables) => fetcher<CreateMcpAutomationProjectConfigurationMutation, CreateMcpAutomationProjectConfigurationMutationVariables>(CreateMcpAutomationProjectConfigurationDocument, variables)(),
     ...options
   }
     )};
@@ -7811,6 +9418,44 @@ export const useDeleteEmbeddedMcpToolMutation = <
   }
     )};
 
+export const DeleteMcpAutomationProjectConfigurationDocument = new TypedDocumentString(`
+    mutation deleteMcpAutomationProjectConfiguration($id: ID!) {
+  deleteMcpAutomationProjectConfiguration(id: $id)
+}
+    `);
+
+export const useDeleteMcpAutomationProjectConfigurationMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<DeleteMcpAutomationProjectConfigurationMutation, TError, DeleteMcpAutomationProjectConfigurationMutationVariables, TContext>) => {
+    
+    return useMutation<DeleteMcpAutomationProjectConfigurationMutation, TError, DeleteMcpAutomationProjectConfigurationMutationVariables, TContext>(
+      {
+    mutationKey: ['deleteMcpAutomationProjectConfiguration'],
+    mutationFn: (variables?: DeleteMcpAutomationProjectConfigurationMutationVariables) => fetcher<DeleteMcpAutomationProjectConfigurationMutation, DeleteMcpAutomationProjectConfigurationMutationVariables>(DeleteMcpAutomationProjectConfigurationDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const DeleteMcpAutomationProjectConfigurationWorkflowDocument = new TypedDocumentString(`
+    mutation deleteMcpAutomationProjectConfigurationWorkflow($id: ID!) {
+  deleteMcpAutomationProjectConfigurationWorkflow(id: $id)
+}
+    `);
+
+export const useDeleteMcpAutomationProjectConfigurationWorkflowMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<DeleteMcpAutomationProjectConfigurationWorkflowMutation, TError, DeleteMcpAutomationProjectConfigurationWorkflowMutationVariables, TContext>) => {
+    
+    return useMutation<DeleteMcpAutomationProjectConfigurationWorkflowMutation, TError, DeleteMcpAutomationProjectConfigurationWorkflowMutationVariables, TContext>(
+      {
+    mutationKey: ['deleteMcpAutomationProjectConfigurationWorkflow'],
+    mutationFn: (variables?: DeleteMcpAutomationProjectConfigurationWorkflowMutationVariables) => fetcher<DeleteMcpAutomationProjectConfigurationWorkflowMutation, DeleteMcpAutomationProjectConfigurationWorkflowMutationVariables>(DeleteMcpAutomationProjectConfigurationWorkflowDocument, variables)(),
+    ...options
+  }
+    )};
+
 export const DeleteMcpIntegrationInstanceConfigurationDocument = new TypedDocumentString(`
     mutation deleteMcpIntegrationInstanceConfiguration($id: ID!) {
   deleteMcpIntegrationInstanceConfiguration(id: $id)
@@ -7883,6 +9528,73 @@ export const useDuplicateAutomationProjectWorkflowMutation = <
       {
     mutationKey: ['duplicateAutomationProjectWorkflow'],
     mutationFn: (variables?: DuplicateAutomationProjectWorkflowMutationVariables) => fetcher<DuplicateAutomationProjectWorkflowMutation, DuplicateAutomationProjectWorkflowMutationVariables>(DuplicateAutomationProjectWorkflowDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const EmbeddedGettingStartedDocument = new TypedDocumentString(`
+    query embeddedGettingStarted {
+  embeddedGettingStarted {
+    apiBaseUrl
+    apiKeyCreated
+    completed
+    componentName
+    componentVersion
+    firstCallMade
+    integrationConfigurationCreated
+    integrationConfigurationEnabled
+    integrationCreated
+    integrationHasWorkflows
+    integrationId
+    integrationInstanceConfigurationId
+    integrationPublished
+    lastFailedCall {
+      createdDate
+      errorMessage
+      status
+    }
+    testUserAdded
+    testUserConnected
+    testUserExternalId
+    testUserId
+  }
+}
+    `);
+
+export const useEmbeddedGettingStartedQuery = <
+      TData = EmbeddedGettingStartedQuery,
+      TError = unknown
+    >(
+      variables?: EmbeddedGettingStartedQueryVariables,
+      options?: Omit<UseQueryOptions<EmbeddedGettingStartedQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<EmbeddedGettingStartedQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<EmbeddedGettingStartedQuery, TError, TData>(
+      {
+    queryKey: variables === undefined ? ['embeddedGettingStarted'] : ['embeddedGettingStarted', variables],
+    queryFn: fetcher<EmbeddedGettingStartedQuery, EmbeddedGettingStartedQueryVariables>(EmbeddedGettingStartedDocument, variables),
+    ...options
+  }
+    )};
+
+export const EmbeddedGettingStartedCompletedDocument = new TypedDocumentString(`
+    query embeddedGettingStartedCompleted {
+  embeddedGettingStartedCompleted
+}
+    `);
+
+export const useEmbeddedGettingStartedCompletedQuery = <
+      TData = EmbeddedGettingStartedCompletedQuery,
+      TError = unknown
+    >(
+      variables?: EmbeddedGettingStartedCompletedQueryVariables,
+      options?: Omit<UseQueryOptions<EmbeddedGettingStartedCompletedQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<EmbeddedGettingStartedCompletedQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<EmbeddedGettingStartedCompletedQuery, TError, TData>(
+      {
+    queryKey: variables === undefined ? ['embeddedGettingStartedCompleted'] : ['embeddedGettingStartedCompleted', variables],
+    queryFn: fetcher<EmbeddedGettingStartedCompletedQuery, EmbeddedGettingStartedCompletedQueryVariables>(EmbeddedGettingStartedCompletedDocument, variables),
     ...options
   }
     )};
@@ -8076,6 +9788,55 @@ export const useEnableAutomationProjectConfigurationWorkflowMutation = <
   }
     )};
 
+export const EnableConnectedUserAutomationProjectConfigurationDocument = new TypedDocumentString(`
+    mutation enableConnectedUserAutomationProjectConfiguration($connectedUserId: ID!, $projectId: ID!, $enable: Boolean!) {
+  enableConnectedUserAutomationProjectConfiguration(
+    connectedUserId: $connectedUserId
+    projectId: $projectId
+    enable: $enable
+  )
+}
+    `);
+
+export const useEnableConnectedUserAutomationProjectConfigurationMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<EnableConnectedUserAutomationProjectConfigurationMutation, TError, EnableConnectedUserAutomationProjectConfigurationMutationVariables, TContext>) => {
+    
+    return useMutation<EnableConnectedUserAutomationProjectConfigurationMutation, TError, EnableConnectedUserAutomationProjectConfigurationMutationVariables, TContext>(
+      {
+    mutationKey: ['enableConnectedUserAutomationProjectConfiguration'],
+    mutationFn: (variables?: EnableConnectedUserAutomationProjectConfigurationMutationVariables) => fetcher<EnableConnectedUserAutomationProjectConfigurationMutation, EnableConnectedUserAutomationProjectConfigurationMutationVariables>(EnableConnectedUserAutomationProjectConfigurationDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const EnableConnectedUserMcpAutomationDocument = new TypedDocumentString(`
+    mutation enableConnectedUserMcpAutomation($connectedUserId: ID!, $id: ID!, $enable: Boolean!) {
+  enableConnectedUserMcpAutomation(
+    connectedUserId: $connectedUserId
+    id: $id
+    enable: $enable
+  ) {
+    id
+    enabled
+  }
+}
+    `);
+
+export const useEnableConnectedUserMcpAutomationMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<EnableConnectedUserMcpAutomationMutation, TError, EnableConnectedUserMcpAutomationMutationVariables, TContext>) => {
+    
+    return useMutation<EnableConnectedUserMcpAutomationMutation, TError, EnableConnectedUserMcpAutomationMutationVariables, TContext>(
+      {
+    mutationKey: ['enableConnectedUserMcpAutomation'],
+    mutationFn: (variables?: EnableConnectedUserMcpAutomationMutationVariables) => fetcher<EnableConnectedUserMcpAutomationMutation, EnableConnectedUserMcpAutomationMutationVariables>(EnableConnectedUserMcpAutomationDocument, variables)(),
+    ...options
+  }
+    )};
+
 export const EnableConnectedUserMcpServerDocument = new TypedDocumentString(`
     mutation enableConnectedUserMcpServer($connectedUserId: ID!, $mcpServerId: ID!, $enable: Boolean!) {
   enableConnectedUserMcpServer(
@@ -8118,6 +9879,25 @@ export const useEnableConnectedUserMcpToolMutation = <
   }
     )};
 
+export const EnableConnectedUserMcpWorkflowDocument = new TypedDocumentString(`
+    mutation enableConnectedUserMcpWorkflow($id: ID!, $enable: Boolean!) {
+  enableConnectedUserMcpWorkflow(id: $id, enable: $enable)
+}
+    `);
+
+export const useEnableConnectedUserMcpWorkflowMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<EnableConnectedUserMcpWorkflowMutation, TError, EnableConnectedUserMcpWorkflowMutationVariables, TContext>) => {
+    
+    return useMutation<EnableConnectedUserMcpWorkflowMutation, TError, EnableConnectedUserMcpWorkflowMutationVariables, TContext>(
+      {
+    mutationKey: ['enableConnectedUserMcpWorkflow'],
+    mutationFn: (variables?: EnableConnectedUserMcpWorkflowMutationVariables) => fetcher<EnableConnectedUserMcpWorkflowMutation, EnableConnectedUserMcpWorkflowMutationVariables>(EnableConnectedUserMcpWorkflowDocument, variables)(),
+    ...options
+  }
+    )};
+
 export const EnableConnectedUserProjectWorkflowDocument = new TypedDocumentString(`
     mutation enableConnectedUserProjectWorkflow($id: ID!, $enable: Boolean!) {
   enableConnectedUserProjectWorkflow(id: $id, enable: $enable)
@@ -8133,6 +9913,38 @@ export const useEnableConnectedUserProjectWorkflowMutation = <
       {
     mutationKey: ['enableConnectedUserProjectWorkflow'],
     mutationFn: (variables?: EnableConnectedUserProjectWorkflowMutationVariables) => fetcher<EnableConnectedUserProjectWorkflowMutation, EnableConnectedUserProjectWorkflowMutationVariables>(EnableConnectedUserProjectWorkflowDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const IntegrationConnectionWorkflowsDocument = new TypedDocumentString(`
+    query IntegrationConnectionWorkflows($connectionId: ID!) {
+  integrationConnectionWorkflows(connectionId: $connectionId) {
+    id
+    parentId
+    parentName
+    parentType
+    parentVersion
+    usage
+    workflowId
+    workflowName
+    workflowUuid
+  }
+}
+    `);
+
+export const useIntegrationConnectionWorkflowsQuery = <
+      TData = IntegrationConnectionWorkflowsQuery,
+      TError = unknown
+    >(
+      variables: IntegrationConnectionWorkflowsQueryVariables,
+      options?: Omit<UseQueryOptions<IntegrationConnectionWorkflowsQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<IntegrationConnectionWorkflowsQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<IntegrationConnectionWorkflowsQuery, TError, TData>(
+      {
+    queryKey: ['IntegrationConnectionWorkflows', variables],
+    queryFn: fetcher<IntegrationConnectionWorkflowsQuery, IntegrationConnectionWorkflowsQueryVariables>(IntegrationConnectionWorkflowsDocument, variables),
     ...options
   }
     )};
@@ -8287,6 +10099,142 @@ export const useIntegrationWorkflowsByIntegrationIdQuery = <
   }
     )};
 
+export const McpAutomationProjectConfigurationToolWorkflowUuidsDocument = new TypedDocumentString(`
+    query mcpAutomationProjectConfigurationToolWorkflowUuids($automationProjectConfigurationId: ID!) {
+  mcpAutomationProjectConfigurationToolWorkflowUuids(
+    automationProjectConfigurationId: $automationProjectConfigurationId
+  )
+}
+    `);
+
+export const useMcpAutomationProjectConfigurationToolWorkflowUuidsQuery = <
+      TData = McpAutomationProjectConfigurationToolWorkflowUuidsQuery,
+      TError = unknown
+    >(
+      variables: McpAutomationProjectConfigurationToolWorkflowUuidsQueryVariables,
+      options?: Omit<UseQueryOptions<McpAutomationProjectConfigurationToolWorkflowUuidsQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<McpAutomationProjectConfigurationToolWorkflowUuidsQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<McpAutomationProjectConfigurationToolWorkflowUuidsQuery, TError, TData>(
+      {
+    queryKey: ['mcpAutomationProjectConfigurationToolWorkflowUuids', variables],
+    queryFn: fetcher<McpAutomationProjectConfigurationToolWorkflowUuidsQuery, McpAutomationProjectConfigurationToolWorkflowUuidsQueryVariables>(McpAutomationProjectConfigurationToolWorkflowUuidsDocument, variables),
+    ...options
+  }
+    )};
+
+export const McpAutomationProjectConfigurationWorkflowPropertiesDocument = new TypedDocumentString(`
+    query mcpAutomationProjectConfigurationWorkflowProperties($mcpAutomationProjectConfigurationWorkflowId: ID!) {
+  mcpAutomationProjectConfigurationWorkflowProperties(
+    mcpAutomationProjectConfigurationWorkflowId: $mcpAutomationProjectConfigurationWorkflowId
+  ) {
+    advancedOption
+    description
+    displayCondition
+    expressionEnabled
+    hidden
+    name
+    required
+    type
+    ... on StringProperty {
+      controlType
+      defaultValue
+      label
+      maxLength
+      minLength
+      placeholder
+      regex
+    }
+    ... on IntegerProperty {
+      controlType
+      integerDefaultValue: defaultValue
+      label
+      placeholder
+    }
+    ... on NumberProperty {
+      controlType
+      label
+      numberDefaultValue: defaultValue
+      placeholder
+    }
+    ... on BooleanProperty {
+      booleanDefaultValue: defaultValue
+      controlType
+      label
+      placeholder
+    }
+    ... on ArrayProperty {
+      arrayDefaultValue: defaultValue
+      controlType
+      label
+      placeholder
+    }
+    ... on ObjectProperty {
+      controlType
+      label
+      objectDefaultValue: defaultValue
+      placeholder
+    }
+  }
+}
+    `);
+
+export const useMcpAutomationProjectConfigurationWorkflowPropertiesQuery = <
+      TData = McpAutomationProjectConfigurationWorkflowPropertiesQuery,
+      TError = unknown
+    >(
+      variables: McpAutomationProjectConfigurationWorkflowPropertiesQueryVariables,
+      options?: Omit<UseQueryOptions<McpAutomationProjectConfigurationWorkflowPropertiesQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<McpAutomationProjectConfigurationWorkflowPropertiesQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<McpAutomationProjectConfigurationWorkflowPropertiesQuery, TError, TData>(
+      {
+    queryKey: ['mcpAutomationProjectConfigurationWorkflowProperties', variables],
+    queryFn: fetcher<McpAutomationProjectConfigurationWorkflowPropertiesQuery, McpAutomationProjectConfigurationWorkflowPropertiesQueryVariables>(McpAutomationProjectConfigurationWorkflowPropertiesDocument, variables),
+    ...options
+  }
+    )};
+
+export const McpAutomationProjectConfigurationsByServerIdDocument = new TypedDocumentString(`
+    query mcpAutomationProjectConfigurationsByServerId($mcpServerId: ID!) {
+  mcpAutomationProjectConfigurationsByServerId(mcpServerId: $mcpServerId) {
+    id
+    mcpServerId
+    automationProjectConfigurationId
+    automationProjectConfigurationName
+    automationProjectConfigurationEnabled
+    projectId
+    projectName
+    projectVersion
+    workflows {
+      id
+      workflowUuid
+      workflowId
+      label
+      parameters
+      enabled
+      available
+    }
+  }
+}
+    `);
+
+export const useMcpAutomationProjectConfigurationsByServerIdQuery = <
+      TData = McpAutomationProjectConfigurationsByServerIdQuery,
+      TError = unknown
+    >(
+      variables: McpAutomationProjectConfigurationsByServerIdQueryVariables,
+      options?: Omit<UseQueryOptions<McpAutomationProjectConfigurationsByServerIdQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<McpAutomationProjectConfigurationsByServerIdQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<McpAutomationProjectConfigurationsByServerIdQuery, TError, TData>(
+      {
+    queryKey: ['mcpAutomationProjectConfigurationsByServerId', variables],
+    queryFn: fetcher<McpAutomationProjectConfigurationsByServerIdQuery, McpAutomationProjectConfigurationsByServerIdQueryVariables>(McpAutomationProjectConfigurationsByServerIdDocument, variables),
+    ...options
+  }
+    )};
+
 export const McpComponentDefinitionsDocument = new TypedDocumentString(`
     query mcpComponentDefinitions {
   mcpComponentDefinitions {
@@ -8385,6 +10333,52 @@ export const McpIntegrationInstanceConfigurationWorkflowPropertiesDocument = new
     ... on ArrayProperty {
       arrayDefaultValue: defaultValue
       controlType
+      items {
+        advancedOption
+        description
+        displayCondition
+        expressionEnabled
+        hidden
+        name
+        required
+        type
+        ... on StringProperty {
+          controlType
+          defaultValue
+          label
+          placeholder
+        }
+        ... on IntegerProperty {
+          controlType
+          integerDefaultValue: defaultValue
+          label
+          placeholder
+        }
+        ... on NumberProperty {
+          controlType
+          label
+          numberDefaultValue: defaultValue
+          placeholder
+        }
+        ... on BooleanProperty {
+          booleanDefaultValue: defaultValue
+          controlType
+          label
+          placeholder
+        }
+        ... on ArrayProperty {
+          arrayDefaultValue: defaultValue
+          controlType
+          label
+          placeholder
+        }
+        ... on ObjectProperty {
+          controlType
+          label
+          objectDefaultValue: defaultValue
+          placeholder
+        }
+      }
       label
       placeholder
     }
@@ -8393,6 +10387,52 @@ export const McpIntegrationInstanceConfigurationWorkflowPropertiesDocument = new
       label
       objectDefaultValue: defaultValue
       placeholder
+      properties {
+        advancedOption
+        description
+        displayCondition
+        expressionEnabled
+        hidden
+        name
+        required
+        type
+        ... on StringProperty {
+          controlType
+          defaultValue
+          label
+          placeholder
+        }
+        ... on IntegerProperty {
+          controlType
+          integerDefaultValue: defaultValue
+          label
+          placeholder
+        }
+        ... on NumberProperty {
+          controlType
+          label
+          numberDefaultValue: defaultValue
+          placeholder
+        }
+        ... on BooleanProperty {
+          booleanDefaultValue: defaultValue
+          controlType
+          label
+          placeholder
+        }
+        ... on ArrayProperty {
+          arrayDefaultValue: defaultValue
+          controlType
+          label
+          placeholder
+        }
+        ... on ObjectProperty {
+          controlType
+          label
+          objectDefaultValue: defaultValue
+          placeholder
+        }
+      }
     }
   }
 }
@@ -8508,11 +10548,12 @@ export const useMcpIntegrationInstanceConfigurationsByServerIdQuery = <
     )};
 
 export const MoveAutomationProjectConfigurationConnectedUsersDocument = new TypedDocumentString(`
-    mutation moveAutomationProjectConfigurationConnectedUsers($sourceId: ID!, $targetId: ID!, $connectedUserIds: [ID!]!) {
+    mutation moveAutomationProjectConfigurationConnectedUsers($sourceId: ID!, $targetId: ID!, $connectedUserIds: [ID!]!, $workflowInputs: [ConfigurationMoveWorkflowInputs!]) {
   moveAutomationProjectConfigurationConnectedUsers(
     sourceId: $sourceId
     targetId: $targetId
     connectedUserIds: $connectedUserIds
+    workflowInputs: $workflowInputs
   ) {
     movedConnectedUserIds
     needsAttentionConnectedUserIds
@@ -8591,6 +10632,8 @@ export const ProvisionableConnectedUserMcpServersDocument = new TypedDocumentStr
     provisioned
     coveredComponentNames
     missingComponentNames
+    coveredAutomationNames
+    missingAutomationNames
   }
 }
     `);
@@ -8646,6 +10689,11 @@ export const ProvisionableConnectedUserProjectsDocument = new TypedDocumentStrin
         }
         provisioned
         dangling
+        components {
+          name
+          title
+          icon
+        }
       }
     }
   }
@@ -8664,6 +10712,355 @@ export const useProvisionableConnectedUserProjectsQuery = <
       {
     queryKey: ['provisionableConnectedUserProjects', variables],
     queryFn: fetcher<ProvisionableConnectedUserProjectsQuery, ProvisionableConnectedUserProjectsQueryVariables>(ProvisionableConnectedUserProjectsDocument, variables),
+    ...options
+  }
+    )};
+
+export const RestoreAutomationProjectVersionDocument = new TypedDocumentString(`
+    mutation restoreAutomationProjectVersion($id: ID!, $projectVersion: Int!) {
+  restoreAutomationProjectVersion(id: $id, projectVersion: $projectVersion)
+}
+    `);
+
+export const useRestoreAutomationProjectVersionMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<RestoreAutomationProjectVersionMutation, TError, RestoreAutomationProjectVersionMutationVariables, TContext>) => {
+    
+    return useMutation<RestoreAutomationProjectVersionMutation, TError, RestoreAutomationProjectVersionMutationVariables, TContext>(
+      {
+    mutationKey: ['restoreAutomationProjectVersion'],
+    mutationFn: (variables?: RestoreAutomationProjectVersionMutationVariables) => fetcher<RestoreAutomationProjectVersionMutation, RestoreAutomationProjectVersionMutationVariables>(RestoreAutomationProjectVersionDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const ToolEligibleAutomationProjectConfigurationWorkflowPropertiesDocument = new TypedDocumentString(`
+    query toolEligibleAutomationProjectConfigurationWorkflowProperties($automationProjectConfigurationId: ID!, $workflowUuid: String!) {
+  toolEligibleAutomationProjectConfigurationWorkflowProperties(
+    automationProjectConfigurationId: $automationProjectConfigurationId
+    workflowUuid: $workflowUuid
+  ) {
+    advancedOption
+    description
+    displayCondition
+    expressionEnabled
+    hidden
+    name
+    required
+    type
+    ... on StringProperty {
+      controlType
+      defaultValue
+      label
+      maxLength
+      minLength
+      placeholder
+      regex
+    }
+    ... on IntegerProperty {
+      controlType
+      integerDefaultValue: defaultValue
+      label
+      placeholder
+    }
+    ... on NumberProperty {
+      controlType
+      label
+      numberDefaultValue: defaultValue
+      placeholder
+    }
+    ... on BooleanProperty {
+      booleanDefaultValue: defaultValue
+      controlType
+      label
+      placeholder
+    }
+    ... on ArrayProperty {
+      arrayDefaultValue: defaultValue
+      controlType
+      items {
+        advancedOption
+        description
+        displayCondition
+        expressionEnabled
+        hidden
+        name
+        required
+        type
+        ... on StringProperty {
+          controlType
+          defaultValue
+          label
+          placeholder
+        }
+        ... on IntegerProperty {
+          controlType
+          integerDefaultValue: defaultValue
+          label
+          placeholder
+        }
+        ... on NumberProperty {
+          controlType
+          label
+          numberDefaultValue: defaultValue
+          placeholder
+        }
+        ... on BooleanProperty {
+          booleanDefaultValue: defaultValue
+          controlType
+          label
+          placeholder
+        }
+        ... on ArrayProperty {
+          arrayDefaultValue: defaultValue
+          controlType
+          label
+          placeholder
+        }
+        ... on ObjectProperty {
+          controlType
+          label
+          objectDefaultValue: defaultValue
+          placeholder
+        }
+      }
+      label
+      placeholder
+    }
+    ... on ObjectProperty {
+      controlType
+      label
+      objectDefaultValue: defaultValue
+      placeholder
+      properties {
+        advancedOption
+        description
+        displayCondition
+        expressionEnabled
+        hidden
+        name
+        required
+        type
+        ... on StringProperty {
+          controlType
+          defaultValue
+          label
+          placeholder
+        }
+        ... on IntegerProperty {
+          controlType
+          integerDefaultValue: defaultValue
+          label
+          placeholder
+        }
+        ... on NumberProperty {
+          controlType
+          label
+          numberDefaultValue: defaultValue
+          placeholder
+        }
+        ... on BooleanProperty {
+          booleanDefaultValue: defaultValue
+          controlType
+          label
+          placeholder
+        }
+        ... on ArrayProperty {
+          arrayDefaultValue: defaultValue
+          controlType
+          label
+          placeholder
+        }
+        ... on ObjectProperty {
+          controlType
+          label
+          objectDefaultValue: defaultValue
+          placeholder
+        }
+      }
+    }
+  }
+}
+    `);
+
+export const useToolEligibleAutomationProjectConfigurationWorkflowPropertiesQuery = <
+      TData = ToolEligibleAutomationProjectConfigurationWorkflowPropertiesQuery,
+      TError = unknown
+    >(
+      variables: ToolEligibleAutomationProjectConfigurationWorkflowPropertiesQueryVariables,
+      options?: Omit<UseQueryOptions<ToolEligibleAutomationProjectConfigurationWorkflowPropertiesQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<ToolEligibleAutomationProjectConfigurationWorkflowPropertiesQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<ToolEligibleAutomationProjectConfigurationWorkflowPropertiesQuery, TError, TData>(
+      {
+    queryKey: ['toolEligibleAutomationProjectConfigurationWorkflowProperties', variables],
+    queryFn: fetcher<ToolEligibleAutomationProjectConfigurationWorkflowPropertiesQuery, ToolEligibleAutomationProjectConfigurationWorkflowPropertiesQueryVariables>(ToolEligibleAutomationProjectConfigurationWorkflowPropertiesDocument, variables),
+    ...options
+  }
+    )};
+
+export const ToolEligibleIntegrationInstanceConfigurationWorkflowPropertiesDocument = new TypedDocumentString(`
+    query toolEligibleIntegrationInstanceConfigurationWorkflowProperties($integrationInstanceConfigurationId: ID!, $workflowId: String!) {
+  toolEligibleIntegrationInstanceConfigurationWorkflowProperties(
+    integrationInstanceConfigurationId: $integrationInstanceConfigurationId
+    workflowId: $workflowId
+  ) {
+    advancedOption
+    description
+    displayCondition
+    expressionEnabled
+    hidden
+    name
+    required
+    type
+    ... on StringProperty {
+      controlType
+      defaultValue
+      label
+      maxLength
+      minLength
+      placeholder
+      regex
+    }
+    ... on IntegerProperty {
+      controlType
+      integerDefaultValue: defaultValue
+      label
+      placeholder
+    }
+    ... on NumberProperty {
+      controlType
+      label
+      numberDefaultValue: defaultValue
+      placeholder
+    }
+    ... on BooleanProperty {
+      booleanDefaultValue: defaultValue
+      controlType
+      label
+      placeholder
+    }
+    ... on ArrayProperty {
+      arrayDefaultValue: defaultValue
+      controlType
+      items {
+        advancedOption
+        description
+        displayCondition
+        expressionEnabled
+        hidden
+        name
+        required
+        type
+        ... on StringProperty {
+          controlType
+          defaultValue
+          label
+          placeholder
+        }
+        ... on IntegerProperty {
+          controlType
+          integerDefaultValue: defaultValue
+          label
+          placeholder
+        }
+        ... on NumberProperty {
+          controlType
+          label
+          numberDefaultValue: defaultValue
+          placeholder
+        }
+        ... on BooleanProperty {
+          booleanDefaultValue: defaultValue
+          controlType
+          label
+          placeholder
+        }
+        ... on ArrayProperty {
+          arrayDefaultValue: defaultValue
+          controlType
+          label
+          placeholder
+        }
+        ... on ObjectProperty {
+          controlType
+          label
+          objectDefaultValue: defaultValue
+          placeholder
+        }
+      }
+      label
+      placeholder
+    }
+    ... on ObjectProperty {
+      controlType
+      label
+      objectDefaultValue: defaultValue
+      placeholder
+      properties {
+        advancedOption
+        description
+        displayCondition
+        expressionEnabled
+        hidden
+        name
+        required
+        type
+        ... on StringProperty {
+          controlType
+          defaultValue
+          label
+          placeholder
+        }
+        ... on IntegerProperty {
+          controlType
+          integerDefaultValue: defaultValue
+          label
+          placeholder
+        }
+        ... on NumberProperty {
+          controlType
+          label
+          numberDefaultValue: defaultValue
+          placeholder
+        }
+        ... on BooleanProperty {
+          booleanDefaultValue: defaultValue
+          controlType
+          label
+          placeholder
+        }
+        ... on ArrayProperty {
+          arrayDefaultValue: defaultValue
+          controlType
+          label
+          placeholder
+        }
+        ... on ObjectProperty {
+          controlType
+          label
+          objectDefaultValue: defaultValue
+          placeholder
+        }
+      }
+    }
+  }
+}
+    `);
+
+export const useToolEligibleIntegrationInstanceConfigurationWorkflowPropertiesQuery = <
+      TData = ToolEligibleIntegrationInstanceConfigurationWorkflowPropertiesQuery,
+      TError = unknown
+    >(
+      variables: ToolEligibleIntegrationInstanceConfigurationWorkflowPropertiesQueryVariables,
+      options?: Omit<UseQueryOptions<ToolEligibleIntegrationInstanceConfigurationWorkflowPropertiesQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<ToolEligibleIntegrationInstanceConfigurationWorkflowPropertiesQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<ToolEligibleIntegrationInstanceConfigurationWorkflowPropertiesQuery, TError, TData>(
+      {
+    queryKey: ['toolEligibleIntegrationInstanceConfigurationWorkflowProperties', variables],
+    queryFn: fetcher<ToolEligibleIntegrationInstanceConfigurationWorkflowPropertiesQuery, ToolEligibleIntegrationInstanceConfigurationWorkflowPropertiesQueryVariables>(ToolEligibleIntegrationInstanceConfigurationWorkflowPropertiesDocument, variables),
     ...options
   }
     )};
@@ -8949,6 +11346,92 @@ export const useUpdateIntegrationWorkflowPermissionExpressionMutation = <
   }
     )};
 
+export const UpdateMcpAutomationProjectConfigurationDocument = new TypedDocumentString(`
+    mutation updateMcpAutomationProjectConfiguration($id: ID!, $input: UpdateMcpAutomationProjectConfigurationInput!) {
+  updateMcpAutomationProjectConfiguration(id: $id, input: $input) {
+    id
+    mcpServerId
+    automationProjectConfigurationId
+    automationProjectConfigurationName
+    automationProjectConfigurationEnabled
+    projectId
+    projectVersion
+    workflows {
+      id
+      workflowUuid
+      label
+      parameters
+      enabled
+      available
+    }
+  }
+}
+    `);
+
+export const useUpdateMcpAutomationProjectConfigurationMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<UpdateMcpAutomationProjectConfigurationMutation, TError, UpdateMcpAutomationProjectConfigurationMutationVariables, TContext>) => {
+    
+    return useMutation<UpdateMcpAutomationProjectConfigurationMutation, TError, UpdateMcpAutomationProjectConfigurationMutationVariables, TContext>(
+      {
+    mutationKey: ['updateMcpAutomationProjectConfiguration'],
+    mutationFn: (variables?: UpdateMcpAutomationProjectConfigurationMutationVariables) => fetcher<UpdateMcpAutomationProjectConfigurationMutation, UpdateMcpAutomationProjectConfigurationMutationVariables>(UpdateMcpAutomationProjectConfigurationDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const UpdateMcpAutomationProjectConfigurationWorkflowEnabledDocument = new TypedDocumentString(`
+    mutation updateMcpAutomationProjectConfigurationWorkflowEnabled($id: ID!, $enabled: Boolean!) {
+  updateMcpAutomationProjectConfigurationWorkflowEnabled(
+    id: $id
+    enabled: $enabled
+  ) {
+    id
+    enabled
+    available
+  }
+}
+    `);
+
+export const useUpdateMcpAutomationProjectConfigurationWorkflowEnabledMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<UpdateMcpAutomationProjectConfigurationWorkflowEnabledMutation, TError, UpdateMcpAutomationProjectConfigurationWorkflowEnabledMutationVariables, TContext>) => {
+    
+    return useMutation<UpdateMcpAutomationProjectConfigurationWorkflowEnabledMutation, TError, UpdateMcpAutomationProjectConfigurationWorkflowEnabledMutationVariables, TContext>(
+      {
+    mutationKey: ['updateMcpAutomationProjectConfigurationWorkflowEnabled'],
+    mutationFn: (variables?: UpdateMcpAutomationProjectConfigurationWorkflowEnabledMutationVariables) => fetcher<UpdateMcpAutomationProjectConfigurationWorkflowEnabledMutation, UpdateMcpAutomationProjectConfigurationWorkflowEnabledMutationVariables>(UpdateMcpAutomationProjectConfigurationWorkflowEnabledDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const UpdateMcpAutomationProjectConfigurationWorkflowParametersDocument = new TypedDocumentString(`
+    mutation updateMcpAutomationProjectConfigurationWorkflowParameters($id: ID!, $parameters: Map!) {
+  updateMcpAutomationProjectConfigurationWorkflowParameters(
+    id: $id
+    parameters: $parameters
+  ) {
+    id
+    parameters
+  }
+}
+    `);
+
+export const useUpdateMcpAutomationProjectConfigurationWorkflowParametersMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<UpdateMcpAutomationProjectConfigurationWorkflowParametersMutation, TError, UpdateMcpAutomationProjectConfigurationWorkflowParametersMutationVariables, TContext>) => {
+    
+    return useMutation<UpdateMcpAutomationProjectConfigurationWorkflowParametersMutation, TError, UpdateMcpAutomationProjectConfigurationWorkflowParametersMutationVariables, TContext>(
+      {
+    mutationKey: ['updateMcpAutomationProjectConfigurationWorkflowParameters'],
+    mutationFn: (variables?: UpdateMcpAutomationProjectConfigurationWorkflowParametersMutationVariables) => fetcher<UpdateMcpAutomationProjectConfigurationWorkflowParametersMutation, UpdateMcpAutomationProjectConfigurationWorkflowParametersMutationVariables>(UpdateMcpAutomationProjectConfigurationWorkflowParametersDocument, variables)(),
+    ...options
+  }
+    )};
+
 export const UpdateMcpIntegrationInstanceConfigurationDocument = new TypedDocumentString(`
     mutation updateMcpIntegrationInstanceConfiguration($id: ID!, $input: UpdateMcpIntegrationInstanceConfigurationInput!) {
   updateMcpIntegrationInstanceConfiguration(id: $id, input: $input) {
@@ -8968,25 +11451,6 @@ export const useUpdateMcpIntegrationInstanceConfigurationMutation = <
       {
     mutationKey: ['updateMcpIntegrationInstanceConfiguration'],
     mutationFn: (variables?: UpdateMcpIntegrationInstanceConfigurationMutationVariables) => fetcher<UpdateMcpIntegrationInstanceConfigurationMutation, UpdateMcpIntegrationInstanceConfigurationMutationVariables>(UpdateMcpIntegrationInstanceConfigurationDocument, variables)(),
-    ...options
-  }
-    )};
-
-export const UpdateMcpIntegrationInstanceConfigurationVersionDocument = new TypedDocumentString(`
-    mutation updateMcpIntegrationInstanceConfigurationVersion($id: ID!, $input: UpdateMcpIntegrationInstanceConfigurationVersionInput!) {
-  updateMcpIntegrationInstanceConfigurationVersion(id: $id, input: $input)
-}
-    `);
-
-export const useUpdateMcpIntegrationInstanceConfigurationVersionMutation = <
-      TError = unknown,
-      TContext = unknown
-    >(options?: UseMutationOptions<UpdateMcpIntegrationInstanceConfigurationVersionMutation, TError, UpdateMcpIntegrationInstanceConfigurationVersionMutationVariables, TContext>) => {
-    
-    return useMutation<UpdateMcpIntegrationInstanceConfigurationVersionMutation, TError, UpdateMcpIntegrationInstanceConfigurationVersionMutationVariables, TContext>(
-      {
-    mutationKey: ['updateMcpIntegrationInstanceConfigurationVersion'],
-    mutationFn: (variables?: UpdateMcpIntegrationInstanceConfigurationVersionMutationVariables) => fetcher<UpdateMcpIntegrationInstanceConfigurationVersionMutation, UpdateMcpIntegrationInstanceConfigurationVersionMutationVariables>(UpdateMcpIntegrationInstanceConfigurationVersionDocument, variables)(),
     ...options
   }
     )};
@@ -9017,10 +11481,11 @@ export const useUpdateMcpIntegrationInstanceConfigurationWorkflowMutation = <
     )};
 
 export const UpgradeAutomationProjectConfigurationConnectedUsersDocument = new TypedDocumentString(`
-    mutation upgradeAutomationProjectConfigurationConnectedUsers($targetId: ID!, $connectedUserIds: [ID!]!) {
+    mutation upgradeAutomationProjectConfigurationConnectedUsers($targetId: ID!, $connectedUserIds: [ID!]!, $workflowInputs: [ConfigurationMoveWorkflowInputs!]) {
   upgradeAutomationProjectConfigurationConnectedUsers(
     targetId: $targetId
     connectedUserIds: $connectedUserIds
+    workflowInputs: $workflowInputs
   ) {
     movedConnectedUserIds
     needsAttentionConnectedUserIds
@@ -9047,12 +11512,12 @@ export const useUpgradeAutomationProjectConfigurationConnectedUsersMutation = <
     )};
 
 export const ExternalInvocationLogsDocument = new TypedDocumentString(`
-    query ExternalInvocationLogs($type: PlatformType!, $environmentId: ID, $source: String, $outcome: String, $mcpServerId: Long, $a2aServerId: Long, $connectedUserId: Long, $integrationInstanceId: Long, $fromDate: Long, $toDate: Long, $page: Int) {
+    query ExternalInvocationLogs($type: PlatformType!, $environmentId: ID, $source: String, $status: String, $mcpServerId: Long, $a2aServerId: Long, $connectedUserId: Long, $integrationInstanceId: Long, $fromDate: Long, $toDate: Long, $page: Int) {
   externalInvocationLogs(
     type: $type
     environmentId: $environmentId
     source: $source
-    outcome: $outcome
+    status: $status
     mcpServerId: $mcpServerId
     a2aServerId: $a2aServerId
     connectedUserId: $connectedUserId
@@ -9065,7 +11530,7 @@ export const ExternalInvocationLogsDocument = new TypedDocumentString(`
       id
       source
       kind
-      toolName
+      invocationName
       componentName
       componentVersion
       operationName
@@ -9078,7 +11543,7 @@ export const ExternalInvocationLogsDocument = new TypedDocumentString(`
       a2aServerId
       jobId
       workflowName
-      outcome
+      status
       errorType
       errorMessage
       durationMs
@@ -9109,13 +11574,13 @@ export const useExternalInvocationLogsQuery = <
     )};
 
 export const WorkspaceExternalInvocationLogsDocument = new TypedDocumentString(`
-    query WorkspaceExternalInvocationLogs($type: PlatformType!, $workspaceId: ID!, $environmentId: ID!, $source: String, $outcome: String, $mcpServerId: Long, $a2aServerId: Long, $connectedUserId: Long, $integrationInstanceId: Long, $fromDate: Long, $toDate: Long, $page: Int) {
+    query WorkspaceExternalInvocationLogs($type: PlatformType!, $workspaceId: ID!, $environmentId: ID!, $source: String, $status: String, $mcpServerId: Long, $a2aServerId: Long, $connectedUserId: Long, $integrationInstanceId: Long, $fromDate: Long, $toDate: Long, $page: Int) {
   workspaceExternalInvocationLogs(
     type: $type
     workspaceId: $workspaceId
     environmentId: $environmentId
     source: $source
-    outcome: $outcome
+    status: $status
     mcpServerId: $mcpServerId
     a2aServerId: $a2aServerId
     connectedUserId: $connectedUserId
@@ -9128,7 +11593,7 @@ export const WorkspaceExternalInvocationLogsDocument = new TypedDocumentString(`
       id
       source
       kind
-      toolName
+      invocationName
       componentName
       componentVersion
       operationName
@@ -9141,7 +11606,7 @@ export const WorkspaceExternalInvocationLogsDocument = new TypedDocumentString(`
       a2aServerId
       jobId
       workflowName
-      outcome
+      status
       errorType
       errorMessage
       durationMs
@@ -9167,6 +11632,77 @@ export const useWorkspaceExternalInvocationLogsQuery = <
       {
     queryKey: ['WorkspaceExternalInvocationLogs', variables],
     queryFn: fetcher<WorkspaceExternalInvocationLogsQuery, WorkspaceExternalInvocationLogsQueryVariables>(WorkspaceExternalInvocationLogsDocument, variables),
+    ...options
+  }
+    )};
+
+export const CreateIntegrationCodeWorkflowDocument = new TypedDocumentString(`
+    mutation createIntegrationCodeWorkflow($componentName: String!, $language: CodeWorkflowLanguage!, $name: String, $description: String, $categoryId: ID, $tags: [String!], $permissionExpression: String) {
+  createIntegrationCodeWorkflow(
+    componentName: $componentName
+    language: $language
+    name: $name
+    description: $description
+    categoryId: $categoryId
+    tags: $tags
+    permissionExpression: $permissionExpression
+  )
+}
+    `);
+
+export const useCreateIntegrationCodeWorkflowMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<CreateIntegrationCodeWorkflowMutation, TError, CreateIntegrationCodeWorkflowMutationVariables, TContext>) => {
+    
+    return useMutation<CreateIntegrationCodeWorkflowMutation, TError, CreateIntegrationCodeWorkflowMutationVariables, TContext>(
+      {
+    mutationKey: ['createIntegrationCodeWorkflow'],
+    mutationFn: (variables?: CreateIntegrationCodeWorkflowMutationVariables) => fetcher<CreateIntegrationCodeWorkflowMutation, CreateIntegrationCodeWorkflowMutationVariables>(CreateIntegrationCodeWorkflowDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const IntegrationCodeWorkflowSourceDocument = new TypedDocumentString(`
+    query integrationCodeWorkflowSource($integrationId: ID!) {
+  integrationCodeWorkflowSource(integrationId: $integrationId)
+}
+    `);
+
+export const useIntegrationCodeWorkflowSourceQuery = <
+      TData = IntegrationCodeWorkflowSourceQuery,
+      TError = unknown
+    >(
+      variables: IntegrationCodeWorkflowSourceQueryVariables,
+      options?: Omit<UseQueryOptions<IntegrationCodeWorkflowSourceQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<IntegrationCodeWorkflowSourceQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<IntegrationCodeWorkflowSourceQuery, TError, TData>(
+      {
+    queryKey: ['integrationCodeWorkflowSource', variables],
+    queryFn: fetcher<IntegrationCodeWorkflowSourceQuery, IntegrationCodeWorkflowSourceQueryVariables>(IntegrationCodeWorkflowSourceDocument, variables),
+    ...options
+  }
+    )};
+
+export const UpdateIntegrationCodeWorkflowSourceDocument = new TypedDocumentString(`
+    mutation updateIntegrationCodeWorkflowSource($integrationId: ID!, $content: String!) {
+  updateIntegrationCodeWorkflowSource(
+    integrationId: $integrationId
+    content: $content
+  )
+}
+    `);
+
+export const useUpdateIntegrationCodeWorkflowSourceMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<UpdateIntegrationCodeWorkflowSourceMutation, TError, UpdateIntegrationCodeWorkflowSourceMutationVariables, TContext>) => {
+    
+    return useMutation<UpdateIntegrationCodeWorkflowSourceMutation, TError, UpdateIntegrationCodeWorkflowSourceMutationVariables, TContext>(
+      {
+    mutationKey: ['updateIntegrationCodeWorkflowSource'],
+    mutationFn: (variables?: UpdateIntegrationCodeWorkflowSourceMutationVariables) => fetcher<UpdateIntegrationCodeWorkflowSourceMutation, UpdateIntegrationCodeWorkflowSourceMutationVariables>(UpdateIntegrationCodeWorkflowSourceDocument, variables)(),
     ...options
   }
     )};
@@ -10662,11 +13198,13 @@ export const ComponentDefinitionSearchDocument = new TypedDocumentString(`
     triggersCount
     clusterElementsCount
     clusterRoot
+    deprecated
     componentCategories {
       name
       label
     }
     actions {
+      deprecated
       name
       title
       description
@@ -11144,14 +13682,34 @@ export const useSaveWorkflowTestConfigurationConnectionMutation = <
   }
     )};
 
+export const StopScriptTestDocument = new TypedDocumentString(`
+    mutation stopScriptTest($executionId: String!) {
+  stopScriptTest(executionId: $executionId)
+}
+    `);
+
+export const useStopScriptTestMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<StopScriptTestMutation, TError, StopScriptTestMutationVariables, TContext>) => {
+    
+    return useMutation<StopScriptTestMutation, TError, StopScriptTestMutationVariables, TContext>(
+      {
+    mutationKey: ['stopScriptTest'],
+    mutationFn: (variables?: StopScriptTestMutationVariables) => fetcher<StopScriptTestMutation, StopScriptTestMutationVariables>(StopScriptTestDocument, variables)(),
+    ...options
+  }
+    )};
+
 export const TestClusterElementScriptDocument = new TypedDocumentString(`
-    mutation testClusterElementScript($workflowId: String!, $workflowNodeName: String!, $clusterElementType: String!, $clusterElementWorkflowNodeName: String!, $environmentId: Long!, $inputParameters: Map) {
+    mutation testClusterElementScript($workflowId: String!, $workflowNodeName: String!, $clusterElementType: String!, $clusterElementWorkflowNodeName: String!, $environmentId: Long!, $executionId: String, $inputParameters: Map) {
   testClusterElementScript(
     workflowId: $workflowId
     workflowNodeName: $workflowNodeName
     clusterElementType: $clusterElementType
     clusterElementWorkflowNodeName: $clusterElementWorkflowNodeName
     environmentId: $environmentId
+    executionId: $executionId
     inputParameters: $inputParameters
   ) {
     error {
@@ -11177,11 +13735,12 @@ export const useTestClusterElementScriptMutation = <
     )};
 
 export const TestWorkflowNodeScriptDocument = new TypedDocumentString(`
-    mutation testWorkflowNodeScript($workflowId: String!, $workflowNodeName: String!, $environmentId: Long!, $inputParameters: Map) {
+    mutation testWorkflowNodeScript($workflowId: String!, $workflowNodeName: String!, $environmentId: Long!, $executionId: String, $inputParameters: Map) {
   testWorkflowNodeScript(
     workflowId: $workflowId
     workflowNodeName: $workflowNodeName
     environmentId: $environmentId
+    executionId: $executionId
     inputParameters: $inputParameters
   ) {
     error {
@@ -11462,6 +14021,29 @@ export const useWorkflowNodeScriptInputQuery = <
   }
     )};
 
+export const CreateCustomComponentDocument = new TypedDocumentString(`
+    mutation createCustomComponent($name: String!, $language: CustomComponentLanguage!) {
+  createCustomComponent(name: $name, language: $language) {
+    id
+    name
+    language
+  }
+}
+    `);
+
+export const useCreateCustomComponentMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<CreateCustomComponentMutation, TError, CreateCustomComponentMutationVariables, TContext>) => {
+    
+    return useMutation<CreateCustomComponentMutation, TError, CreateCustomComponentMutationVariables, TContext>(
+      {
+    mutationKey: ['createCustomComponent'],
+    mutationFn: (variables?: CreateCustomComponentMutationVariables) => fetcher<CreateCustomComponentMutation, CreateCustomComponentMutationVariables>(CreateCustomComponentDocument, variables)(),
+    ...options
+  }
+    )};
+
 export const CustomComponentDocument = new TypedDocumentString(`
     query customComponent($id: ID!) {
   customComponent(id: $id) {
@@ -11477,6 +14059,8 @@ export const CustomComponentDocument = new TypedDocumentString(`
     createdDate
     lastModifiedBy
     lastModifiedDate
+    status
+    publishedDate
     version
   }
 }
@@ -11531,6 +14115,28 @@ export const useCustomComponentDefinitionQuery = <
   }
     )};
 
+export const CustomComponentSourceDocument = new TypedDocumentString(`
+    query customComponentSource($id: ID!) {
+  customComponentSource(id: $id)
+}
+    `);
+
+export const useCustomComponentSourceQuery = <
+      TData = CustomComponentSourceQuery,
+      TError = unknown
+    >(
+      variables: CustomComponentSourceQueryVariables,
+      options?: Omit<UseQueryOptions<CustomComponentSourceQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<CustomComponentSourceQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<CustomComponentSourceQuery, TError, TData>(
+      {
+    queryKey: ['customComponentSource', variables],
+    queryFn: fetcher<CustomComponentSourceQuery, CustomComponentSourceQueryVariables>(CustomComponentSourceDocument, variables),
+    ...options
+  }
+    )};
+
 export const CustomComponentsDocument = new TypedDocumentString(`
     query customComponents {
   customComponents {
@@ -11546,6 +14152,8 @@ export const CustomComponentsDocument = new TypedDocumentString(`
     createdDate
     lastModifiedBy
     lastModifiedDate
+    status
+    publishedDate
     version
   }
 }
@@ -11601,6 +14209,52 @@ export const useEnableCustomComponentMutation = <
       {
     mutationKey: ['enableCustomComponent'],
     mutationFn: (variables?: EnableCustomComponentMutationVariables) => fetcher<EnableCustomComponentMutation, EnableCustomComponentMutationVariables>(EnableCustomComponentDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const PublishCustomComponentDocument = new TypedDocumentString(`
+    mutation publishCustomComponent($id: ID!) {
+  publishCustomComponent(id: $id) {
+    id
+    publishedDate
+    status
+  }
+}
+    `);
+
+export const usePublishCustomComponentMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<PublishCustomComponentMutation, TError, PublishCustomComponentMutationVariables, TContext>) => {
+    
+    return useMutation<PublishCustomComponentMutation, TError, PublishCustomComponentMutationVariables, TContext>(
+      {
+    mutationKey: ['publishCustomComponent'],
+    mutationFn: (variables?: PublishCustomComponentMutationVariables) => fetcher<PublishCustomComponentMutation, PublishCustomComponentMutationVariables>(PublishCustomComponentDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const UpdateCustomComponentSourceDocument = new TypedDocumentString(`
+    mutation updateCustomComponentSource($id: ID!, $content: String!) {
+  updateCustomComponentSource(id: $id, content: $content) {
+    id
+    componentVersion
+    status
+  }
+}
+    `);
+
+export const useUpdateCustomComponentSourceMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<UpdateCustomComponentSourceMutation, TError, UpdateCustomComponentSourceMutationVariables, TContext>) => {
+    
+    return useMutation<UpdateCustomComponentSourceMutation, TError, UpdateCustomComponentSourceMutationVariables, TContext>(
+      {
+    mutationKey: ['updateCustomComponentSource'],
+    mutationFn: (variables?: UpdateCustomComponentSourceMutationVariables) => fetcher<UpdateCustomComponentSourceMutation, UpdateCustomComponentSourceMutationVariables>(UpdateCustomComponentSourceDocument, variables)(),
     ...options
   }
     )};

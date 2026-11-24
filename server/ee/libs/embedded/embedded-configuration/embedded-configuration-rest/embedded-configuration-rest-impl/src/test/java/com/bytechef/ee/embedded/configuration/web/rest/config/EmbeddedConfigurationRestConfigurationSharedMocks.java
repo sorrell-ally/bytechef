@@ -16,12 +16,12 @@
 
 package com.bytechef.ee.embedded.configuration.web.rest.config;
 
+import com.bytechef.ee.embedded.configuration.facade.AutomationProjectCodeWorkflowFacade;
 import com.bytechef.ee.embedded.configuration.facade.ConnectedUserConnectionFacade;
-import com.bytechef.ee.embedded.configuration.facade.ConnectionAdminFacade;
 import com.bytechef.ee.embedded.configuration.facade.IntegrationCategoryFacade;
-import com.bytechef.ee.embedded.configuration.facade.IntegrationInstanceAdminFacade;
+import com.bytechef.ee.embedded.configuration.facade.IntegrationCodeWorkflowFacade;
 import com.bytechef.ee.embedded.configuration.facade.IntegrationTagFacade;
-import com.bytechef.ee.embedded.configuration.facade.WebhookTriggerTestAdminFacade;
+import com.bytechef.ee.embedded.configuration.facade.WebhookTriggerTestFacade;
 import com.bytechef.platform.component.service.ComponentDefinitionService;
 import com.bytechef.platform.connection.facade.ConnectionFacade;
 import java.lang.annotation.ElementType;
@@ -36,9 +36,10 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 @MockitoBean(types = {
-    ComponentDefinitionService.class, ConnectionAdminFacade.class, ConnectionFacade.class,
-    ConnectedUserConnectionFacade.class, IntegrationCategoryFacade.class, IntegrationInstanceAdminFacade.class,
-    IntegrationTagFacade.class, WebhookTriggerTestAdminFacade.class
+    AutomationProjectCodeWorkflowFacade.class, ComponentDefinitionService.class,
+    com.bytechef.ee.embedded.configuration.facade.ConnectionFacade.class, ConnectionFacade.class,
+    ConnectedUserConnectionFacade.class, IntegrationCategoryFacade.class, IntegrationCodeWorkflowFacade.class,
+    IntegrationTagFacade.class, WebhookTriggerTestFacade.class
 })
 public @interface EmbeddedConfigurationRestConfigurationSharedMocks {
 }

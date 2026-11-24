@@ -12,10 +12,12 @@ import com.bytechef.ee.embedded.configuration.dto.AutomationProjectConfiguration
 import com.bytechef.ee.embedded.configuration.dto.AutomationProjectDTO;
 import com.bytechef.ee.embedded.configuration.dto.AutomationProjectTagDTO;
 import com.bytechef.ee.embedded.configuration.dto.AutomationProjectVersionDTO;
+import com.bytechef.ee.embedded.configuration.dto.AutomationProjectVersionWorkflowDTO;
 import com.bytechef.platform.configuration.domain.Environment;
 import com.bytechef.platform.configuration.dto.VersionWorkflowChange;
 import com.bytechef.platform.configuration.dto.VersionWorkflowChanges;
 import java.util.List;
+import java.util.Optional;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -31,11 +33,15 @@ public interface AutomationProjectFacade {
 
     long duplicateProject(long projectId);
 
+    Optional<Long> fetchProjectIdByName(String name);
+
     List<AutomationProjectVersionDTO> getProjectVersions(long projectId);
 
     VersionWorkflowChange getProjectVersionWorkflowChange(long projectId, int projectVersion, String workflowUuid);
 
     VersionWorkflowChanges getProjectVersionWorkflowChanges(long projectId, int projectVersion);
+
+    List<AutomationProjectVersionWorkflowDTO> getProjectVersionWorkflows(long projectId, int projectVersion);
 
     List<AutomationProjectCategoryDTO> getCategories();
 
@@ -80,6 +86,15 @@ public interface AutomationProjectFacade {
     }
 
     int publishProject(long projectId, @Nullable String description);
+
+    /**
+     * Restores a published project version into the draft: the draft's workflows are replaced by copies of that
+     * version's workflows, keeping their workflow UUIDs, and the draft workflows the version lacks are removed.
+     *
+     * @param projectId      the automation project id
+     * @param projectVersion the published version to restore
+     */
+    void restoreProjectVersion(long projectId, int projectVersion);
 
     void updateProject(
         long projectId, String name, String description, String category, List<String> tags,

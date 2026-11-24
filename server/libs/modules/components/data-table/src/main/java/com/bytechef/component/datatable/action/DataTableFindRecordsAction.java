@@ -36,7 +36,9 @@ import com.bytechef.component.definition.Parameters;
 import com.bytechef.component.definition.Property;
 import com.bytechef.definition.BaseProperty.ResourceType;
 import com.bytechef.platform.component.definition.ActionContextAware;
+import com.bytechef.platform.data.table.configuration.domain.DataTableInfo;
 import com.bytechef.platform.data.table.configuration.service.DataTableService;
+import com.bytechef.platform.data.table.domain.DataTableWorkspaceResolver;
 import com.bytechef.platform.data.table.execution.domain.DataTableRow;
 import com.bytechef.platform.data.table.execution.domain.DataTableRowConditions;
 import com.bytechef.platform.data.table.execution.domain.DataTableRowSort;
@@ -56,17 +58,22 @@ public class DataTableFindRecordsAction {
 
     private final DataTableService dataTableService;
     private final DataTableRowService dataTableRowService;
+    private final DataTableWorkspaceResolver dataTableWorkspaceResolver;
 
     @SuppressFBWarnings("EI")
     public static ModifiableActionDefinition of(
-        DataTableService dataTableService, DataTableRowService dataTableRowService) {
+        DataTableService dataTableService, DataTableRowService dataTableRowService,
+        DataTableWorkspaceResolver dataTableWorkspaceResolver) {
 
-        return new DataTableFindRecordsAction(dataTableService, dataTableRowService).build();
+        return new DataTableFindRecordsAction(dataTableService, dataTableRowService, dataTableWorkspaceResolver)
+            .build();
     }
 
-    private DataTableFindRecordsAction(DataTableService dataTableService, DataTableRowService dataTableRowService) {
+    private DataTableFindRecordsAction(DataTableService dataTableService, DataTableRowService dataTableRowService,
+        DataTableWorkspaceResolver dataTableWorkspaceResolver) {
         this.dataTableService = dataTableService;
         this.dataTableRowService = dataTableRowService;
+        this.dataTableWorkspaceResolver = dataTableWorkspaceResolver;
     }
 
     private ModifiableActionDefinition build() {
@@ -78,8 +85,8 @@ public class DataTableFindRecordsAction {
                     .label("Table")
                     .resourceReference(ResourceType.DATA_TABLE)
                     .required(true)
-                    .options(DataTableUtils.getActionTableOptions(dataTableService)),
-                DataTableUtils.conditionsProperty(dataTableService)
+                    .options(DataTableUtils.getActionTableOptions(dataTableService, dataTableWorkspaceResolver)),
+                DataTableUtils.conditionsProperty(dataTableService, dataTableWorkspaceResolver)
                     .description(
                         "OR Condition array that contains AND Condition arrays. A record is returned when it meets " +
                             "every condition of at least one AND Condition. Leave empty to return every record, up " +
@@ -87,7 +94,7 @@ public class DataTableFindRecordsAction {
                 string(SORT_COLUMN)
                     .label("Sort Column")
                     .description("Column to sort the records by. Records are sorted by id when not set.")
-                    .options(DataTableUtils.getActionColumnOptions(dataTableService))
+                    .options(DataTableUtils.getActionColumnOptions(dataTableService, dataTableWorkspaceResolver))
                     .optionsLookupDependsOn(TABLE),
                 string(SORT_DIRECTION)
                     .label("Sort Direction")
@@ -97,6 +104,7 @@ public class DataTableFindRecordsAction {
                         option("Ascending", Direction.ASC.name()),
                         option("Descending", Direction.DESC.name()))
                     .defaultValue(Direction.ASC.name()),
+                DataTableUtils.expandProperty(dataTableService, dataTableWorkspaceResolver),
                 integer(LIMIT)
                     .label("Limit")
                     .description("Maximum number of records to return")
@@ -114,11 +122,18 @@ public class DataTableFindRecordsAction {
     private OutputResponse output(
         Parameters inputParameters, Parameters connectionParameters, ActionContext actionContext) {
 
-        String baseName = inputParameters.getRequiredString(TABLE);
+        String name = inputParameters.getRequiredString(TABLE);
 
-        var rowSchema = DataTableUtils.rowObjectSchema(dataTableService, DEVELOPMENT, baseName);
+        long workspaceId = DataTableUtils.resolveWorkspaceId(dataTableWorkspaceResolver, actionContext);
 
-        List<DataTableRow> rows = dataTableRowService.listRows(baseName, 1, 0, DEVELOPMENT.ordinal());
+        DataTableInfo dataTableInfo = DataTableUtils.resolveDataTable(
+            dataTableService, workspaceId, name, DEVELOPMENT.ordinal());
+
+        List<String> expand = DataTableUtils.getExpand(inputParameters);
+
+        var rowSchema = DataTableUtils.rowObjectSchema(dataTableInfo, expand);
+
+        List<DataTableRow> rows = dataTableRowService.listRows(dataTableInfo.id(), 1, 0, DEVELOPMENT.ordinal());
 
         if (rows.isEmpty()) {
             return OutputResponse.of(array().items((Property.ValueProperty<?>) rowSchema));
@@ -127,7 +142,7 @@ public class DataTableFindRecordsAction {
         DataTableRow firstRow = rows.getFirst();
 
         Map<String, Object> sampleOutput = DataTableUtils.createSampleOutput(
-            dataTableService, DEVELOPMENT, baseName, firstRow.id(), firstRow.values());
+            dataTableInfo, firstRow.id(), firstRow.values(), expand);
 
         return OutputResponse.of(array().items((Property.ValueProperty<?>) rowSchema), List.of(sampleOutput));
     }
@@ -138,7 +153,10 @@ public class DataTableFindRecordsAction {
 
         ActionContextAware actionContextAware = (ActionContextAware) actionContext;
 
-        String baseName = inputParameters.getRequiredString(TABLE);
+        String name = inputParameters.getRequiredString(TABLE);
+
+        long dataTableId = DataTableUtils.resolveDataTableId(
+            dataTableService, dataTableWorkspaceResolver, actionContext, name);
         int limit = inputParameters.getInteger(LIMIT, 100);
         int offset = inputParameters.getInteger(OFFSET, 0);
 
@@ -150,18 +168,20 @@ public class DataTableFindRecordsAction {
 
         String sortColumn = inputParameters.getString(SORT_COLUMN);
 
-        DataTableRowSort sort = null;
+        List<DataTableRowSort> sorts = List.of();
 
         if (sortColumn != null && !sortColumn.isBlank()) {
             Direction direction = DataTableUtils.toEnum(
                 Direction.class, inputParameters.getString(SORT_DIRECTION), Direction.ASC, "Sort Direction");
 
-            sort = new DataTableRowSort(sortColumn, direction);
+            sorts = List.of(new DataTableRowSort(sortColumn, direction));
         }
+
+        List<String> expand = DataTableUtils.getExpand(inputParameters);
 
         return DataTableUtils.flattenRows(
             dataTableRowService.findRows(
-                baseName, conditions, sort, limit, offset,
+                dataTableId, conditions, sorts, limit, offset, expand,
                 Objects.requireNonNull(actionContextAware.getEnvironmentId())));
     }
 }

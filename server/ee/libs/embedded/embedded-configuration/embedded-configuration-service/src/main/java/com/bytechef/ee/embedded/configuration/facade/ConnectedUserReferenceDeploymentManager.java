@@ -19,6 +19,7 @@ import com.bytechef.automation.configuration.service.ProjectDeploymentService;
 import com.bytechef.automation.configuration.service.ProjectDeploymentWorkflowService;
 import com.bytechef.automation.configuration.service.ProjectWorkflowService;
 import com.bytechef.ee.embedded.configuration.domain.AutomationProjectConfiguration;
+import com.bytechef.ee.embedded.configuration.domain.ConnectedUserProjectConfiguration;
 import com.bytechef.ee.embedded.configuration.domain.ConnectedUserReferenceDeployment;
 import com.bytechef.ee.embedded.configuration.exception.ConnectedUserProjectWorkflowErrorType;
 import com.bytechef.ee.embedded.configuration.exception.MissingInputException;
@@ -26,6 +27,7 @@ import com.bytechef.ee.embedded.configuration.exception.ProvidedValueLockedExcep
 import com.bytechef.ee.embedded.configuration.service.AutomationProjectConfigurationService;
 import com.bytechef.ee.embedded.configuration.service.ConnectedUserProjectConfigurationService;
 import com.bytechef.ee.embedded.configuration.service.ConnectedUserReferenceDeploymentService;
+import com.bytechef.ee.embedded.configuration.util.InternalOnlyInputUtils;
 import com.bytechef.ee.embedded.connected.user.domain.ConnectedUser;
 import com.bytechef.ee.embedded.connected.user.service.ConnectedUserService;
 import com.bytechef.exception.ConfigurationException;
@@ -34,7 +36,6 @@ import com.bytechef.platform.configuration.domain.Environment;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -122,8 +123,17 @@ class ConnectedUserReferenceDeploymentManager {
         return findMissingRequiredInput(workflowService.getWorkflow(workflowId), inputs);
     }
 
+    public Map<String, Long> getConnectionIdsByComponentName(ProjectDeploymentWorkflow row) {
+        return connectedUserWorkflowConnectionResolver.getConnectionIdsByComponentName(
+            row.getWorkflowId(), row.getConnections());
+    }
+
     public ProjectDeployment getDeployment(long projectDeploymentId) {
         return projectDeploymentService.getProjectDeployment(projectDeploymentId);
+    }
+
+    public Map<String, Object> removeInternalOnlyInputs(String workflowId, Map<String, ?> inputs) {
+        return InternalOnlyInputUtils.removeInternalOnlyInputs(workflowService.getWorkflow(workflowId), inputs);
     }
 
     public Map<String, ?> getInputs(long projectDeploymentId, String automationUuid) {
@@ -170,17 +180,36 @@ class ConnectedUserReferenceDeploymentManager {
     public boolean isAdministrativelyEnabled(
         long connectedUserId, long automationProjectId, String automationUuid) {
 
-        Optional<AutomationProjectConfiguration> configurationOptional = fetchAssignedConfiguration(
-            connectedUserId, automationProjectId);
+        Optional<ConnectedUserProjectConfiguration> assignmentOptional =
+            connectedUserProjectConfigurationService.fetchAssignment(connectedUserId, automationProjectId);
 
-        if (configurationOptional.isEmpty()) {
+        if (assignmentOptional.isEmpty()) {
             return false;
         }
 
-        AutomationProjectConfiguration configuration = configurationOptional.get();
+        ConnectedUserProjectConfiguration assignment = assignmentOptional.get();
+
+        if (!assignment.isEnabled()) {
+            return false;
+        }
+
+        AutomationProjectConfiguration configuration = automationProjectConfigurationService.getConfiguration(
+            assignment.getConfigurationId());
 
         return configuration.isEnabled() && automationProjectConfigurationService.isWorkflowEnabled(
             configuration, UUID.fromString(automationUuid));
+    }
+
+    public Workflow getWorkflow(String workflowId) {
+        return workflowService.getWorkflow(workflowId);
+    }
+
+    public boolean isAwaitingConfiguration(
+        long connectedUserId, long automationProjectId, String automationUuid, Workflow workflow) {
+
+        ProvidedValues providedValues = getProvidedValues(connectedUserId, automationProjectId, automationUuid);
+
+        return InternalOnlyInputUtils.findMissingRequiredInternalOnlyInput(workflow, providedValues.inputs()) != null;
     }
 
     public boolean isReferenceDeployment(long projectDeploymentId) {
@@ -327,51 +356,32 @@ class ConnectedUserReferenceDeploymentManager {
         putWorkflow(projectDeployment, automationUuid, rowSpec);
     }
 
-    public ProvidedNames getProvidedNames(
+    public Set<String> getProvidedComponentNames(
         long connectedUserId, long automationProjectId, String automationUuid) {
 
-        return toProvidedNames(getProvidedValues(connectedUserId, automationProjectId, automationUuid));
+        return toProvidedComponentNames(getProvidedValues(connectedUserId, automationProjectId, automationUuid));
     }
 
-    public ProvidedNames getProvidedNames(
+    public Set<String> getProvidedComponentNames(
         AutomationProjectConfiguration configuration, String automationUuid) {
 
-        return toProvidedNames(getProvidedValues(configuration, automationUuid));
+        return toProvidedComponentNames(getProvidedValues(configuration, automationUuid));
     }
 
-    public void checkProvidedValuesNotRequested(
+    public void checkProvidedConnectionsNotRequested(
         long connectedUserId, long automationProjectId, String automationUuid,
-        Map<String, Long> requestedConnectionIds, @Nullable Map<String, ?> userInputs) {
+        Map<String, Long> requestedConnectionIds) {
 
-        if (requestedConnectionIds.isEmpty() && (userInputs == null || userInputs.isEmpty())) {
+        if (requestedConnectionIds.isEmpty()) {
             return;
         }
 
-        checkProvidedValuesNotRequested(
-            toProvidedNames(getProvidedValues(connectedUserId, automationProjectId, automationUuid)),
-            requestedConnectionIds, userInputs);
-    }
-
-    private static void checkProvidedValuesNotRequested(
-        ProvidedNames providedNames, Map<String, Long> requestedConnectionIds, @Nullable Map<String, ?> userInputs) {
-
-        Set<String> providedComponentNames = providedNames.componentNames();
+        Set<String> providedComponentNames = getProvidedComponentNames(
+            connectedUserId, automationProjectId, automationUuid);
 
         for (String componentName : requestedConnectionIds.keySet()) {
             if (providedComponentNames.contains(componentName)) {
-                throw new ProvidedValueLockedException(componentName, ProvidedValueLockedException.Kind.CONNECTION);
-            }
-        }
-
-        if (userInputs == null) {
-            return;
-        }
-
-        Set<String> providedInputNames = providedNames.inputNames();
-
-        for (Map.Entry<String, ?> entry : userInputs.entrySet()) {
-            if (entry.getValue() != null && providedInputNames.contains(entry.getKey())) {
-                throw new ProvidedValueLockedException(entry.getKey(), ProvidedValueLockedException.Kind.INPUT);
+                throw new ProvidedValueLockedException(componentName);
             }
         }
     }
@@ -395,11 +405,17 @@ class ConnectedUserReferenceDeploymentManager {
 
         int workflowErrorCount = enable ? getWorkflowErrorCount(connectedUserId, workflowId) : 0;
 
-        boolean enabled = enable && resolved.isComplete() && missingInputName == null && workflowErrorCount == 0;
+        boolean completeForUser =
+            enable && resolved.isComplete() && missingInputName == null && workflowErrorCount == 0;
+
+        boolean awaitingConfiguration = completeForUser &&
+            InternalOnlyInputUtils.findMissingRequiredInternalOnlyInput(workflow, providedValues.inputs()) != null;
+
+        boolean enabled = completeForUser && !awaitingConfiguration;
 
         return new ReferenceResolution(
             new RowSpec(resolved, enabled, inputs), resolved.firstMissingComponentName(), missingInputName,
-            workflowErrorCount);
+            workflowErrorCount, awaitingConfiguration);
     }
 
     public void updateInputs(long projectDeploymentId, String automationUuid, Map<String, ?> userInputs) {
@@ -414,8 +430,6 @@ class ConnectedUserReferenceDeploymentManager {
             .map(connectedUserId -> getProvidedValues(
                 connectedUserId, projectDeployment.getProjectId(), automationUuid))
             .orElse(ProvidedValues.NONE);
-
-        checkProvidedValuesNotRequested(toProvidedNames(providedValues), Map.of(), userInputs);
 
         Workflow workflow = workflowService.getWorkflow(row.getWorkflowId());
 
@@ -471,8 +485,14 @@ class ConnectedUserReferenceDeploymentManager {
     }
 
     @Nullable
-    private static String findMissingRequiredInput(Workflow workflow, Map<String, ?> inputs) {
+    public String findMissingRequiredInput(Workflow workflow, Map<String, ?> inputs) {
+        Set<String> internalOnlyInputNames = InternalOnlyInputUtils.getInternalOnlyInputNames(workflow);
+
         for (Workflow.Input input : workflow.getInputs()) {
+            if (internalOnlyInputNames.contains(input.name())) {
+                continue;
+            }
+
             Object value = inputs.get(input.name());
 
             if (input.required() && (value == null || StringUtils.isBlank(String.valueOf(value)))) {
@@ -600,32 +620,21 @@ class ConnectedUserReferenceDeploymentManager {
     private static Map<String, Object> mergeInputs(
         Workflow workflow, Map<String, ?> userInputs, Map<String, Object> providedInputs) {
 
-        Map<String, Object> inputs = new LinkedHashMap<>(userInputs);
+        Map<String, Object> inputs = InternalOnlyInputUtils.removeInternalOnlyInputs(workflow, userInputs);
 
-        for (Workflow.Input input : workflow.getInputs()) {
-            Object providedValue = providedInputs.get(input.name());
+        for (String internalOnlyInputName : InternalOnlyInputUtils.getInternalOnlyInputNames(workflow)) {
+            Object providedValue = providedInputs.get(internalOnlyInputName);
 
             if (providedValue != null) {
-                inputs.put(input.name(), providedValue);
+                inputs.put(internalOnlyInputName, providedValue);
             }
         }
 
         return inputs;
     }
 
-    private ProvidedNames toProvidedNames(ProvidedValues providedValues) {
-        Set<String> providedInputNames = new LinkedHashSet<>();
-        Map<String, Object> providedInputs = providedValues.inputs();
-
-        for (Map.Entry<String, Object> entry : providedInputs.entrySet()) {
-            if (entry.getValue() != null) {
-                providedInputNames.add(entry.getKey());
-            }
-        }
-
-        return new ProvidedNames(
-            connectedUserWorkflowConnectionResolver.getProvidedComponentNames(providedValues.connectionIds()),
-            providedInputNames);
+    private Set<String> toProvidedComponentNames(ProvidedValues providedValues) {
+        return connectedUserWorkflowConnectionResolver.getProvidedComponentNames(providedValues.connectionIds());
     }
 
     private static boolean isUnchanged(ProjectDeploymentWorkflow row, RowSpec rowSpec) {
@@ -640,11 +649,7 @@ class ConnectedUserReferenceDeploymentManager {
 
     public record ReferenceResolution(
         RowSpec rowSpec, @Nullable String missingComponentName, @Nullable String missingInputName,
-        int workflowErrorCount) {
-    }
-
-    @SuppressFBWarnings("EI")
-    public record ProvidedNames(Set<String> componentNames, Set<String> inputNames) {
+        int workflowErrorCount, boolean awaitingConfiguration) {
     }
 
     @SuppressFBWarnings("EI")

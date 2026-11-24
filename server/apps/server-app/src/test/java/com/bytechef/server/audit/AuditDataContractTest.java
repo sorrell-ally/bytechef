@@ -79,25 +79,32 @@ class AuditDataContractTest {
     private static final String RESULT_VARIABLE = "result";
     private static final List<String> READ_METHOD_PREFIXES = List.of(
         "count", "exists", "fetch", "find", "get", "has", "is", "list", "load", "read", "search");
+    private static final String CHUNK_DATA = "knowledge base chunks are document data and are not recorded";
     private static final String DEFINITION_EDIT = "workflow definition edit";
     private static final String DELEGATES = "delegates to an audited method";
     private static final String TAGS = "tag assignment";
     private static final String RECORDED_BY_CALLER = "called only from audited methods";
+    private static final String ROW_DATA = "data table rows are data and are not recorded";
     private static final String TOOL_SETTING = "parameter or skill edit of a tool of an audited MCP or A2A server";
     private static final String TRIGGER_INTERNAL = "trigger bookkeeping of an audited enable";
     private static final String WORKFLOW_INPUTS = "workflow input or connection values";
     private static final Map<String, String> UNAUDITED_GUARDED_CLASSES = Map.of(
-        "IntegrationInstanceAdminFacadeImpl", DELEGATES,
-        "WebhookTriggerTestAdminFacadeImpl", "editor-time webhook trigger test");
+        "com.bytechef.ee.embedded.configuration.facade.WebhookTriggerTestFacadeImpl",
+        "editor-time webhook trigger test");
     private static final Map<String, String> UNAUDITED_GUARDED_METHODS = Map.ofEntries(
         Map.entry("A2aProjectWorkflowFacadeImpl.updateA2aProjectWorkflowSkill", TOOL_SETTING),
         Map.entry("A2aServerFacadeImpl.updateA2aServerTags", TAGS),
         Map.entry("AutomationProjectFacadeImpl.updateProjectWorkflow", DEFINITION_EDIT),
-        Map.entry("AutomationProjectConfigurationAdminFacadeImpl.updateConfigurationWorkflow", WORKFLOW_INPUTS),
+        Map.entry("AutomationProjectCodeWorkflowFacadeImpl.createEmptyCodeWorkflow", DELEGATES),
+        Map.entry("AutomationProjectCodeWorkflowFacadeImpl.save", DEFINITION_EDIT),
+        Map.entry("AutomationProjectCodeWorkflowFacadeImpl.updateCodeWorkflowSource", DEFINITION_EDIT),
+        Map.entry("AutomationProjectConfigurationFacadeImpl.updateConfigurationWorkflow", WORKFLOW_INPUTS),
         Map.entry("ConnectedUserConnectionFacadeImpl.updateConnectedUserConnectionTags", TAGS),
         Map.entry("ConnectedUserConnectionFacadeImpl.updateIntegrationInstanceConnectionCredentials",
             RECORDED_BY_CALLER),
-        Map.entry("ConnectionAdminFacadeImpl.updateConnectionTags", TAGS),
+        Map.entry("com.bytechef.ee.embedded.configuration.facade.ConnectionFacadeImpl.updateConnectionTags", TAGS),
+        Map.entry("CustomComponentFacadeImpl.updateCustomComponentSource", DEFINITION_EDIT),
+        Map.entry("CustomComponentServiceImpl.publishCustomComponent", RECORDED_BY_CALLER),
         Map.entry("EmbeddedMcpServerFacadeImpl.createEmbeddedMcpComponent", DELEGATES),
         Map.entry("EmbeddedMcpServerFacadeImpl.createEmbeddedMcpServer", DELEGATES),
         Map.entry("EmbeddedMcpServerFacadeImpl.deleteEmbeddedMcpComponent", DELEGATES),
@@ -108,12 +115,18 @@ class AuditDataContractTest {
         Map.entry("EmbeddedMcpServerFacadeImpl.updateEmbeddedMcpServerSecretKey", DELEGATES),
         Map.entry("EmbeddedMcpServerFacadeImpl.updateEmbeddedMcpServerTags", TAGS),
         Map.entry("EmbeddedMcpServerFacadeImpl.updateEmbeddedMcpTool", DELEGATES),
+        Map.entry("IntegrationCodeWorkflowFacadeImpl.renameCodeWorkflowSource", RECORDED_BY_CALLER),
+        Map.entry("IntegrationCodeWorkflowFacadeImpl.restoreCodeWorkflowSource", RECORDED_BY_CALLER),
+        Map.entry("IntegrationCodeWorkflowFacadeImpl.save", DEFINITION_EDIT),
+        Map.entry("IntegrationCodeWorkflowFacadeImpl.updateCodeWorkflowSource", DEFINITION_EDIT),
         Map.entry("IntegrationInstanceConfigurationFacadeImpl.updateIntegrationInstanceConfigurationTags", TAGS),
         Map.entry("IntegrationInstanceConfigurationFacadeImpl.updateIntegrationInstanceConfigurationWorkflow",
             WORKFLOW_INPUTS),
         Map.entry("IntegrationInstanceFacadeImpl.enableIntegrationInstanceWorkflowTriggers", TRIGGER_INTERNAL),
+        Map.entry("IntegrationInstanceFacadeImpl.provisionIntegrationInstance", DELEGATES),
         Map.entry("IntegrationInstanceFacadeImpl.updateIntegrationInstanceConfigurationWorkflowTriggers",
             TRIGGER_INTERNAL),
+        Map.entry("IntegrationInstanceFacadeImpl.updateIntegrationInstanceCredentials", DELEGATES),
         Map.entry("IntegrationInstanceFacadeImpl.updateIntegrationInstanceWorkflow", WORKFLOW_INPUTS),
         Map.entry("IntegrationTagFacadeImpl.updateIntegrationTags", TAGS),
         Map.entry("IntegrationWorkflowFacadeImpl.updateWorkflow", DEFINITION_EDIT),
@@ -124,6 +137,7 @@ class AuditDataContractTest {
             "McpIntegrationInstanceConfigurationWorkflowFacadeImpl.updateMcpIntegrationInstanceConfigurationWorkflowParameters",
             TOOL_SETTING),
         Map.entry("McpIntegrationInstanceWorkflowFacadeImpl.updateMcpIntegrationInstanceWorkflow", TOOL_SETTING),
+        Map.entry("McpProjectWorkflowFacadeImpl.updateMcpProjectWorkflow", TOOL_SETTING),
         Map.entry("McpProjectWorkflowServiceImpl.create", RECORDED_BY_CALLER),
         Map.entry("McpProjectWorkflowServiceImpl.delete", RECORDED_BY_CALLER),
         Map.entry("McpProjectWorkflowServiceImpl.update", TOOL_SETTING),
@@ -140,10 +154,37 @@ class AuditDataContractTest {
         Map.entry("McpServerFacadeImpl.updateMcpServer", DELEGATES),
         Map.entry("McpServerFacadeImpl.updateMcpServerTags", TAGS),
         Map.entry("McpServerFacadeImpl.updateMcpTool", DELEGATES),
+        Map.entry("ProjectCodeWorkflowFacadeImpl.deployCodeWorkflowSource", RECORDED_BY_CALLER),
+        Map.entry("ProjectCodeWorkflowFacadeImpl.renameCodeWorkflowSource", RECORDED_BY_CALLER),
+        Map.entry("ProjectCodeWorkflowFacadeImpl.restoreCodeWorkflowSource", RECORDED_BY_CALLER),
         Map.entry("ProjectCodeWorkflowFacadeImpl.save", DEFINITION_EDIT),
+        Map.entry("ProjectCodeWorkflowFacadeImpl.updateCodeWorkflowSource", DEFINITION_EDIT),
         Map.entry("ProjectTagFacadeImpl.updateProjectTags", TAGS),
         Map.entry("WorkspaceApiKeyFacadeImpl.create", DELEGATES),
         Map.entry("WorkspaceApiKeyFacadeImpl.delete", DELEGATES),
+        Map.entry("WorkspaceDataTableFacadeImpl.addColumn", DELEGATES),
+        Map.entry("WorkspaceDataTableFacadeImpl.clearRows", ROW_DATA),
+        Map.entry("WorkspaceDataTableFacadeImpl.deleteRow", ROW_DATA),
+        Map.entry("WorkspaceDataTableFacadeImpl.deleteRowByExternalId", ROW_DATA),
+        Map.entry("WorkspaceDataTableFacadeImpl.deleteRows", ROW_DATA),
+        Map.entry("WorkspaceDataTableFacadeImpl.dropTable", DELEGATES),
+        Map.entry("WorkspaceDataTableFacadeImpl.exportCsv", "read-only CSV export of table rows"),
+        Map.entry("WorkspaceDataTableFacadeImpl.importCsv", ROW_DATA),
+        Map.entry("WorkspaceDataTableFacadeImpl.insertRow", ROW_DATA),
+        Map.entry("WorkspaceDataTableFacadeImpl.insertRows", ROW_DATA),
+        Map.entry("WorkspaceDataTableFacadeImpl.removeColumn", DELEGATES),
+        Map.entry("WorkspaceDataTableFacadeImpl.renameColumn", DELEGATES),
+        Map.entry("WorkspaceDataTableFacadeImpl.renameTable", DELEGATES),
+        Map.entry("WorkspaceDataTableFacadeImpl.updateDescription", "table description edit"),
+        Map.entry("WorkspaceDataTableFacadeImpl.updateRow", ROW_DATA),
+        Map.entry("WorkspaceDataTableFacadeImpl.updateTags", TAGS),
+        Map.entry("WorkspaceDataTableFacadeImpl.upsertRow", ROW_DATA),
+        Map.entry("WorkspaceKnowledgeBaseDocumentFacadeImpl.deleteKnowledgeBaseDocument", DELEGATES),
+        Map.entry("WorkspaceKnowledgeBaseDocumentFacadeImpl.deleteKnowledgeBaseDocumentChunk", CHUNK_DATA),
+        Map.entry("WorkspaceKnowledgeBaseDocumentFacadeImpl.updateKnowledgeBaseDocumentChunk", CHUNK_DATA),
+        Map.entry("WorkspaceKnowledgeBaseDocumentFacadeImpl.updateKnowledgeBaseDocumentTags", TAGS),
+        Map.entry("WorkspaceKnowledgeBaseFacadeImpl.updateKnowledgeBase", DELEGATES),
+        Map.entry("WorkspaceKnowledgeBaseFacadeImpl.updateKnowledgeBaseTags", TAGS),
         Map.entry("WorkspaceMcpServerFacadeImpl.createWorkspaceMcpServer", DELEGATES),
         Map.entry("WorkspaceMcpServerFacadeImpl.deleteWorkspaceMcpServer", DELEGATES),
         Map.entry("WorkspaceMcpServerFacadeImpl.updateWorkspaceMcpServer", DELEGATES));
@@ -185,6 +226,21 @@ class AuditDataContractTest {
             Class<?> declaringClass = method.getDeclaringClass();
 
             String className = declaringClass.getSimpleName();
+            String qualifiedClassName = declaringClass.getName();
+
+            if (UNAUDITED_GUARDED_CLASSES.containsKey(qualifiedClassName)) {
+                usedSkips.add(qualifiedClassName);
+
+                continue;
+            }
+
+            String fullyQualifiedMethodName = qualifiedClassName + "." + methodName;
+
+            if (UNAUDITED_GUARDED_METHODS.containsKey(fullyQualifiedMethodName)) {
+                usedSkips.add(fullyQualifiedMethodName);
+
+                continue;
+            }
 
             if (UNAUDITED_GUARDED_CLASSES.containsKey(className)) {
                 usedSkips.add(className);
@@ -464,11 +520,11 @@ class AuditDataContractTest {
                 String name = parameter.getName();
                 Class<?> type = parameter.getType();
 
-                if ((name.equals("mcpServerId") || name.equals("id")) &&
-                    (type.equals(Long.class) || type.equals(long.class))) {
+                boolean mcpServerIdParameter = (name.equals("mcpServerId") || name.equals("id")) &&
+                    (type.equals(Long.class) || type.equals(long.class));
+                boolean mcpServerParameter = name.equals("mcpServer") && McpServer.class.equals(type);
 
-                    exposesMcpServer = true;
-                } else if (name.equals("mcpServer") && McpServer.class.equals(type)) {
+                if (mcpServerIdParameter || mcpServerParameter) {
                     exposesMcpServer = true;
                 }
             }
@@ -824,7 +880,7 @@ class AuditDataContractTest {
 
         try {
             field = type.getField(propertyName);
-        } catch (NoSuchFieldException noSuchFieldException) {
+        } catch (NoSuchFieldException _) {
             return false;
         }
 

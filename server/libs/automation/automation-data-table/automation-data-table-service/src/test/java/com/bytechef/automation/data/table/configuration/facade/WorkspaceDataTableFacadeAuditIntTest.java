@@ -31,6 +31,8 @@ import com.bytechef.ee.platform.audit.service.AuditEventService;
 import com.bytechef.platform.constant.PlatformType;
 import com.bytechef.platform.data.table.audit.DataTableAuditEvents;
 import com.bytechef.platform.data.table.audit.DataTableAuditMapper;
+import com.bytechef.platform.data.table.configuration.domain.DataTable;
+import com.bytechef.platform.data.table.configuration.exception.DataTableException;
 import com.bytechef.platform.data.table.configuration.service.DataTableService;
 import com.bytechef.platform.data.table.domain.ColumnSpec;
 import com.bytechef.platform.data.table.domain.ColumnType;
@@ -45,7 +47,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.jdbc.BadSqlGrammarException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
@@ -67,7 +68,6 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 class WorkspaceDataTableFacadeAuditIntTest {
 
     private static final String ADMIN_LOGIN = "admin";
-    private static final List<String> BASE_NAMES = List.of("audited", "audited_copy");
     private static final List<ColumnSpec> COLUMN_SPECS = List.of(new ColumnSpec("title", ColumnType.STRING));
     private static final long ENVIRONMENT_ID = 0;
     private static final long WORKSPACE_ID = 9101;
@@ -107,7 +107,6 @@ class WorkspaceDataTableFacadeAuditIntTest {
 
         dropTestTables();
 
-        jdbcTemplate.update("DELETE FROM workspace_data_table WHERE workspace_id = ?", WORKSPACE_ID);
         jdbcTemplate.update("DELETE FROM workspace WHERE id = ?", WORKSPACE_ID);
 
         persistenceAuditEventRepository.deleteAll();
@@ -123,7 +122,7 @@ class WorkspaceDataTableFacadeAuditIntTest {
         assertThat(persistentAuditEvent.getPlatform()).isEqualTo(PlatformType.AUTOMATION);
         assertThat(persistentAuditEvent.getData())
             .containsEntry("result", "SUCCESS")
-            .containsEntry("baseName", "audited")
+            .containsEntry("name", "audited")
             .containsEntry("workspaceId", String.valueOf(WORKSPACE_ID))
             .containsEntry("environmentId", String.valueOf(ENVIRONMENT_ID))
             .doesNotContainKeys("dataError", "errorClass");
@@ -137,24 +136,23 @@ class WorkspaceDataTableFacadeAuditIntTest {
 
         assertThatThrownBy(
             () -> workspaceDataTableFacade.createTable("audited", null, COLUMN_SPECS, WORKSPACE_ID, ENVIRONMENT_ID))
-                .isInstanceOf(BadSqlGrammarException.class);
+                .isInstanceOf(DataTableException.class);
 
         PersistentAuditEvent persistentAuditEvent = findSingleEvent(DataTableAuditEvents.DATA_TABLE_CREATED);
 
         assertThat(persistentAuditEvent.getPlatform()).isEqualTo(PlatformType.AUTOMATION);
         assertThat(persistentAuditEvent.getData())
             .containsEntry("result", "ERROR")
-            .containsEntry("errorClass", BadSqlGrammarException.class.getName())
-            .containsEntry("baseName", "audited")
+            .containsEntry("errorClass", DataTableException.class.getName())
+            .containsEntry("name", "audited")
             .containsEntry("workspaceId", String.valueOf(WORKSPACE_ID))
             .containsEntry("environmentId", String.valueOf(ENVIRONMENT_ID));
     }
 
     @Test
     void testDuplicateTableRecordsTheSourceTableAndNewName() {
-        workspaceDataTableFacade.createTable("audited", null, COLUMN_SPECS, WORKSPACE_ID, ENVIRONMENT_ID);
-
-        long dataTableId = dataTableService.getIdByBaseName("audited");
+        long dataTableId = workspaceDataTableFacade.createTable(
+            "audited", null, COLUMN_SPECS, WORKSPACE_ID, ENVIRONMENT_ID);
 
         persistenceAuditEventRepository.deleteAll();
 
@@ -166,7 +164,7 @@ class WorkspaceDataTableFacadeAuditIntTest {
         assertThat(persistentAuditEvent.getData())
             .containsEntry("result", "SUCCESS")
             .containsEntry("sourceDataTableId", String.valueOf(dataTableId))
-            .containsEntry("newBaseName", "audited_copy")
+            .containsEntry("newName", "audited_copy")
             .containsEntry("environmentId", String.valueOf(ENVIRONMENT_ID))
             .doesNotContainKeys("dataError", "errorClass");
     }
@@ -175,22 +173,22 @@ class WorkspaceDataTableFacadeAuditIntTest {
     void testDuplicateOfAnUnknownTableRecordsAnError() {
         assertThatThrownBy(
             () -> workspaceDataTableFacade.duplicateTable(Long.MAX_VALUE, "audited_copy", ENVIRONMENT_ID))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(DataTableException.class);
 
         PersistentAuditEvent persistentAuditEvent = findSingleEvent(DataTableAuditEvents.DATA_TABLE_DUPLICATED);
 
         assertThat(persistentAuditEvent.getPlatform()).isEqualTo(PlatformType.AUTOMATION);
         assertThat(persistentAuditEvent.getData())
             .containsEntry("result", "ERROR")
-            .containsEntry("errorClass", IllegalArgumentException.class.getName())
+            .containsEntry("errorClass", DataTableException.class.getName())
             .containsEntry("sourceDataTableId", String.valueOf(Long.MAX_VALUE))
-            .containsEntry("newBaseName", "audited_copy")
+            .containsEntry("newName", "audited_copy")
             .containsEntry("environmentId", String.valueOf(ENVIRONMENT_ID));
     }
 
     private void dropTestTables() {
-        for (String baseName : BASE_NAMES) {
-            dataTableService.dropTable(baseName, ENVIRONMENT_ID);
+        for (DataTable dataTable : dataTableService.getWorkspaceDataTables(WORKSPACE_ID)) {
+            dataTableService.dropTable(dataTable.getId(), ENVIRONMENT_ID);
         }
     }
 

@@ -17,10 +17,13 @@
 package com.bytechef.platform.knowledgebase.facade;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -43,10 +46,23 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.access.PermissionEvaluator;
+import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
+import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.context.ContextConfiguration;
 
 /**
  * Integration tests for {@link KnowledgeBaseDocumentFacade}.
@@ -275,9 +291,149 @@ class KnowledgeBaseDocumentFacadeIntTest {
         assertThat(documents).hasSize(2);
     }
 
+    @Test
+    void testSaveNewDocumentOverTheLimitIsRejected() {
+        knowledgeBaseDocumentRepository.save(createDocument("Existing", 600L));
+
+        getKnowledgeBaseProperties().setMaxSizeBytes(1_000L);
+
+        assertThatThrownBy(
+            () -> knowledgeBaseDocumentFacade.saveKnowledgeBaseDocument(createDocument("New", 500L)))
+                .isInstanceOf(KnowledgeBaseStorageLimitExceededException.class);
+
+        assertThat(knowledgeBaseDocumentRepository.count()).isEqualTo(1);
+    }
+
+    @Test
+    void testSaveGrowingDocumentChecksOnlyTheGrowth() {
+        KnowledgeBaseDocument document = knowledgeBaseDocumentRepository.save(createDocument("Growing", 300L));
+
+        getKnowledgeBaseProperties().setMaxSizeBytes(600L);
+
+        document.setDocumentSize(500L);
+
+        KnowledgeBaseDocument savedDocument = knowledgeBaseDocumentFacade.saveKnowledgeBaseDocument(document);
+
+        assertThat(savedDocument.getDocumentSize()).isEqualTo(500L);
+    }
+
+    @Test
+    void testSaveShrinkingDocumentSkipsTheCheck() {
+        KnowledgeBaseDocument document = knowledgeBaseDocumentRepository.save(createDocument("Shrinking", 800L));
+
+        getKnowledgeBaseProperties().setMaxSizeBytes(100L);
+
+        document.setDocumentSize(500L);
+
+        assertThatCode(() -> knowledgeBaseDocumentFacade.saveKnowledgeBaseDocument(document))
+            .doesNotThrowAnyException();
+    }
+
+    @Test
+    void testSaveDocumentWithoutSizeSkipsTheCheck() {
+        knowledgeBaseDocumentRepository.save(createDocument("Existing", 800L));
+
+        getKnowledgeBaseProperties().setMaxSizeBytes(100L);
+
+        assertThatCode(
+            () -> knowledgeBaseDocumentFacade.saveKnowledgeBaseDocument(createDocument("Unsized", null)))
+                .doesNotThrowAnyException();
+    }
+
+    private KnowledgeBaseDocument createDocument(String name, Long documentSize) {
+        KnowledgeBaseDocument document = new KnowledgeBaseDocument();
+
+        document.setKnowledgeBaseId(knowledgeBase.getId());
+        document.setName(name);
+        document.setDocument(new FileEntry(name + ".txt", "file://test/" + name + ".txt"));
+        document.setDocumentSize(documentSize);
+        document.setStatus(KnowledgeBaseDocument.STATUS_UPLOADED);
+
+        return document;
+    }
+
     private ApplicationProperties.Ai.KnowledgeBase getKnowledgeBaseProperties() {
         ApplicationProperties.Ai ai = applicationProperties.getAi();
 
         return ai.getKnowledgeBase();
+    }
+
+    @Nested
+    @ContextConfiguration(classes = PreAuthorizeEnforcement.MethodSecurityConfiguration.class)
+    class PreAuthorizeEnforcement {
+
+        @Autowired
+        private PermissionEvaluator permissionEvaluator;
+
+        @BeforeEach
+        void beforeEach() {
+            reset(permissionEvaluator);
+
+            SecurityContext securityContext = SecurityContextHolder.getContext();
+
+            securityContext.setAuthentication(new UsernamePasswordAuthenticationToken("user", "n/a", List.of()));
+        }
+
+        @AfterEach
+        void afterEach() {
+            SecurityContextHolder.clearContext();
+        }
+
+        @Test
+        void testCreateKnowledgeBaseDocumentRequiresEditScopeOnTheKnowledgeBase() {
+            Long knowledgeBaseId = knowledgeBase.getId();
+
+            when(knowledgeBaseFileStorage.storeDocument(eq("refunds.txt"), any(InputStream.class)))
+                .thenReturn(new FileEntry("refunds.txt", "file://test/refunds.txt"));
+
+            assertThatThrownBy(() -> createKnowledgeBaseDocument(knowledgeBaseId))
+                .isInstanceOf(AccessDeniedException.class);
+
+            when(permissionEvaluator.hasPermission(
+                any(Authentication.class), eq(knowledgeBaseId), eq("KnowledgeBase"), eq("KNOWLEDGE_BASE_VIEW")))
+                    .thenReturn(true);
+
+            assertThatThrownBy(() -> createKnowledgeBaseDocument(knowledgeBaseId))
+                .isInstanceOf(AccessDeniedException.class);
+
+            assertThat(knowledgeBaseDocumentRepository.count()).isZero();
+
+            when(permissionEvaluator.hasPermission(
+                any(Authentication.class), eq(knowledgeBaseId), eq("KnowledgeBase"), eq("KNOWLEDGE_BASE_EDIT")))
+                    .thenReturn(true);
+
+            KnowledgeBaseDocument knowledgeBaseDocument = createKnowledgeBaseDocument(knowledgeBaseId);
+
+            assertThat(knowledgeBaseDocument.getKnowledgeBaseId()).isEqualTo(knowledgeBaseId);
+            assertThat(knowledgeBaseDocumentRepository.count()).isEqualTo(1);
+        }
+
+        private KnowledgeBaseDocument createKnowledgeBaseDocument(long knowledgeBaseId) {
+            byte[] content = "Refunds take five days.".getBytes(StandardCharsets.UTF_8);
+
+            return knowledgeBaseDocumentFacade.createKnowledgeBaseDocument(
+                knowledgeBaseId, "refunds.txt", "text/plain", content.length, new ByteArrayInputStream(content));
+        }
+
+        @EnableMethodSecurity
+        static class MethodSecurityConfiguration {
+
+            @Bean
+            static MethodSecurityExpressionHandler methodSecurityExpressionHandler(
+                @Lazy PermissionEvaluator permissionEvaluator) {
+
+                DefaultMethodSecurityExpressionHandler defaultMethodSecurityExpressionHandler =
+                    new DefaultMethodSecurityExpressionHandler();
+
+                defaultMethodSecurityExpressionHandler.setPermissionEvaluator(permissionEvaluator);
+
+                return defaultMethodSecurityExpressionHandler;
+            }
+
+            @Bean
+            PermissionEvaluator permissionEvaluator() {
+                return mock(PermissionEvaluator.class);
+            }
+        }
     }
 }

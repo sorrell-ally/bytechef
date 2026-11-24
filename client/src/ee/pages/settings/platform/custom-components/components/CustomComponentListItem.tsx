@@ -5,35 +5,39 @@ import LoadingIcon from '@/components/LoadingIcon';
 import Switch from '@/components/Switch/Switch';
 import {Collapsible, CollapsibleContent, CollapsibleTrigger} from '@/components/ui/collapsible';
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from '@/components/ui/dropdown-menu';
+import {Tabs, TabsContent, TabsList, TabsTrigger} from '@/components/ui/tabs';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip';
 import {
     CustomComponent,
+    CustomComponentLanguage,
+    CustomComponentStatus,
     useCustomComponentDefinitionQuery,
     useDeleteCustomComponentMutation,
     useEnableCustomComponentMutation,
 } from '@/shared/middleware/graphql';
+import getCodeWorkflowLanguageLabel from '@/shared/util/codeWorkflowLanguage-utils';
 import {useQueryClient} from '@tanstack/react-query';
-import {ChevronDownIcon, ChevronRightIcon, EllipsisVerticalIcon, ZapIcon} from 'lucide-react';
+import {ChevronDownIcon, ChevronRightIcon, EllipsisVerticalIcon} from 'lucide-react';
 import {useState} from 'react';
+import {useNavigate} from 'react-router-dom';
+import {twMerge} from 'tailwind-merge';
+
+import CustomComponentDefinitionItemList from './CustomComponentDefinitionItemList';
 
 interface CustomComponentItemProps {
     customComponent: CustomComponent;
 }
 
-const Title = ({customComponent}: {customComponent: CustomComponent}) => {
+const Title = ({customComponent, opensDetail}: {customComponent: CustomComponent; opensDetail: boolean}) => {
     return (
         <div className="flex flex-col items-start space-y-1">
-            <div className="flex space-x-1">
-                <div className="font-semibold">{customComponent.title}</div>
-
-                {customComponent.componentVersion && (
-                    <Badge
-                        className="flex items-center justify-center"
-                        label={`v${customComponent.componentVersion}`}
-                        styleType="secondary-filled"
-                        weight="semibold"
-                    />
+            <div
+                className={twMerge(
+                    'font-semibold',
+                    opensDetail && 'group-hover:underline group-has-[[data-expand-trigger]:hover]:no-underline'
                 )}
+            >
+                {customComponent.title}
             </div>
 
             <div className="text-sm">{customComponent.name}</div>
@@ -45,7 +49,10 @@ const CustomComponentListItem = ({customComponent}: CustomComponentItemProps) =>
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
 
+    const navigate = useNavigate();
     const queryClient = useQueryClient();
+
+    const isJavaComponent = customComponent.language === CustomComponentLanguage.Java;
 
     const deleteCustomComponentMutation = useDeleteCustomComponentMutation({
         onSuccess: () => {
@@ -63,7 +70,11 @@ const CustomComponentListItem = ({customComponent}: CustomComponentItemProps) =>
         },
     });
 
-    const {data: definitionData, isLoading: isLoadingDefinition} = useCustomComponentDefinitionQuery(
+    const {
+        data: definitionData,
+        isError: isDefinitionError,
+        isLoading: isLoadingDefinition,
+    } = useCustomComponentDefinitionQuery(
         {id: customComponent.id},
         {
             enabled: isExpanded,
@@ -85,17 +96,36 @@ const CustomComponentListItem = ({customComponent}: CustomComponentItemProps) =>
         });
     };
 
+    const handleRowClick = () => {
+        if (!isJavaComponent) {
+            void navigate(String(customComponent.id));
+        }
+    };
+
+    const handleRowKeyDown = (event: React.KeyboardEvent) => {
+        if ((event.key === 'Enter' || event.key === ' ') && !isJavaComponent) {
+            event.preventDefault();
+            handleRowClick();
+        }
+    };
+
     const actions = definitionData?.customComponentDefinition?.actions ?? [];
     const triggers = definitionData?.customComponentDefinition?.triggers ?? [];
 
     return (
-        <Collapsible onOpenChange={setIsExpanded} open={isExpanded}>
-            <div className="w-full rounded-md px-2 py-5 hover:bg-surface-neutral-primary-hover">
+        <Collapsible
+            className="mb-2 w-full rounded border border-border/50"
+            onOpenChange={setIsExpanded}
+            open={isExpanded}
+        >
+            <div className="group w-full rounded-md px-3 py-4 hover:bg-surface-neutral-primary-hover">
                 <div className="flex items-center justify-between">
                     <div className="flex flex-1 items-center gap-x-2">
                         <CollapsibleTrigger asChild>
                             <Button
+                                aria-label={isExpanded ? 'Hide actions and triggers' : 'Show actions and triggers'}
                                 className="size-6 p-0"
+                                data-expand-trigger
                                 icon={
                                     isExpanded ? (
                                         <ChevronDownIcon className="size-4 text-content-neutral-secondary" />
@@ -108,20 +138,33 @@ const CustomComponentListItem = ({customComponent}: CustomComponentItemProps) =>
                             />
                         </CollapsibleTrigger>
 
-                        <div className="flex-1">
-                            <div className="flex items-center justify-between">
+                        <div
+                            className={twMerge(
+                                'flex-1',
+                                !isJavaComponent &&
+                                    'cursor-pointer rounded focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:outline-none'
+                            )}
+                            onClick={isJavaComponent ? undefined : handleRowClick}
+                            onKeyDown={handleRowKeyDown}
+                            role={!isJavaComponent ? 'button' : undefined}
+                            tabIndex={!isJavaComponent ? 0 : undefined}
+                        >
+                            <div className="flex min-h-8 items-center justify-between">
                                 <div className="flex w-full items-center justify-between">
                                     {customComponent.description ? (
                                         <Tooltip>
                                             <TooltipTrigger>
-                                                <Title customComponent={customComponent} />
+                                                <Title
+                                                    customComponent={customComponent}
+                                                    opensDetail={!isJavaComponent}
+                                                />
                                             </TooltipTrigger>
 
                                             <TooltipContent>{customComponent.description}</TooltipContent>
                                         </Tooltip>
                                     ) : (
                                         <div className="space-x-1">
-                                            <Title customComponent={customComponent} />
+                                            <Title customComponent={customComponent} opensDetail={!isJavaComponent} />
                                         </div>
                                     )}
                                 </div>
@@ -129,28 +172,58 @@ const CustomComponentListItem = ({customComponent}: CustomComponentItemProps) =>
                         </div>
                     </div>
 
-                    <div className="flex items-center justify-end gap-x-6 [&>:last-child]:-ml-3">
-                        <div>
+                    <div className="flex shrink-0 items-center justify-end gap-x-6 [&>:last-child]:-ml-3">
+                        <div className="flex w-28 justify-end">
                             {customComponent.language && (
                                 <Badge
-                                    className="flex w-24 items-center justify-center"
-                                    label={customComponent.language}
+                                    className="flex items-center justify-center uppercase"
+                                    label={
+                                        getCodeWorkflowLanguageLabel(customComponent.language) ??
+                                        customComponent.language
+                                    }
                                     styleType="secondary-filled"
                                     weight="semibold"
                                 />
                             )}
                         </div>
 
-                        <div className="flex flex-col items-end gap-y-4">
-                            <Switch
-                                checked={customComponent.enabled ?? false}
-                                onCheckedChange={handleOnCheckedChange}
-                            />
+                        <div className="flex w-32 justify-end">
+                            {customComponent.status && (
+                                <Badge
+                                    className={twMerge(
+                                        'flex space-x-1',
+                                        customComponent.status !== CustomComponentStatus.Draft && 'border-transparent'
+                                    )}
+                                    styleType={
+                                        customComponent.status === CustomComponentStatus.Draft
+                                            ? 'secondary-filled'
+                                            : 'success-outline'
+                                    }
+                                    weight="semibold"
+                                >
+                                    {customComponent.componentVersion && (
+                                        <span>V{customComponent.componentVersion}</span>
+                                    )}
+
+                                    <span>
+                                        {customComponent.status === CustomComponentStatus.Draft ? 'DRAFT' : 'PUBLISHED'}
+                                    </span>
+                                </Badge>
+                            )}
+                        </div>
+
+                        <div className="flex w-56 shrink-0 flex-col items-end gap-y-2">
+                            <div className="flex min-h-8 items-center">
+                                <Switch
+                                    checked={customComponent.enabled ?? false}
+                                    onCheckedChange={handleOnCheckedChange}
+                                />
+                            </div>
 
                             <Tooltip>
-                                <TooltipTrigger className="flex items-center text-sm text-content-neutral-secondary">
+                                <TooltipTrigger className="flex min-h-7 items-center text-sm text-content-neutral-secondary">
                                     {customComponent.lastModifiedDate ? (
-                                        <span className="text-xs">
+                                        <span className="text-xs whitespace-nowrap">
                                             {`Modified at ${new Date(customComponent.lastModifiedDate).toLocaleDateString()} ${new Date(customComponent.lastModifiedDate).toLocaleTimeString()}`}
                                         </span>
                                     ) : (
@@ -172,10 +245,7 @@ const CustomComponentListItem = ({customComponent}: CustomComponentItemProps) =>
                             </DropdownMenuTrigger>
 
                             <DropdownMenuContent align="end">
-                                <DropdownMenuItem
-                                    className="text-content-destructive"
-                                    onClick={() => setShowDeleteDialog(true)}
-                                >
+                                <DropdownMenuItem onClick={() => setShowDeleteDialog(true)} variant="destructive">
                                     Delete
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
@@ -184,84 +254,44 @@ const CustomComponentListItem = ({customComponent}: CustomComponentItemProps) =>
                 </div>
 
                 <CollapsibleContent>
-                    <div className="mt-4 ml-8 border-t pt-4">
-                        {isLoadingDefinition ? (
+                    <div className="mt-4 ml-8">
+                        {isLoadingDefinition && (
                             <div className="flex items-center gap-2 text-sm text-content-neutral-secondary">
                                 <LoadingIcon className="size-4" />
                                 Loading component definition...
                             </div>
-                        ) : (
-                            <div className="grid grid-cols-2 gap-6">
-                                <div>
-                                    <h4 className="mb-2 flex items-center gap-1 text-sm font-semibold text-content-neutral-primary">
-                                        <ZapIcon className="size-4" />
+                        )}
 
-                                        <span>Actions ({actions.length})</span>
-                                    </h4>
+                        {isDefinitionError && (
+                            <p className="text-sm text-content-neutral-secondary">
+                                {isJavaComponent
+                                    ? 'The component definition could not be loaded.'
+                                    : 'The component definition could not be loaded. Open the component to fix its source.'}
+                            </p>
+                        )}
 
-                                    {actions.length > 0 ? (
-                                        <ul className="space-y-2">
-                                            {actions.map((action) => (
-                                                <li
-                                                    className="rounded bg-surface-neutral-primary p-2"
-                                                    key={action.name}
-                                                >
-                                                    <div className="text-sm font-medium">
-                                                        {action.title || action.name}
-                                                    </div>
+                        {!isLoadingDefinition && !isDefinitionError && (
+                            <Tabs defaultValue="actions">
+                                <TabsList>
+                                    <TabsTrigger value="actions">Actions ({actions.length})</TabsTrigger>
 
-                                                    <div className="text-xs text-content-neutral-secondary">
-                                                        {action.name}
-                                                    </div>
+                                    <TabsTrigger value="triggers">Triggers ({triggers.length})</TabsTrigger>
+                                </TabsList>
 
-                                                    {action.description && (
-                                                        <div className="mt-1 text-xs text-content-neutral-secondary">
-                                                            {action.description}
-                                                        </div>
-                                                    )}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    ) : (
-                                        <p className="text-sm text-content-neutral-secondary">No actions defined</p>
-                                    )}
-                                </div>
+                                <TabsContent className="pt-2" value="actions">
+                                    <CustomComponentDefinitionItemList
+                                        emptyMessage="No actions defined"
+                                        items={actions}
+                                    />
+                                </TabsContent>
 
-                                <div>
-                                    <h4 className="mb-2 flex items-center gap-1 text-sm font-semibold text-content-neutral-primary">
-                                        <ZapIcon className="size-4" />
-
-                                        <span>Triggers ({triggers.length})</span>
-                                    </h4>
-
-                                    {triggers.length > 0 ? (
-                                        <ul className="space-y-2">
-                                            {triggers.map((trigger) => (
-                                                <li
-                                                    className="rounded bg-surface-neutral-primary p-2"
-                                                    key={trigger.name}
-                                                >
-                                                    <div className="text-sm font-medium">
-                                                        {trigger.title || trigger.name}
-                                                    </div>
-
-                                                    <div className="text-xs text-content-neutral-secondary">
-                                                        {trigger.name}
-                                                    </div>
-
-                                                    {trigger.description && (
-                                                        <div className="mt-1 text-xs text-content-neutral-secondary">
-                                                            {trigger.description}
-                                                        </div>
-                                                    )}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    ) : (
-                                        <p className="text-sm text-content-neutral-secondary">No triggers defined</p>
-                                    )}
-                                </div>
-                            </div>
+                                <TabsContent className="pt-2" value="triggers">
+                                    <CustomComponentDefinitionItemList
+                                        emptyMessage="No triggers defined"
+                                        items={triggers}
+                                    />
+                                </TabsContent>
+                            </Tabs>
                         )}
                     </div>
                 </CollapsibleContent>

@@ -8,13 +8,16 @@ query connectedUserProjects($connectedUserId: ID, $environmentId: ID) {
         }
         connectedUserProjectWorkflows {
             id
+            attentionReason
             automationUuid
             connectedUserId
             copiedFromWorkflowUuid
             enabled
             lastExecutionDate
             projectId
+            provisionedBy
             staticWebhookUrl
+            toolOnly
             workflowUuid
             workflowVersion
             workflow {
@@ -32,6 +35,8 @@ query connectedUserProjects($connectedUserId: ID, $environmentId: ID) {
             configurationId
             configurationName
             configurationProjectVersion
+            configurationEnabled
+            enabled
         }
         environmentId
         lastExecutionDate

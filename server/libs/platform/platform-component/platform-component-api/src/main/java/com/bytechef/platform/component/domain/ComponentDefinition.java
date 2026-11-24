@@ -125,6 +125,20 @@ public final class ComponentDefinition {
         return clusterRoot;
     }
 
+    public boolean isClusterRoot(@Nullable String actionName) {
+        if (!clusterRoot) {
+            return false;
+        }
+
+        if (actionName == null || actionClusterElementTypes == null) {
+            return true;
+        }
+
+        List<String> clusterElementTypeNames = actionClusterElementTypes.get(actionName);
+
+        return clusterElementTypeNames == null || !clusterElementTypeNames.isEmpty();
+    }
+
     public boolean isConnectionRequired() {
         return connectionRequired;
     }
@@ -211,6 +225,17 @@ public final class ComponentDefinition {
 
     public int getTriggersCount() {
         return triggers.size();
+    }
+
+    public boolean isDeprecated() {
+        if (actions == null || actions.isEmpty() || (triggers != null && !triggers.isEmpty()) ||
+            (clusterElements != null && !clusterElements.isEmpty())) {
+
+            return false;
+        }
+
+        return actions.stream()
+            .allMatch(ActionDefinition::isDeprecated);
     }
 
     @Nullable

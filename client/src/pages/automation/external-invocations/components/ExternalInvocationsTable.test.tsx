@@ -26,19 +26,19 @@ const baseLog = {
     externalUserId: null,
     id: '1',
     integrationInstanceId: null,
+    invocationName: 'slack_sendMessage',
     jobId: null,
     kind: 'COMPONENT',
     mcpServerId: null,
     operationName: 'sendMessage',
-    outcome: 'SUCCESS',
     source: 'MCP_SERVER',
-    toolName: 'slack_sendMessage',
+    status: 'SUCCESS',
     workflowName: null,
     workspaceId: null,
 };
 
 describe('ExternalInvocationsTable', () => {
-    it('renders a row with the tool name, mapped source label and outcome', () => {
+    it('renders a row with the tool name, mapped source label and status', () => {
         render(<ExternalInvocationsTable externalInvocationLogs={[baseLog]} />);
 
         expect(screen.getByText('slack_sendMessage')).toBeInTheDocument();
@@ -65,7 +65,7 @@ describe('ExternalInvocationsTable', () => {
     ])('renders a %s %s call as %s in the Type column', (source, kind, expectedLabel) => {
         render(<ExternalInvocationsTable externalInvocationLogs={[{...baseLog, kind, source}]} />);
 
-        expect(screen.getAllByRole('columnheader')[1]).toHaveTextContent('Tool');
+        expect(screen.getAllByRole('columnheader')[1]).toHaveTextContent('Name');
         expect(screen.getAllByRole('columnheader')[2]).toHaveTextContent('Type');
 
         const typeCell = screen.getAllByRole('cell')[2];
@@ -77,12 +77,12 @@ describe('ExternalInvocationsTable', () => {
         }
     });
 
-    it('renders an em dash when the tool name is missing', () => {
-        render(<ExternalInvocationsTable externalInvocationLogs={[{...baseLog, id: '2', toolName: null}]} />);
+    it('renders an em dash when the invocation name is missing', () => {
+        render(<ExternalInvocationsTable externalInvocationLogs={[{...baseLog, id: '2', invocationName: null}]} />);
 
-        const toolNameCell = screen.getAllByRole('cell')[1];
+        const invocationNameCell = screen.getAllByRole('cell')[1];
 
-        expect(toolNameCell).toHaveTextContent(/^—$/);
+        expect(invocationNameCell).toHaveTextContent(/^—$/);
     });
 
     it.each([
@@ -106,11 +106,11 @@ describe('ExternalInvocationsTable', () => {
         ['CONNECTION_REQUIRED', 'bg-surface-neutral-secondary'],
         ['APPROVAL_REQUIRED', 'bg-surface-neutral-secondary'],
         ['SUSPENDED', 'bg-surface-neutral-secondary'],
-    ])('colours the %s outcome with %s', (outcome, className) => {
-        render(<ExternalInvocationsTable externalInvocationLogs={[{...baseLog, outcome}]} />);
+    ])('colours the %s status with %s', (status, className) => {
+        render(<ExternalInvocationsTable externalInvocationLogs={[{...baseLog, status}]} />);
 
-        expect(screen.getByText(outcome)).toHaveClass(className);
-        expect(screen.getByText(outcome)).toHaveClass('border-transparent');
+        expect(screen.getByText(status)).toHaveClass(className);
+        expect(screen.getByText(status)).toHaveClass('border-transparent');
     });
 
     it('shows only the component name when the call has no operation', () => {
@@ -127,9 +127,9 @@ describe('ExternalInvocationsTable', () => {
                     {
                         ...baseLog,
                         componentName: null,
+                        invocationName: 'send_message',
                         kind: 'WORKFLOW',
                         operationName: null,
-                        toolName: 'send_message',
                         workflowName: 'Send Message',
                     },
                 ]}
@@ -144,7 +144,13 @@ describe('ExternalInvocationsTable', () => {
         render(
             <ExternalInvocationsTable
                 externalInvocationLogs={[
-                    {...baseLog, componentName: null, kind: 'WORKFLOW', operationName: null, toolName: 'runReport'},
+                    {
+                        ...baseLog,
+                        componentName: null,
+                        invocationName: 'runReport',
+                        kind: 'WORKFLOW',
+                        operationName: null,
+                    },
                 ]}
             />
         );
@@ -156,8 +162,8 @@ describe('ExternalInvocationsTable', () => {
         render(
             <ExternalInvocationsTable
                 externalInvocationLogs={[
-                    {...baseLog, id: '1', mcpServerId: 5, toolName: 'named_server_tool'},
-                    {...baseLog, id: '2', mcpServerId: 9, toolName: 'unknown_server_tool'},
+                    {...baseLog, id: '1', invocationName: 'named_server_tool', mcpServerId: 5},
+                    {...baseLog, id: '2', invocationName: 'unknown_server_tool', mcpServerId: 9},
                 ]}
                 mcpServerNames={{'5': 'Sales MCP'}}
             />
@@ -179,10 +185,10 @@ describe('ExternalInvocationsTable', () => {
                         ...baseLog,
                         a2aServerId: 4,
                         componentName: null,
+                        invocationName: 'Summarize',
                         kind: 'WORKFLOW',
                         operationName: null,
                         source: 'A2A_SERVER',
-                        toolName: 'Summarize',
                     },
                 ]}
                 mcpServerNames={{'4': 'Sales MCP'}}
@@ -191,6 +197,38 @@ describe('ExternalInvocationsTable', () => {
 
         expect(screen.getByText('Research agent')).toBeInTheDocument();
         expect(screen.queryByText('Sales MCP')).not.toBeInTheDocument();
+    });
+
+    it('hands every clicked row to onSelect, including rows without a job', () => {
+        const onSelect = vi.fn();
+
+        render(<ExternalInvocationsTable externalInvocationLogs={[baseLog]} onSelect={onSelect} />);
+
+        fireEvent.click(screen.getByText('slack_sendMessage'));
+
+        expect(onSelect).toHaveBeenCalledWith(baseLog);
+    });
+
+    it('opens a focused row with the Enter and Space keys', () => {
+        const onSelect = vi.fn();
+
+        render(<ExternalInvocationsTable externalInvocationLogs={[baseLog]} onSelect={onSelect} />);
+
+        const row = screen.getByText('slack_sendMessage').closest('tr')!;
+
+        expect(row).toHaveAttribute('tabindex', '0');
+
+        fireEvent.keyDown(row, {key: 'Enter'});
+        fireEvent.keyDown(row, {key: ' '});
+        fireEvent.keyDown(row, {key: 'a'});
+
+        expect(onSelect).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not make a row without an action focusable', () => {
+        render(<ExternalInvocationsTable externalInvocationLogs={[baseLog]} />);
+
+        expect(screen.getByText('slack_sendMessage').closest('tr')).not.toHaveAttribute('tabindex');
     });
 
     it('hides the source column when showSource is false', () => {
@@ -232,7 +270,7 @@ describe('ExternalInvocationsTable', () => {
             <ExternalInvocationsTable
                 externalInvocationLogs={[
                     {...baseLog, createdDate, id: '1'},
-                    {...baseLog, createdDate: null, id: '2', toolName: 'undated_tool'},
+                    {...baseLog, createdDate: null, id: '2', invocationName: 'undated_tool'},
                 ]}
             />
         );
@@ -248,8 +286,8 @@ describe('ExternalInvocationsTable', () => {
         render(
             <ExternalInvocationsTable
                 externalInvocationLogs={[
-                    {...baseLog, id: '1', toolName: 'first_tool'},
-                    {...baseLog, id: '2', toolName: 'second_tool'},
+                    {...baseLog, id: '1', invocationName: 'first_tool'},
+                    {...baseLog, id: '2', invocationName: 'second_tool'},
                 ]}
             />
         );
@@ -276,7 +314,7 @@ describe('ExternalInvocationsTable', () => {
     it('leaves the Actions cell empty for an invocation without a workflow run', () => {
         renderWithProviders(
             <ExternalInvocationsTable
-                externalInvocationLogs={[baseLog, {...baseLog, id: '2', jobId: '7', toolName: 'run_workflow'}]}
+                externalInvocationLogs={[baseLog, {...baseLog, id: '2', invocationName: 'run_workflow', jobId: '7'}]}
                 onViewJob={() => {}}
             />
         );

@@ -11,6 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -23,6 +24,7 @@ import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -43,13 +45,18 @@ import com.bytechef.automation.configuration.facade.WorkspaceFacade;
 import com.bytechef.automation.configuration.service.ProjectDeploymentService;
 import com.bytechef.automation.configuration.service.ProjectDeploymentWorkflowService;
 import com.bytechef.automation.configuration.service.ProjectWorkflowService;
+import com.bytechef.ee.embedded.ai.mcp.facade.McpAutomationRowFacade;
+import com.bytechef.ee.embedded.ai.mcp.facade.McpIntegrationInstanceRowFacade;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationComponentService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceConfigurationService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceConfigurationWorkflowService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceToolService;
+import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceWorkflowService;
 import com.bytechef.ee.embedded.configuration.domain.AutomationProjectConfiguration;
 import com.bytechef.ee.embedded.configuration.domain.ConnectedUserProjectWorkflow;
 import com.bytechef.ee.embedded.configuration.dto.AutomationProjectDTO;
+import com.bytechef.ee.embedded.configuration.dto.ConnectedUserWorkflowCopyDTO;
+import com.bytechef.ee.embedded.configuration.dto.ConnectedUserWorkflowReferenceDTO;
 import com.bytechef.ee.embedded.configuration.dto.ConnectedUserWorkflowTemplateDTO;
 import com.bytechef.ee.embedded.configuration.exception.AutomationTemplateNotVisibleException;
 import com.bytechef.ee.embedded.configuration.exception.ConnectedUserProjectWorkflowErrorType;
@@ -62,6 +69,7 @@ import com.bytechef.ee.embedded.configuration.security.EmbeddedPermissionEvaluat
 import com.bytechef.ee.embedded.configuration.service.AutomationProjectConfigurationService;
 import com.bytechef.ee.embedded.configuration.service.ConnectedUserConnectionService;
 import com.bytechef.ee.embedded.configuration.service.ConnectedUserProjectConfigurationService;
+import com.bytechef.ee.embedded.configuration.service.ConnectedUserProjectService;
 import com.bytechef.ee.embedded.configuration.service.ConnectedUserReferenceDeploymentService;
 import com.bytechef.ee.embedded.connected.user.domain.ConnectedUser;
 import com.bytechef.ee.embedded.connected.user.service.ConnectedUserService;
@@ -110,6 +118,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -160,6 +169,7 @@ import org.springframework.transaction.support.TransactionTemplate;
     JobFacade.class, JobService.class, McpComponentService.class, McpIntegrationComponentService.class,
     McpIntegrationInstanceConfigurationService.class,
     McpIntegrationInstanceConfigurationWorkflowService.class, McpIntegrationInstanceToolService.class,
+    McpIntegrationInstanceWorkflowService.class, McpAutomationRowFacade.class, McpIntegrationInstanceRowFacade.class,
     McpServerService.class, McpToolService.class, OAuth2ParametersFacade.class, OAuth2Service.class,
     PrincipalJobFacade.class, PrincipalJobService.class,
     TaskDispatcherDefinitionService.class, TaskExecutionService.class,
@@ -180,6 +190,12 @@ class ConnectedUserWorkflowReferenceFacadeIntTest {
 
     private static final String SLACK_WORKFLOW_WITH_CHANNEL_INPUT_DEFINITION = """
         {"label":"Post","inputs":[{"name":"channel","label":"Channel","type":"string","required":true}],
+         "triggers":[],"tasks":[{"name":"postMessage1","type":"slack/v1/postMessage","parameters":{}}]}
+        """;
+
+    private static final String SLACK_WORKFLOW_WITH_INTERNAL_ONLY_CHANNEL_INPUT_DEFINITION = """
+        {"label":"Post","inputs":[
+         {"name":"channel","label":"Channel","type":"string","required":true,"internalOnly":true}],
          "triggers":[],"tasks":[{"name":"postMessage1","type":"slack/v1/postMessage","parameters":{}}]}
         """;
 
@@ -206,6 +222,12 @@ class ConnectedUserWorkflowReferenceFacadeIntTest {
 
     @Autowired
     private ConnectedUserConnectionService connectedUserConnectionService;
+
+    @Autowired
+    private ConnectedUserProjectFacade connectedUserProjectFacade;
+
+    @MockitoSpyBean
+    private ConnectedUserProjectService connectedUserProjectService;
 
     @Autowired
     private ConnectedUserProjectWorkflowRepository connectedUserProjectWorkflowRepository;
@@ -244,6 +266,9 @@ class ConnectedUserWorkflowReferenceFacadeIntTest {
 
     @Autowired
     private EnvironmentService environmentService;
+
+    @Autowired
+    private McpAutomationRowFacade mcpAutomationRowFacade;
 
     @Autowired
     private PlatformTransactionManager platformTransactionManager;
@@ -663,6 +688,25 @@ class ConnectedUserWorkflowReferenceFacadeIntTest {
                     .containsExactly(new ProjectDeploymentWorkflowConnection(connectionId, "slack", "postMessage1"));
                 assertThat(row.getInputs()).isEqualTo(Map.of("channel", "general"));
             });
+    }
+
+    @Test
+    void testRowCreatedWhenProvisionThrowsMissingConnection() {
+        long automationProjectId = createAutomationProject("Mcp Automation Rows");
+
+        String workflowUuid = addAutomation(automationProjectId, SLACK_WORKFLOW_DEFINITION);
+
+        publishAndPinProject(automationProjectId);
+
+        ConnectedUser connectedUser = createConnectedUser(Environment.PRODUCTION);
+
+        assertThatThrownBy(() -> connectedUserWorkflowReferenceFacade.getOrCreateReference(
+            connectedUser.getExternalId(), workflowUuid, Environment.PRODUCTION))
+                .isInstanceOf(MissingConnectionException.class);
+
+        ConnectedUserProjectWorkflow reference = getOnlyReference(connectedUser);
+
+        verify(mcpAutomationRowFacade).addMissingRowsForReference(reference.getId());
     }
 
     @Test
@@ -1399,11 +1443,11 @@ class ConnectedUserWorkflowReferenceFacadeIntTest {
     }
 
     @Test
-    void testEnableReferenceIsSatisfiedByAnInputTheConfigurationProvides() {
+    void testEnableReferenceIsSatisfiedByAnInternalOnlyInputTheConfigurationProvides() {
         long automationProjectId = createAutomationProject("Provided Input Enable");
 
         String workflowUuid =
-            addAutomation(automationProjectId, SLACK_WORKFLOW_WITH_CHANNEL_INPUT_DEFINITION);
+            addAutomation(automationProjectId, SLACK_WORKFLOW_WITH_INTERNAL_ONLY_CHANNEL_INPUT_DEFINITION);
 
         publishAndPinProject(automationProjectId);
 
@@ -1414,7 +1458,10 @@ class ConnectedUserWorkflowReferenceFacadeIntTest {
         ConnectedUserProjectWorkflow reference = connectedUserWorkflowReferenceFacade.getOrCreateReference(
             connectedUser.getExternalId(), workflowUuid, Environment.PRODUCTION);
 
-        assertThat(reference.isEnabled()).isFalse();
+        assertThat(reference.isEnabled()).isTrue();
+        assertThat(fetchRow(reference))
+            .get()
+            .satisfies(row -> assertThat(row.isEnabled()).isFalse());
 
         provideValues(automationProjectId, workflowUuid, Map.of(), Map.of("channel", "#administrator"));
 
@@ -1459,6 +1506,115 @@ class ConnectedUserWorkflowReferenceFacadeIntTest {
             .containsExactly(ownedConnectionId);
         assertThat(connectedUserConnectionFacade.getOwnedConnectionIds(connectedUser.getId()))
             .containsExactly(ownedConnectionId);
+    }
+
+    @Test
+    void testGetReferencesJoinsBackToTheOwningConnectedUserInBatch() {
+        long automationProjectId = createAutomationProject("References");
+
+        String firstWorkflowUuid = addAutomation(automationProjectId, SLACK_WORKFLOW_DEFINITION);
+        String secondWorkflowUuid = addAutomation(automationProjectId, SLACK_WORKFLOW_DEFINITION);
+
+        publishAndPinProject(automationProjectId);
+
+        ConnectedUser firstConnectedUser = createConnectedUser(Environment.PRODUCTION);
+        ConnectedUser secondConnectedUser = createConnectedUser(Environment.PRODUCTION);
+
+        givenOwnedConnection(firstConnectedUser);
+        givenOwnedConnection(secondConnectedUser);
+
+        connectedUserWorkflowReferenceFacade.getOrCreateReference(
+            firstConnectedUser.getExternalId(), firstWorkflowUuid, Environment.PRODUCTION);
+        ConnectedUserProjectWorkflow secondReference = connectedUserWorkflowReferenceFacade.getOrCreateReference(
+            secondConnectedUser.getExternalId(), secondWorkflowUuid, Environment.PRODUCTION);
+
+        markDangling(secondReference);
+
+        clearInvocations(connectedUserProjectService, connectedUserService);
+
+        List<ConnectedUserWorkflowReferenceDTO> result = connectedUserWorkflowReferenceFacade.getReferences(
+            Set.of(firstWorkflowUuid, secondWorkflowUuid));
+
+        assertThat(result)
+            .extracting(
+                ConnectedUserWorkflowReferenceDTO::automationUuid,
+                ConnectedUserWorkflowReferenceDTO::externalUserId, ConnectedUserWorkflowReferenceDTO::environment,
+                ConnectedUserWorkflowReferenceDTO::enabled, ConnectedUserWorkflowReferenceDTO::dangling,
+                ConnectedUserWorkflowReferenceDTO::danglingReason)
+            .containsExactlyInAnyOrder(
+                tuple(
+                    firstWorkflowUuid, firstConnectedUser.getExternalId(), Environment.PRODUCTION.name(), true, false,
+                    null),
+                tuple(
+                    secondWorkflowUuid, secondConnectedUser.getExternalId(), Environment.PRODUCTION.name(), false,
+                    true, "Removed from the automation project on redeploy"));
+
+        verify(connectedUserProjectService, times(1)).getConnectedUserProjects(anyList());
+        verify(connectedUserService, times(1)).getConnectedUsers(anyList());
+    }
+
+    @Test
+    void testGetCopiesListsOnlyTheCopiesOfConnectedUsersInTheEnvironment() {
+        long automationProjectId = createAutomationProject("Copies");
+
+        String copiedWorkflowUuid = addAutomation(automationProjectId, SLACK_WORKFLOW_DEFINITION);
+        String referencedWorkflowUuid = addAutomation(automationProjectId, SLACK_WORKFLOW_DEFINITION);
+
+        publishAndPinProject(automationProjectId);
+
+        AutomationProjectDTO automationProject = automationProjectFacade.getProject(automationProjectId);
+
+        automationProjectConfigurationService.create(
+            automationProjectId, Environment.DEVELOPMENT.ordinal(), Environment.DEVELOPMENT.name(), null,
+            automationProject.lastPublishedVersion(), true, true);
+
+        ConnectedUser productionConnectedUser = createConnectedUser(Environment.PRODUCTION);
+        ConnectedUser developmentConnectedUser = createConnectedUser(Environment.DEVELOPMENT);
+
+        givenOwnedConnection(productionConnectedUser);
+        givenOwnedConnection(developmentConnectedUser);
+
+        String productionCopyUuid = connectedUserProjectFacade.copyWorkflowTemplate(
+            productionConnectedUser.getExternalId(), copiedWorkflowUuid, Environment.PRODUCTION);
+        String developmentCopyUuid = connectedUserProjectFacade.copyWorkflowTemplate(
+            developmentConnectedUser.getExternalId(), copiedWorkflowUuid, Environment.DEVELOPMENT);
+
+        connectedUserWorkflowReferenceFacade.getOrCreateReference(
+            productionConnectedUser.getExternalId(), referencedWorkflowUuid, Environment.PRODUCTION);
+
+        Set<String> workflowUuids = Set.of(copiedWorkflowUuid, referencedWorkflowUuid);
+
+        assertThat(connectedUserWorkflowReferenceFacade.getCopies(workflowUuids, Environment.PRODUCTION))
+            .extracting(
+                ConnectedUserWorkflowCopyDTO::copiedFromWorkflowUuid, ConnectedUserWorkflowCopyDTO::workflowUuid,
+                ConnectedUserWorkflowCopyDTO::externalUserId, ConnectedUserWorkflowCopyDTO::enabled)
+            .containsExactly(
+                tuple(copiedWorkflowUuid, productionCopyUuid, productionConnectedUser.getExternalId(), false));
+        assertThat(connectedUserWorkflowReferenceFacade.getCopies(workflowUuids, Environment.DEVELOPMENT))
+            .extracting(ConnectedUserWorkflowCopyDTO::workflowUuid, ConnectedUserWorkflowCopyDTO::externalUserId)
+            .containsExactly(tuple(developmentCopyUuid, developmentConnectedUser.getExternalId()));
+    }
+
+    @Test
+    void testGetReferencesListsOnlyTheReferencesOfConnectedUsersInTheEnvironment() {
+        long automationProjectId = createAutomationProject("Environment References");
+
+        String workflowUuid = addAutomation(automationProjectId, SLACK_WORKFLOW_DEFINITION);
+
+        publishAndPinProject(automationProjectId);
+
+        ConnectedUser connectedUser = createConnectedUser(Environment.PRODUCTION);
+
+        givenOwnedConnection(connectedUser);
+
+        connectedUserWorkflowReferenceFacade.getOrCreateReference(
+            connectedUser.getExternalId(), workflowUuid, Environment.PRODUCTION);
+
+        assertThat(connectedUserWorkflowReferenceFacade.getReferences(Set.of(workflowUuid), Environment.PRODUCTION))
+            .extracting(ConnectedUserWorkflowReferenceDTO::externalUserId)
+            .containsExactly(connectedUser.getExternalId());
+        assertThat(connectedUserWorkflowReferenceFacade.getReferences(Set.of(workflowUuid), Environment.DEVELOPMENT))
+            .isEmpty();
     }
 
     private long givenAdministratorConnection() {
@@ -1644,15 +1800,13 @@ class ConnectedUserWorkflowReferenceFacadeIntTest {
     }
 
     @Nested
+    @MockitoBean(types = ConnectedUserConnectionFacade.class)
     class ProvisionInputs {
 
         private static final String SLACK_WORKFLOW_WITH_CHANNEL_INPUT_DEFINITION = """
             {"label":"Post","inputs":[{"name":"channel","label":"Channel","type":"string","required":true}],
              "triggers":[],"tasks":[{"name":"postMessage1","type":"slack/v1/postMessage","parameters":{}}]}
             """;
-
-        @MockitoBean
-        private ConnectedUserConnectionFacade connectedUserConnectionFacade;
 
         private String externalUserId;
 

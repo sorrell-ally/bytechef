@@ -23,7 +23,7 @@ Two ways something here is hidden, and the tables below mark both:
 
 Both are reversible and neither deletes anything.
 
-**44 whole-page** (20 hidden) · **31 partial** pages (7 with a commented-out section)
+**25 whole-page** (9 hidden) · **31 partial** pages (7 with a commented-out section)
 
 ---
 
@@ -33,28 +33,19 @@ Both are reversible and neither deletes anything.
 
 | Page | Path | Edition | Sidebar |
 |---|---|---|---|
-| Memories | [`/platform/automation/ai/memories`](/platform/automation/ai/memories) | CE | visible |
 | AI Copilot | [`/platform/automation/build/ai-copilot`](/platform/automation/build/ai-copilot) | EE | visible |
 | AI Hub | [`/platform/automation/build/hub`](/platform/automation/build/hub) | — | **hidden** |
-| Workflow Chats | [`/platform/automation/build/hub/workflow-chats`](/platform/automation/build/hub/workflow-chats) | — | **hidden** |
-| Advanced Behavior | [`/platform/automation/build/hub/workflow-chats/advanced`](/platform/automation/build/hub/workflow-chats/advanced) | — | **hidden** |
-| Embed the Chat Widget | [`/platform/automation/build/hub/workflow-chats/chat-widget`](/platform/automation/build/hub/workflow-chats/chat-widget) | — | **hidden** |
-| Enable Chat on a Workflow | [`/platform/automation/build/hub/workflow-chats/enable-chat`](/platform/automation/build/hub/workflow-chats/enable-chat) | — | **hidden** |
-| Start a Workflow Chat | [`/platform/automation/build/hub/workflow-chats/using-chats`](/platform/automation/build/hub/workflow-chats/using-chats) | — | **hidden** |
 | Testing Voice In The Editor | [`/platform/automation/build/voice/editor-testing`](/platform/automation/build/voice/editor-testing) | — | **hidden** |
 | Voice Quickstart | [`/platform/automation/build/voice/quickstart`](/platform/automation/build/voice/quickstart) | — | **hidden** |
 | Evals | [`/platform/automation/build/workflows/ai/agent/evals`](/platform/automation/build/workflows/ai/agent/evals) | CE | visible |
-| Code Workflows | [`/platform/automation/build/workflows/code-workflows`](/platform/automation/build/workflows/code-workflows) | EE | visible |
 | Data Streams | [`/platform/automation/build/workflows/data-streams`](/platform/automation/build/workflows/data-streams) | CE | visible |
 | Error Workflows | [`/platform/automation/build/workflows/error-workflows`](/platform/automation/build/workflows/error-workflows) | CE | visible |
 | Asset Files | [`/platform/automation/data/asset-files`](/platform/automation/data/asset-files) | CE | visible |
 | Sources | [`/platform/automation/data/knowledge-base/sources`](/platform/automation/data/knowledge-base/sources) | CE | **hidden** |
-| A2A Servers | [`/platform/automation/deploy/a2a-servers`](/platform/automation/deploy/a2a-servers) | CE | **hidden** |
 | API Platform | [`/platform/automation/deploy/api-platform`](/platform/automation/deploy/api-platform) | — | visible |
 | Guardrails | [`/platform/automation/settings/ai-agents/guardrails`](/platform/automation/settings/ai-agents/guardrails) | EE | **hidden** |
 | System Prompt | [`/platform/automation/settings/ai-agents/system-prompt`](/platform/automation/settings/ai-agents/system-prompt) | EE | **hidden** |
 | AI Hub Connectors | [`/platform/automation/settings/ai-hub-connectors`](/platform/automation/settings/ai-hub-connectors) | EE | **hidden** |
-| API Keys | [`/platform/automation/settings/api-keys`](/platform/automation/settings/api-keys) | EE | visible |
 | Git Configuration | [`/platform/automation/settings/git-configuration`](/platform/automation/settings/git-configuration) | EE | visible |
 | Users | [`/platform/automation/settings/users`](/platform/automation/settings/users) | EE | visible |
 
@@ -62,46 +53,26 @@ Both are reversible and neither deletes anything.
 
 | Page | Path | Edition | Sidebar |
 |---|---|---|---|
-| Automation Code Workflows | [`/platform/embedded/build/automations/automation-code-workflows`](/platform/embedded/build/automations/automation-code-workflows) | CE | **hidden** |
-| Automation workflows | [`/platform/embedded/build/automations/automation-workflows`](/platform/embedded/build/automations/automation-workflows) | EE | visible |
-| Theming and Localization | [`/platform/embedded/build/theming-and-localization`](/platform/embedded/build/theming-and-localization) | — | visible |
+| Automation Code Workflows | [`/platform/embedded/build/automations/automation-code-workflows`](/platform/embedded/build/automations/automation-code-workflows) | CE | visible |
 | Unified API | [`/platform/embedded/build/unified-api`](/platform/embedded/build/unified-api) | — | **hidden** |
-| Field Mapping | [`/platform/embedded/build/workflows/field-mapping`](/platform/embedded/build/workflows/field-mapping) | — | visible |
 
 ### Platform Settings
 
 | Page | Path | Edition | Sidebar |
 |---|---|---|---|
 | Admin API Keys | [`/platform/settings/admin-api-keys`](/platform/settings/admin-api-keys) | EE | visible |
-| Audit Events | [`/platform/settings/audit-events`](/platform/settings/audit-events) | EE | visible |
-| API Connectors | [`/platform/settings/components/api-connectors`](/platform/settings/components/api-connectors) | — | **hidden** |
+| API Connectors | [`/platform/settings/components/api-connectors`](/platform/settings/components/api-connectors) | — | visible |
 | Component Visibility | [`/platform/settings/components/component-visibility`](/platform/settings/components/component-visibility) | EE | visible |
 | Custom Components | [`/platform/settings/components/custom-components`](/platform/settings/components/custom-components) | EE | visible |
-| Connections | [`/platform/settings/connections`](/platform/settings/connections) | EE | visible |
 | Identity Providers | [`/platform/settings/identity-providers`](/platform/settings/identity-providers) | — | visible |
 | License | [`/platform/settings/license`](/platform/settings/license) | EE | visible |
 | MCP Server | [`/platform/settings/mcp-server`](/platform/settings/mcp-server) | CE | visible |
-| OAuth2 Clients | [`/platform/settings/oauth2-clients`](/platform/settings/oauth2-clients) | EE | **hidden** |
-| Users | [`/platform/settings/users`](/platform/settings/users) | — | visible |
 
 ### Self-Hosted
 
 | Page | Path | Edition | Sidebar |
 |---|---|---|---|
 | Distributed (Coordinator/Worker) | [`/platform/use-bytechef/self-hosted/installation/distributed`](/platform/use-bytechef/self-hosted/installation/distributed) | CE | **hidden** |
-
-### Your Account
-
-| Page | Path | Edition | Sidebar |
-|---|---|---|---|
-| Appearance | [`/platform/your-account/appearance`](/platform/your-account/appearance) | CE | visible |
-
-### API Reference
-
-| Page | Path | Edition | Sidebar |
-|---|---|---|---|
-| Deploy a new code based project | [`/openapi/automation-project-code-workflow/deployProject`](/openapi/automation-project-code-workflow/deployProject) | — | **hidden** |
-| Custom Components | [`/openapi/custom-components`](/openapi/custom-components) | — | **hidden** |
 
 ---
 
@@ -115,7 +86,7 @@ arriving soon was not helping a reader.
 |---|---|---|
 | [`/openapi`](/openapi) | (page intro) | rendered |
 | [`/developer-guide/architecture`](/developer-guide/architecture) | **AI & Agents** | **all commented out** |
-| [`/platform/automation/ai/skills`](/platform/automation/ai/skills) | Create With AI; The Skills Copilot; Skills as Tools for Other Agents; Test with Evals | rendered |
+| [`/platform/settings/ai/skills`](/platform/settings/ai/skills) | Create With AI; The Skills Copilot; Skills as Tools for Other Agents; Test with Evals | rendered |
 | [`/platform/automation/build/connections`](/platform/automation/build/connections) | Get Started; Managing Connections | rendered |
 | [`/platform/automation/build/workflows/ai/agent`](/platform/automation/build/workflows/ai/agent) | Chat Memory Slot; Chat memory vs Auto Memory; Guardrails Slot; Seeing which tools ran; The Agent Utils toolset; Test with Evals; **Realtime Chat** | **1 of 7 commented out** |
 | [`/platform/automation/build/workflows/ai/agent/agent-utils`](/platform/automation/build/workflows/ai/agent/agent-utils) | Ask User Question; Agent Client; Auto Memory | rendered |
@@ -135,9 +106,9 @@ arriving soon was not helping a reader.
 | [`/platform/embedded/get-started/tenant-isolated-security`](/platform/embedded/get-started/tenant-isolated-security) | Layer 3: Crypto | rendered |
 | [`/platform/embedded/monitor/failures-and-retries`](/platform/embedded/monitor/failures-and-retries) | No replay from your product; **No automatic retry policy** | **1 of 2 commented out** |
 | [`/platform/embedded/monitor/workflow-executions`](/platform/embedded/monitor/workflow-executions) | Execution Detail View | rendered |
-| [`/platform/settings/ai-providers`](/platform/settings/ai-providers) | What uses activated providers | rendered |
+| [`/platform/settings/ai/ai-providers`](/platform/settings/ai/ai-providers) | What uses activated providers | rendered |
 | [`/platform/settings/notifications`](/platform/settings/notifications) | Delivery types | rendered |
-| [`/platform/settings/workspaces`](/platform/settings/workspaces) | Edit, manage members, or delete | rendered |
+| [`/platform/automation/settings/workspaces`](/platform/automation/settings/workspaces) | Edit, manage members, or delete | rendered |
 | [`/platform/use-bytechef/self-hosted/architecture`](/platform/use-bytechef/self-hosted/architecture) | AI & Agents | **3 of 6 commented out** |
 | [`/platform/use-bytechef/self-hosted/configuration`](/platform/use-bytechef/self-hosted/configuration) | Rotation; Data retention | rendered |
 | [`/platform/use-bytechef/self-hosted/configuration/environment-variables`](/platform/use-bytechef/self-hosted/configuration/environment-variables) | AI Copilot Configuration; AI Brave Configuration; **AI Gateway Configuration**; AI Hub Configuration; AI Knowledge Base Configuration; AI MCP Server Configuration; Approval Configuration; **Context Store Configuration**; Component Configuration; Data Table Configuration; OAuth2 Configuration; Plan Limits Configuration; Code Workflow | **2 of 15 commented out** |

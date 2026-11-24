@@ -35,6 +35,8 @@ public interface WorkflowService {
 
     Workflow duplicateWorkflow(String id);
 
+    Workflow duplicateWorkflowPreservingAudit(String id);
+
     Optional<Workflow> fetchWorkflow(String id);
 
     List<Workflow> getWorkflows();

@@ -56,6 +56,7 @@ export type ActionDefinition = {
   __typename?: 'ActionDefinition';
   componentName: Scalars['String']['output'];
   componentVersion: Scalars['Int']['output'];
+  deprecated?: Maybe<Scalars['Boolean']['output']>;
   description?: Maybe<Scalars['String']['output']>;
   help?: Maybe<Help>;
   name: Scalars['String']['output'];
@@ -533,9 +534,36 @@ export enum AuthorizationType {
   Oauth2ResourceOwnerPassword = 'OAUTH2_RESOURCE_OWNER_PASSWORD'
 }
 
+export type AutomationGettingStarted = {
+  __typename?: 'AutomationGettingStarted';
+  completed: Scalars['Boolean']['output'];
+  deployed: Scalars['Boolean']['output'];
+  firstRun?: Maybe<AutomationGettingStartedRun>;
+  httpClientAdded: Scalars['Boolean']['output'];
+  lastFailedRun?: Maybe<AutomationGettingStartedRun>;
+  live: Scalars['Boolean']['output'];
+  loggerAdded: Scalars['Boolean']['output'];
+  projectCreated: Scalars['Boolean']['output'];
+  published: Scalars['Boolean']['output'];
+  workflowCreated: Scalars['Boolean']['output'];
+};
+
+export type AutomationGettingStartedRun = {
+  __typename?: 'AutomationGettingStartedRun';
+  date: Scalars['String']['output'];
+  errorMessage?: Maybe<Scalars['String']['output']>;
+  jobId: Scalars['ID']['output'];
+  projectDeploymentEnabled?: Maybe<Scalars['Boolean']['output']>;
+  projectDeploymentId: Scalars['ID']['output'];
+  status: Scalars['String']['output'];
+};
+
 export type AutomationProject = {
   __typename?: 'AutomationProject';
   categoryId?: Maybe<Scalars['ID']['output']>;
+  codeWorkflowDraftPublishable?: Maybe<Scalars['Boolean']['output']>;
+  codeWorkflowLanguage?: Maybe<CodeWorkflowLanguage>;
+  codeWorkflowProject: Scalars['Boolean']['output'];
   configurationCount: Scalars['Int']['output'];
   description?: Maybe<Scalars['String']['output']>;
   id: Scalars['ID']['output'];
@@ -545,6 +573,7 @@ export type AutomationProject = {
   permissionExpression?: Maybe<Scalars['String']['output']>;
   published: Scalars['Boolean']['output'];
   tagIds: Array<Scalars['ID']['output']>;
+  unpublishedChanges: Scalars['Boolean']['output'];
   version: Scalars['Int']['output'];
   workflowTemplates: Array<AutomationProjectWorkflowTemplate>;
 };
@@ -553,6 +582,12 @@ export type AutomationProjectCategory = {
   __typename?: 'AutomationProjectCategory';
   id: Scalars['ID']['output'];
   name: Scalars['String']['output'];
+};
+
+export type AutomationProjectCodeWorkflowSource = {
+  __typename?: 'AutomationProjectCodeWorkflowSource';
+  content: Scalars['String']['output'];
+  language: CodeWorkflowLanguage;
 };
 
 export type AutomationProjectComponent = {
@@ -605,6 +640,7 @@ export type AutomationProjectConfigurationInput = {
   componentName?: Maybe<Scalars['String']['output']>;
   componentVersion?: Maybe<Scalars['Int']['output']>;
   groupName?: Maybe<Scalars['String']['output']>;
+  internalOnly: Scalars['Boolean']['output'];
   label?: Maybe<Scalars['String']['output']>;
   name: Scalars['String']['output'];
   optionConnections: Array<AutomationProjectConfigurationProvidableConnection>;
@@ -639,6 +675,7 @@ export type AutomationProjectConfigurationVersionImpact = {
 export type AutomationProjectConfigurationVersionImpactWorkflow = {
   __typename?: 'AutomationProjectConfigurationVersionImpactWorkflow';
   affectedConnectedUserCount: Scalars['Int']['output'];
+  awaitsConfiguration: Scalars['Boolean']['output'];
   label: Scalars['String']['output'];
   newRequiredConnections: Array<Scalars['String']['output']>;
   newRequiredInputs: Array<Scalars['String']['output']>;
@@ -676,6 +713,12 @@ export type AutomationProjectVersion = {
   publishedDate?: Maybe<Scalars['String']['output']>;
   status: Scalars['String']['output'];
   version: Scalars['Int']['output'];
+};
+
+export type AutomationProjectVersionWorkflow = {
+  __typename?: 'AutomationProjectVersionWorkflow';
+  label?: Maybe<Scalars['String']['output']>;
+  workflowUuid: Scalars['ID']['output'];
 };
 
 export type AutomationProjectWorkflowTemplate = {
@@ -747,9 +790,23 @@ export type ClusterElementType = {
   required?: Maybe<Scalars['Boolean']['output']>;
 };
 
+export enum CodeWorkflowLanguage {
+  Java = 'JAVA',
+  Javascript = 'JAVASCRIPT',
+  Python = 'PYTHON',
+  Ruby = 'RUBY'
+}
+
 export type ColumnInput = {
+  link?: InputMaybe<ColumnLinkInput>;
   name: Scalars['String']['input'];
   type: ColumnType;
+};
+
+export type ColumnLinkInput = {
+  displayColumnName?: InputMaybe<Scalars['String']['input']>;
+  onDelete?: InputMaybe<LinkDeleteRule>;
+  targetDataTableId: Scalars['ID']['input'];
 };
 
 export enum ColumnType {
@@ -757,6 +814,7 @@ export enum ColumnType {
   Date = 'DATE',
   DateTime = 'DATE_TIME',
   Integer = 'INTEGER',
+  Link = 'LINK',
   Number = 'NUMBER',
   String = 'STRING'
 }
@@ -790,6 +848,7 @@ export type ComponentDefinition = {
   componentCategories?: Maybe<Array<ComponentCategory>>;
   connection?: Maybe<ConnectionDefinition>;
   connectionRequired?: Maybe<Scalars['Boolean']['output']>;
+  deprecated?: Maybe<Scalars['Boolean']['output']>;
   description?: Maybe<Scalars['String']['output']>;
   icon?: Maybe<Scalars['String']['output']>;
   name: Scalars['String']['output'];
@@ -828,6 +887,11 @@ export type ConfigurationMoveSkipped = {
   workflowLabels: Array<Scalars['String']['output']>;
 };
 
+export type ConfigurationMoveWorkflowInputs = {
+  inputs: Scalars['Map']['input'];
+  workflowUuid: Scalars['ID']['input'];
+};
+
 export type ConnectedUser = {
   __typename?: 'ConnectedUser';
   createdBy?: Maybe<Scalars['String']['output']>;
@@ -842,10 +906,22 @@ export type ConnectedUser = {
 
 export type ConnectedUserAutomationProjectConfiguration = {
   __typename?: 'ConnectedUserAutomationProjectConfiguration';
+  configurationEnabled: Scalars['Boolean']['output'];
   configurationId: Scalars['ID']['output'];
   configurationName: Scalars['String']['output'];
   configurationProjectVersion: Scalars['Int']['output'];
+  enabled: Scalars['Boolean']['output'];
   projectId: Scalars['ID']['output'];
+};
+
+export type ConnectedUserCatalogWorkflowCopy = {
+  __typename?: 'ConnectedUserCatalogWorkflowCopy';
+  connectedUserEmail?: Maybe<Scalars['String']['output']>;
+  connectedUserName?: Maybe<Scalars['String']['output']>;
+  copiedFromWorkflowUuid: Scalars['ID']['output'];
+  enabled: Scalars['Boolean']['output'];
+  externalUserId: Scalars['String']['output'];
+  workflowUuid: Scalars['ID']['output'];
 };
 
 export type ConnectedUserCodeWorkflowReference = {
@@ -860,6 +936,7 @@ export type ConnectedUserCodeWorkflowReference = {
 
 export type ConnectedUserMcpServer = {
   __typename?: 'ConnectedUserMcpServer';
+  automations: Array<ConnectedUserMcpServerAutomation>;
   enabled: Scalars['Boolean']['output'];
   environmentId: Scalars['ID']['output'];
   id: Scalars['ID']['output'];
@@ -867,6 +944,19 @@ export type ConnectedUserMcpServer = {
   name: Scalars['String']['output'];
   tools: Array<ConnectedUserMcpServerTool>;
   workflows: Array<ConnectedUserMcpServerWorkflow>;
+};
+
+export type ConnectedUserMcpServerAutomation = {
+  __typename?: 'ConnectedUserMcpServerAutomation';
+  automationName: Scalars['String']['output'];
+  available: Scalars['Boolean']['output'];
+  connectedUserProjectWorkflowId: Scalars['ID']['output'];
+  description?: Maybe<Scalars['String']['output']>;
+  enabled: Scalars['Boolean']['output'];
+  id: Scalars['ID']['output'];
+  lastExecutionDate?: Maybe<Scalars['String']['output']>;
+  name: Scalars['String']['output'];
+  workflowUuid: Scalars['String']['output'];
 };
 
 export type ConnectedUserMcpServerTool = {
@@ -884,6 +974,7 @@ export type ConnectedUserMcpServerWorkflow = {
   componentName: Scalars['String']['output'];
   description?: Maybe<Scalars['String']['output']>;
   enabled: Scalars['Boolean']['output'];
+  id: Scalars['ID']['output'];
   integrationInstanceId: Scalars['ID']['output'];
   integrationVersion: Scalars['Int']['output'];
   lastExecutionDate?: Maybe<Scalars['String']['output']>;
@@ -919,6 +1010,7 @@ export type ConnectedUserProject = {
 
 export type ConnectedUserProjectWorkflow = {
   __typename?: 'ConnectedUserProjectWorkflow';
+  attentionReason?: Maybe<Scalars['String']['output']>;
   automationUuid?: Maybe<Scalars['ID']['output']>;
   connectedUserId: Scalars['ID']['output'];
   copiedFromWorkflowUuid?: Maybe<Scalars['ID']['output']>;
@@ -930,11 +1022,25 @@ export type ConnectedUserProjectWorkflow = {
   lastModifiedBy?: Maybe<Scalars['String']['output']>;
   lastModifiedDate?: Maybe<Scalars['String']['output']>;
   projectId: Scalars['ID']['output'];
+  provisionedBy?: Maybe<Scalars['String']['output']>;
   staticWebhookUrl?: Maybe<Scalars['String']['output']>;
+  toolOnly: Scalars['Boolean']['output'];
   version?: Maybe<Scalars['Int']['output']>;
   workflow: Workflow;
   workflowUuid: Scalars['ID']['output'];
   workflowVersion?: Maybe<Scalars['Int']['output']>;
+};
+
+export type ConnectedUserProjectWorkflowReferenceConnection = {
+  __typename?: 'ConnectedUserProjectWorkflowReferenceConnection';
+  componentName: Scalars['String']['output'];
+  connectionId: Scalars['ID']['output'];
+};
+
+export type ConnectedUserProjectWorkflowReferenceValues = {
+  __typename?: 'ConnectedUserProjectWorkflowReferenceValues';
+  connections: Array<ConnectedUserProjectWorkflowReferenceConnection>;
+  inputs: Scalars['Map']['output'];
 };
 
 export type ConnectionDefinition = {
@@ -956,6 +1062,23 @@ export type ConnectionSearchResult = SearchResult & {
   name: Scalars['String']['output'];
   type: SearchAssetType;
 };
+
+export type ConnectionWorkflow = {
+  __typename?: 'ConnectionWorkflow';
+  id: Scalars['ID']['output'];
+  projectId: Scalars['ID']['output'];
+  projectName: Scalars['String']['output'];
+  projectVersion: Scalars['Int']['output'];
+  usage: ConnectionWorkflowUsage;
+  workflowId: Scalars['String']['output'];
+  workflowName: Scalars['String']['output'];
+  workflowUuid?: Maybe<Scalars['String']['output']>;
+};
+
+export enum ConnectionWorkflowUsage {
+  Deployment = 'DEPLOYMENT',
+  Editor = 'EDITOR'
+}
 
 export enum ControlType {
   ArrayBuilder = 'ARRAY_BUILDER',
@@ -1018,11 +1141,18 @@ export type CreateEmbeddedMcpServerInput = {
   name: Scalars['String']['input'];
 };
 
+export type CreateMcpAutomationProjectConfigurationInput = {
+  automationProjectConfigurationId: Scalars['ID']['input'];
+  mcpServerId: Scalars['ID']['input'];
+  workflowConfigurations?: InputMaybe<Array<McpAutomationWorkflowConfigurationInput>>;
+  workflowUuids: Array<Scalars['String']['input']>;
+};
+
 export type CreateMcpIntegrationInstanceConfigurationInput = {
   integrationInstanceConfigurationId: Scalars['ID']['input'];
   mcpServerId: Scalars['ID']['input'];
   selectedWorkflowIds: Array<Scalars['String']['input']>;
-  workflowConfigurations?: InputMaybe<Array<WorkflowConfigurationInput>>;
+  toolParameters?: InputMaybe<Array<WorkflowToolParametersInput>>;
 };
 
 export type CreateMcpProjectInput = {
@@ -1030,6 +1160,7 @@ export type CreateMcpProjectInput = {
   projectId: Scalars['ID']['input'];
   projectVersion: Scalars['Int']['input'];
   selectedWorkflowIds: Array<Scalars['String']['input']>;
+  toolParameters?: InputMaybe<Array<WorkflowToolParametersInput>>;
   workflowConfigurations?: InputMaybe<Array<WorkflowConfigurationInput>>;
 };
 
@@ -1055,6 +1186,8 @@ export type CustomComponent = {
   lastModifiedBy?: Maybe<Scalars['String']['output']>;
   lastModifiedDate?: Maybe<Scalars['Long']['output']>;
   name: Scalars['String']['output'];
+  publishedDate?: Maybe<Scalars['Long']['output']>;
+  status?: Maybe<CustomComponentStatus>;
   title?: Maybe<Scalars['String']['output']>;
   version?: Maybe<Scalars['Int']['output']>;
 };
@@ -1079,6 +1212,11 @@ export enum CustomComponentLanguage {
   Ruby = 'RUBY'
 }
 
+export enum CustomComponentStatus {
+  Draft = 'DRAFT',
+  Published = 'PUBLISHED'
+}
+
 export type CustomComponentTriggerDefinition = {
   __typename?: 'CustomComponentTriggerDefinition';
   description?: Maybe<Scalars['String']['output']>;
@@ -1098,8 +1236,23 @@ export type DataTable = {
 export type DataTableColumn = {
   __typename?: 'DataTableColumn';
   id: Scalars['ID']['output'];
+  link?: Maybe<DataTableColumnLink>;
   name: Scalars['String']['output'];
   type: ColumnType;
+};
+
+export type DataTableColumnLink = {
+  __typename?: 'DataTableColumnLink';
+  displayColumnName?: Maybe<Scalars['String']['output']>;
+  onDelete: LinkDeleteRule;
+  targetDataTableId: Scalars['ID']['output'];
+  targetDataTableName: Scalars['String']['output'];
+};
+
+export type DataTableLinkOption = {
+  __typename?: 'DataTableLinkOption';
+  id: Scalars['ID']['output'];
+  label: Scalars['String']['output'];
 };
 
 export type DataTableRow = {
@@ -1121,6 +1274,14 @@ export type DataTableSearchResult = SearchResult & {
   id: Scalars['ID']['output'];
   name: Scalars['String']['output'];
   type: SearchAssetType;
+};
+
+export type DataTableStorageUsage = {
+  __typename?: 'DataTableStorageUsage';
+  limitBytes: Scalars['Long']['output'];
+  percentage: Scalars['Float']['output'];
+  unlimited: Scalars['Boolean']['output'];
+  usedBytes: Scalars['Long']['output'];
 };
 
 export type DataTableTagsEntry = {
@@ -1224,6 +1385,99 @@ export type DynamicPropertiesProperty = Property & {
   propertiesDataSource?: Maybe<PropertiesDataSource>;
   required?: Maybe<Scalars['Boolean']['output']>;
   type: PropertyType;
+};
+
+/**
+ * A memory an Embedded agent saved for one connected user: in an integration instance (principalType
+ * INTEGRATION_INSTANCE) or in an automation deployment (principalType PROJECT_DEPLOYMENT).
+ */
+export type EmbeddedAiAutoMemory = {
+  __typename?: 'EmbeddedAiAutoMemory';
+  /**
+   * The automation the connected user enabled, for an automation memory. Null for an integration memory, and for a
+   * memory of the connected user's own workflows, which run in their own deployment.
+   */
+  automation?: Maybe<EmbeddedAiAutoMemoryAutomation>;
+  /** Null when the owner's connected user was deleted while its memories remain. */
+  connectedUser?: Maybe<EmbeddedAiAutoMemoryConnectedUserRef>;
+  content: Scalars['String']['output'];
+  createdAt?: Maybe<Scalars['Long']['output']>;
+  description?: Maybe<Scalars['String']['output']>;
+  /** The Environment ordinal the memory belongs to. */
+  environmentId: Scalars['Long']['output'];
+  id: Scalars['ID']['output'];
+  /** An integration instance's integration. Null for an automation memory, or when the integration was deleted. */
+  integration?: Maybe<EmbeddedAiAutoMemoryIntegration>;
+  memoryType: AiAutoMemoryType;
+  name: Scalars['String']['output'];
+  /** The integration instance or project deployment that holds the memory. */
+  principalId: Scalars['Long']['output'];
+  /** INTEGRATION_INSTANCE or PROJECT_DEPLOYMENT. Send it back with principalId to update or delete the memory. */
+  principalType: AiAutoMemoryPrincipalType;
+  title: Scalars['String']['output'];
+  updatedAt?: Maybe<Scalars['Long']['output']>;
+  /** Changes on every write. Send it back as UpdateEmbeddedAiAutoMemoryInput.expectedVersion. */
+  version: Scalars['Long']['output'];
+};
+
+export type EmbeddedAiAutoMemoryAutomation = {
+  __typename?: 'EmbeddedAiAutoMemoryAutomation';
+  id: Scalars['ID']['output'];
+  name?: Maybe<Scalars['String']['output']>;
+};
+
+/** A connected user holding at least one memory in the environment, for the Connected User filter. */
+export type EmbeddedAiAutoMemoryConnectedUser = {
+  __typename?: 'EmbeddedAiAutoMemoryConnectedUser';
+  email?: Maybe<Scalars['String']['output']>;
+  externalId: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  memoryCount: Scalars['Int']['output'];
+  name?: Maybe<Scalars['String']['output']>;
+};
+
+export type EmbeddedAiAutoMemoryConnectedUserRef = {
+  __typename?: 'EmbeddedAiAutoMemoryConnectedUserRef';
+  email?: Maybe<Scalars['String']['output']>;
+  externalId: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  name?: Maybe<Scalars['String']['output']>;
+};
+
+export type EmbeddedAiAutoMemoryIntegration = {
+  __typename?: 'EmbeddedAiAutoMemoryIntegration';
+  componentName?: Maybe<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+  name?: Maybe<Scalars['String']['output']>;
+};
+
+export type EmbeddedGettingStarted = {
+  __typename?: 'EmbeddedGettingStarted';
+  apiBaseUrl?: Maybe<Scalars['String']['output']>;
+  apiKeyCreated: Scalars['Boolean']['output'];
+  completed: Scalars['Boolean']['output'];
+  componentName?: Maybe<Scalars['String']['output']>;
+  componentVersion?: Maybe<Scalars['Int']['output']>;
+  firstCallMade: Scalars['Boolean']['output'];
+  integrationConfigurationCreated: Scalars['Boolean']['output'];
+  integrationConfigurationEnabled: Scalars['Boolean']['output'];
+  integrationCreated: Scalars['Boolean']['output'];
+  integrationHasWorkflows: Scalars['Boolean']['output'];
+  integrationId?: Maybe<Scalars['Long']['output']>;
+  integrationInstanceConfigurationId?: Maybe<Scalars['Long']['output']>;
+  integrationPublished: Scalars['Boolean']['output'];
+  lastFailedCall?: Maybe<EmbeddedGettingStartedFailedCall>;
+  testUserAdded: Scalars['Boolean']['output'];
+  testUserConnected: Scalars['Boolean']['output'];
+  testUserExternalId?: Maybe<Scalars['String']['output']>;
+  testUserId?: Maybe<Scalars['Long']['output']>;
+};
+
+export type EmbeddedGettingStartedFailedCall = {
+  __typename?: 'EmbeddedGettingStartedFailedCall';
+  createdDate: Scalars['Long']['output'];
+  errorMessage?: Maybe<Scalars['String']['output']>;
+  status: Scalars['String']['output'];
 };
 
 export type EndpointDefinitionInput = {
@@ -1332,13 +1586,13 @@ export type ExternalInvocationLogType = {
   externalUserId?: Maybe<Scalars['String']['output']>;
   id: Scalars['ID']['output'];
   integrationInstanceId?: Maybe<Scalars['Long']['output']>;
+  invocationName?: Maybe<Scalars['String']['output']>;
   jobId?: Maybe<Scalars['Long']['output']>;
   kind: Scalars['String']['output'];
   mcpServerId?: Maybe<Scalars['Long']['output']>;
   operationName?: Maybe<Scalars['String']['output']>;
-  outcome: Scalars['String']['output'];
   source: Scalars['String']['output'];
-  toolName?: Maybe<Scalars['String']['output']>;
+  status: Scalars['String']['output'];
   workflowName?: Maybe<Scalars['String']['output']>;
   workspaceId?: Maybe<Scalars['Long']['output']>;
 };
@@ -1513,6 +1767,29 @@ export type Integration = {
   permissionExpression?: Maybe<Scalars['String']['output']>;
 };
 
+export type IntegrationConnectionWorkflow = {
+  __typename?: 'IntegrationConnectionWorkflow';
+  id: Scalars['ID']['output'];
+  parentId: Scalars['ID']['output'];
+  parentName: Scalars['String']['output'];
+  parentType: IntegrationConnectionWorkflowParentType;
+  parentVersion: Scalars['Int']['output'];
+  usage: IntegrationConnectionWorkflowUsage;
+  workflowId: Scalars['String']['output'];
+  workflowName: Scalars['String']['output'];
+  workflowUuid?: Maybe<Scalars['String']['output']>;
+};
+
+export enum IntegrationConnectionWorkflowParentType {
+  ConnectedUser = 'CONNECTED_USER',
+  Integration = 'INTEGRATION'
+}
+
+export enum IntegrationConnectionWorkflowUsage {
+  Deployment = 'DEPLOYMENT',
+  Editor = 'EDITOR'
+}
+
 export type IntegrationInstanceConfigurationWorkflow = {
   __typename?: 'IntegrationInstanceConfigurationWorkflow';
   connections: Array<IntegrationInstanceConfigurationWorkflowConnection>;
@@ -1629,6 +1906,11 @@ export type KnowledgeBaseTagsEntry = {
   tags: Array<Tag>;
 };
 
+export enum LinkDeleteRule {
+  Block = 'BLOCK',
+  Clear = 'CLEAR'
+}
+
 export type LogEntry = {
   __typename?: 'LogEntry';
   clusterElementCallId?: Maybe<Scalars['String']['output']>;
@@ -1672,6 +1954,35 @@ export type LogPage = {
   pageSize: Scalars['Int']['output'];
   totalElements: Scalars['Int']['output'];
   totalPages: Scalars['Int']['output'];
+};
+
+export type McpAutomationProjectConfiguration = {
+  __typename?: 'McpAutomationProjectConfiguration';
+  automationProjectConfigurationEnabled: Scalars['Boolean']['output'];
+  automationProjectConfigurationId: Scalars['ID']['output'];
+  automationProjectConfigurationName: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  mcpServerId: Scalars['ID']['output'];
+  projectId: Scalars['ID']['output'];
+  projectName: Scalars['String']['output'];
+  projectVersion: Scalars['Int']['output'];
+  workflows: Array<McpAutomationProjectConfigurationWorkflow>;
+};
+
+export type McpAutomationProjectConfigurationWorkflow = {
+  __typename?: 'McpAutomationProjectConfigurationWorkflow';
+  available: Scalars['Boolean']['output'];
+  enabled: Scalars['Boolean']['output'];
+  id: Scalars['ID']['output'];
+  label?: Maybe<Scalars['String']['output']>;
+  parameters?: Maybe<Scalars['Map']['output']>;
+  workflowId?: Maybe<Scalars['String']['output']>;
+  workflowUuid: Scalars['String']['output'];
+};
+
+export type McpAutomationWorkflowConfigurationInput = {
+  parameters?: InputMaybe<Scalars['Map']['input']>;
+  workflowUuid: Scalars['String']['input'];
 };
 
 export type McpComponent = {
@@ -1856,6 +2167,7 @@ export type Mutation = {
   addDataTableColumn: Scalars['Boolean']['output'];
   cancelAiAgentEvalRun: AiAgentEvalRun;
   cancelGenerationJob: Scalars['Boolean']['output'];
+  changeAutomationProjectConfigurationConnectedUserVersion: ConfigurationMoveResult;
   createA2aProject?: Maybe<A2aProject>;
   createA2aServer?: Maybe<A2aServer>;
   createAdditionalFilesInSkill: AiSkill;
@@ -1870,13 +2182,18 @@ export type Mutation = {
   createApiKey: Scalars['String']['output'];
   createApprovalTask?: Maybe<ApprovalTask>;
   createAutomationProject: Scalars['ID']['output'];
+  createAutomationProjectCodeWorkflow: Scalars['ID']['output'];
   createAutomationProjectConfiguration: Scalars['ID']['output'];
   createAutomationProjectWorkflow: Scalars['ID']['output'];
+  createCodeWorkflow: Scalars['ID']['output'];
+  createCustomComponent: CustomComponent;
   createDataTable: Scalars['Boolean']['output'];
   createEmbeddedMcpComponent?: Maybe<McpComponent>;
   createEmbeddedMcpServer?: Maybe<McpServer>;
   createIdentityProvider: IdentityProviderType;
+  createIntegrationCodeWorkflow: Scalars['ID']['output'];
   createKnowledgeBase?: Maybe<KnowledgeBase>;
+  createMcpAutomationProjectConfiguration: McpAutomationProjectConfiguration;
   createMcpComponent?: Maybe<McpComponent>;
   createMcpComponentWithTools?: Maybe<McpComponent>;
   createMcpIntegrationInstanceConfiguration?: Maybe<McpIntegrationInstanceConfiguration>;
@@ -1913,6 +2230,11 @@ export type Mutation = {
   deleteConnectedUserProjectWorkflow?: Maybe<Scalars['Boolean']['output']>;
   deleteCustomComponent: Scalars['Boolean']['output'];
   deleteDataTableRow: Scalars['Boolean']['output'];
+  /**
+   * Deletes an Embedded memory. Fails with NOT_FOUND when the owner holds no such memory in the environment or is not
+   * an Embedded owner. Admin only.
+   */
+  deleteEmbeddedAiAutoMemory: Scalars['Boolean']['output'];
   deleteEmbeddedMcpComponent?: Maybe<Scalars['Boolean']['output']>;
   deleteEmbeddedMcpServer?: Maybe<Scalars['Boolean']['output']>;
   deleteEmbeddedMcpTool?: Maybe<Scalars['Boolean']['output']>;
@@ -1921,6 +2243,8 @@ export type Mutation = {
   deleteKnowledgeBase?: Maybe<Scalars['Boolean']['output']>;
   deleteKnowledgeBaseDocument?: Maybe<Scalars['Boolean']['output']>;
   deleteKnowledgeBaseDocumentChunk?: Maybe<Scalars['Boolean']['output']>;
+  deleteMcpAutomationProjectConfiguration?: Maybe<Scalars['Boolean']['output']>;
+  deleteMcpAutomationProjectConfigurationWorkflow?: Maybe<Scalars['Boolean']['output']>;
   deleteMcpComponent?: Maybe<Scalars['Boolean']['output']>;
   deleteMcpIntegrationInstanceConfiguration?: Maybe<Scalars['Boolean']['output']>;
   deleteMcpIntegrationInstanceConfigurationWorkflow?: Maybe<Scalars['Boolean']['output']>;
@@ -1938,6 +2262,8 @@ export type Mutation = {
   deleteWorkspaceApiKey: Scalars['Boolean']['output'];
   deleteWorkspaceMcpServer?: Maybe<Scalars['Boolean']['output']>;
   disconnectConnection: Scalars['Boolean']['output'];
+  /** Remove a connection from one workflow that uses it. The id is the one returned by connectionWorkflows. */
+  disconnectConnectionFromWorkflow: Scalars['Boolean']['output'];
   dropDataTable: Scalars['Boolean']['output'];
   duplicateAutomationProject: Scalars['ID']['output'];
   duplicateAutomationProjectWorkflow: Scalars['ID']['output'];
@@ -1945,8 +2271,11 @@ export type Mutation = {
   enableApiConnector: Scalars['Boolean']['output'];
   enableAutomationProjectConfiguration: Scalars['Boolean']['output'];
   enableAutomationProjectConfigurationWorkflow: Scalars['Boolean']['output'];
+  enableConnectedUserAutomationProjectConfiguration: Scalars['Boolean']['output'];
+  enableConnectedUserMcpAutomation?: Maybe<ConnectedUserMcpServerAutomation>;
   enableConnectedUserMcpServer?: Maybe<Scalars['Boolean']['output']>;
   enableConnectedUserMcpTool?: Maybe<Scalars['Boolean']['output']>;
+  enableConnectedUserMcpWorkflow?: Maybe<Scalars['Boolean']['output']>;
   enableConnectedUserProjectWorkflow?: Maybe<Scalars['Boolean']['output']>;
   enableCustomComponent: Scalars['Boolean']['output'];
   exportSharedProject?: Maybe<Scalars['Boolean']['output']>;
@@ -1963,6 +2292,7 @@ export type Mutation = {
   provisionConnectedUserMcpServer?: Maybe<Scalars['Boolean']['output']>;
   provisionConnectedUserProjectWorkflows?: Maybe<Scalars['Boolean']['output']>;
   publishAutomationProject: Scalars['Boolean']['output'];
+  publishCustomComponent: CustomComponent;
   /** Imports the configured branch into the project's draft version. */
   pullProjectGitSync: ProjectGitSyncPullResult;
   /** Pushes the latest published version again (e.g. to retry a failed push). */
@@ -1971,6 +2301,7 @@ export type Mutation = {
   removeFileInSkill: AiSkill;
   renameDataTable: Scalars['Boolean']['output'];
   renameDataTableColumn: Scalars['Boolean']['output'];
+  restoreAutomationProjectVersion: Scalars['Boolean']['output'];
   revokeRegisteredClientGrant: Scalars['Boolean']['output'];
   revokeRegisteredClientGrants: Scalars['Boolean']['output'];
   saveClusterElementTestConfigurationConnection?: Maybe<Scalars['Boolean']['output']>;
@@ -1982,6 +2313,7 @@ export type Mutation = {
   startDiscoverEndpoints: EndpointDiscoveryResult;
   startGenerateForEndpoints: GenerationJobStatus;
   startGenerateFromDocumentationPreview: GenerationJobStatus;
+  stopScriptTest: Scalars['Boolean']['output'];
   testClusterElementScript: ScriptTestExecution;
   /** Lists remote branches with the given settings merged over the stored ones. */
   testProjectGitSyncConnection: ProjectGitSyncConnectionTestResult;
@@ -2012,17 +2344,25 @@ export type Mutation = {
   updateApiKey: Scalars['Boolean']['output'];
   updateApprovalTask?: Maybe<ApprovalTask>;
   updateAutomationProject: Scalars['Boolean']['output'];
+  updateAutomationProjectCodeWorkflowSource: Scalars['Boolean']['output'];
   updateAutomationProjectConfiguration: Scalars['Boolean']['output'];
   updateAutomationProjectConfigurationWorkflow: Scalars['Boolean']['output'];
   updateAutomationProjectWorkflow: Scalars['Boolean']['output'];
   updateAutomationProjectWorkflowPermissionExpression: Scalars['Boolean']['output'];
+  updateCodeWorkflowSource: Scalars['Boolean']['output'];
   /**
    * Replace an existing connection's authorization parameters. A parameter that is not submitted is cleared.
    * Succeeding means the values were stored, not that they work.
    */
   updateConnectionCredentials: Scalars['Boolean']['output'];
+  updateCustomComponentSource: CustomComponent;
   updateDataTableRow: DataTableRow;
   updateDataTableTags: Scalars['Boolean']['output'];
+  /**
+   * Partial update of an Embedded memory. Fails with NOT_FOUND when the owner holds no such memory in the environment
+   * or is not an Embedded owner, and with CONFLICT when it changed since expectedVersion. Admin only.
+   */
+  updateEmbeddedAiAutoMemory: EmbeddedAiAutoMemory;
   updateEmbeddedMcpComponent?: Maybe<McpComponent>;
   updateEmbeddedMcpServer?: Maybe<McpServer>;
   updateEmbeddedMcpServerTags?: Maybe<Array<Maybe<Tag>>>;
@@ -2030,15 +2370,18 @@ export type Mutation = {
   updateEmbeddedMcpTool?: Maybe<McpTool>;
   updateEmbeddedMcpToolEnabled?: Maybe<McpTool>;
   updateIdentityProvider: IdentityProviderType;
+  updateIntegrationCodeWorkflowSource: Scalars['Boolean']['output'];
   updateIntegrationWorkflowPermissionExpression?: Maybe<IntegrationWorkflow>;
   updateKnowledgeBase?: Maybe<KnowledgeBase>;
   updateKnowledgeBaseDocumentChunk?: Maybe<KnowledgeBaseDocumentChunk>;
   updateKnowledgeBaseDocumentTags: Scalars['Boolean']['output'];
   updateKnowledgeBaseTags: Scalars['Boolean']['output'];
   updateManagementMcpServerUrl: Scalars['String']['output'];
+  updateMcpAutomationProjectConfiguration: McpAutomationProjectConfiguration;
+  updateMcpAutomationProjectConfigurationWorkflowEnabled: McpAutomationProjectConfigurationWorkflow;
+  updateMcpAutomationProjectConfigurationWorkflowParameters: McpAutomationProjectConfigurationWorkflow;
   updateMcpComponentWithTools?: Maybe<McpComponent>;
   updateMcpIntegrationInstanceConfiguration?: Maybe<McpIntegrationInstanceConfiguration>;
-  updateMcpIntegrationInstanceConfigurationVersion?: Maybe<Scalars['Boolean']['output']>;
   updateMcpIntegrationInstanceConfigurationWorkflow?: Maybe<McpIntegrationInstanceConfigurationWorkflow>;
   updateMcpProject?: Maybe<McpProject>;
   updateMcpProjectWorkflow?: Maybe<McpProjectWorkflow>;
@@ -2067,6 +2410,15 @@ export type MutationCancelAiAgentEvalRunArgs = {
 
 export type MutationCancelGenerationJobArgs = {
   jobId: Scalars['String']['input'];
+};
+
+
+export type MutationChangeAutomationProjectConfigurationConnectedUserVersionArgs = {
+  connectedUserId: Scalars['ID']['input'];
+  projectVersion: Scalars['Int']['input'];
+  sourceId: Scalars['ID']['input'];
+  targetId?: InputMaybe<Scalars['ID']['input']>;
+  workflowInputs?: InputMaybe<Array<ConfigurationMoveWorkflowInputs>>;
 };
 
 
@@ -2172,6 +2524,16 @@ export type MutationCreateAutomationProjectArgs = {
 };
 
 
+export type MutationCreateAutomationProjectCodeWorkflowArgs = {
+  category?: InputMaybe<Scalars['String']['input']>;
+  description?: InputMaybe<Scalars['String']['input']>;
+  language: CodeWorkflowLanguage;
+  name: Scalars['String']['input'];
+  permissionExpression?: InputMaybe<Scalars['String']['input']>;
+  tags?: InputMaybe<Array<Scalars['String']['input']>>;
+};
+
+
 export type MutationCreateAutomationProjectConfigurationArgs = {
   automationHubVisible: Scalars['Boolean']['input'];
   enabled: Scalars['Boolean']['input'];
@@ -2187,6 +2549,22 @@ export type MutationCreateAutomationProjectWorkflowArgs = {
   definition?: InputMaybe<Scalars['String']['input']>;
   permissionExpression?: InputMaybe<Scalars['String']['input']>;
   projectId: Scalars['ID']['input'];
+};
+
+
+export type MutationCreateCodeWorkflowArgs = {
+  categoryId?: InputMaybe<Scalars['ID']['input']>;
+  description?: InputMaybe<Scalars['String']['input']>;
+  language: CodeWorkflowLanguage;
+  name: Scalars['String']['input'];
+  tags?: InputMaybe<Array<Scalars['String']['input']>>;
+  workspaceId: Scalars['ID']['input'];
+};
+
+
+export type MutationCreateCustomComponentArgs = {
+  language: CustomComponentLanguage;
+  name: Scalars['String']['input'];
 };
 
 
@@ -2211,10 +2589,26 @@ export type MutationCreateIdentityProviderArgs = {
 };
 
 
+export type MutationCreateIntegrationCodeWorkflowArgs = {
+  categoryId?: InputMaybe<Scalars['ID']['input']>;
+  componentName: Scalars['String']['input'];
+  description?: InputMaybe<Scalars['String']['input']>;
+  language: CodeWorkflowLanguage;
+  name?: InputMaybe<Scalars['String']['input']>;
+  permissionExpression?: InputMaybe<Scalars['String']['input']>;
+  tags?: InputMaybe<Array<Scalars['String']['input']>>;
+};
+
+
 export type MutationCreateKnowledgeBaseArgs = {
   environmentId: Scalars['ID']['input'];
   knowledgeBase: KnowledgeBaseInput;
   workspaceId: Scalars['ID']['input'];
+};
+
+
+export type MutationCreateMcpAutomationProjectConfigurationArgs = {
+  input: CreateMcpAutomationProjectConfigurationInput;
 };
 
 
@@ -2369,6 +2763,14 @@ export type MutationDeleteDataTableRowArgs = {
 };
 
 
+export type MutationDeleteEmbeddedAiAutoMemoryArgs = {
+  environment: Scalars['Int']['input'];
+  id: Scalars['ID']['input'];
+  principalId: Scalars['ID']['input'];
+  principalType: AiAutoMemoryPrincipalType;
+};
+
+
 export type MutationDeleteEmbeddedMcpComponentArgs = {
   id: Scalars['ID']['input'];
 };
@@ -2405,6 +2807,16 @@ export type MutationDeleteKnowledgeBaseDocumentArgs = {
 
 
 export type MutationDeleteKnowledgeBaseDocumentChunkArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type MutationDeleteMcpAutomationProjectConfigurationArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type MutationDeleteMcpAutomationProjectConfigurationWorkflowArgs = {
   id: Scalars['ID']['input'];
 };
 
@@ -2489,6 +2901,13 @@ export type MutationDisconnectConnectionArgs = {
 };
 
 
+export type MutationDisconnectConnectionFromWorkflowArgs = {
+  connectionId: Scalars['ID']['input'];
+  id: Scalars['ID']['input'];
+  usage: ConnectionWorkflowUsage;
+};
+
+
 export type MutationDropDataTableArgs = {
   input: RemoveTableInput;
 };
@@ -2528,6 +2947,20 @@ export type MutationEnableAutomationProjectConfigurationWorkflowArgs = {
 };
 
 
+export type MutationEnableConnectedUserAutomationProjectConfigurationArgs = {
+  connectedUserId: Scalars['ID']['input'];
+  enable: Scalars['Boolean']['input'];
+  projectId: Scalars['ID']['input'];
+};
+
+
+export type MutationEnableConnectedUserMcpAutomationArgs = {
+  connectedUserId: Scalars['ID']['input'];
+  enable: Scalars['Boolean']['input'];
+  id: Scalars['ID']['input'];
+};
+
+
 export type MutationEnableConnectedUserMcpServerArgs = {
   connectedUserId: Scalars['ID']['input'];
   enable: Scalars['Boolean']['input'];
@@ -2536,6 +2969,12 @@ export type MutationEnableConnectedUserMcpServerArgs = {
 
 
 export type MutationEnableConnectedUserMcpToolArgs = {
+  enable: Scalars['Boolean']['input'];
+  id: Scalars['ID']['input'];
+};
+
+
+export type MutationEnableConnectedUserMcpWorkflowArgs = {
   enable: Scalars['Boolean']['input'];
   id: Scalars['ID']['input'];
 };
@@ -2614,6 +3053,7 @@ export type MutationMoveAutomationProjectConfigurationConnectedUsersArgs = {
   connectedUserIds: Array<Scalars['ID']['input']>;
   sourceId: Scalars['ID']['input'];
   targetId: Scalars['ID']['input'];
+  workflowInputs?: InputMaybe<Array<ConfigurationMoveWorkflowInputs>>;
 };
 
 
@@ -2632,6 +3072,11 @@ export type MutationProvisionConnectedUserProjectWorkflowsArgs = {
 
 export type MutationPublishAutomationProjectArgs = {
   description?: InputMaybe<Scalars['String']['input']>;
+  id: Scalars['ID']['input'];
+};
+
+
+export type MutationPublishCustomComponentArgs = {
   id: Scalars['ID']['input'];
 };
 
@@ -2664,6 +3109,12 @@ export type MutationRenameDataTableArgs = {
 
 export type MutationRenameDataTableColumnArgs = {
   input: RenameColumnInput;
+};
+
+
+export type MutationRestoreAutomationProjectVersionArgs = {
+  id: Scalars['ID']['input'];
+  projectVersion: Scalars['Int']['input'];
 };
 
 
@@ -2738,10 +3189,16 @@ export type MutationStartGenerateFromDocumentationPreviewArgs = {
 };
 
 
+export type MutationStopScriptTestArgs = {
+  executionId: Scalars['String']['input'];
+};
+
+
 export type MutationTestClusterElementScriptArgs = {
   clusterElementType: Scalars['String']['input'];
   clusterElementWorkflowNodeName: Scalars['String']['input'];
   environmentId: Scalars['Long']['input'];
+  executionId?: InputMaybe<Scalars['String']['input']>;
   inputParameters?: InputMaybe<Scalars['Map']['input']>;
   workflowId: Scalars['String']['input'];
   workflowNodeName: Scalars['String']['input'];
@@ -2756,6 +3213,7 @@ export type MutationTestProjectGitSyncConnectionArgs = {
 
 export type MutationTestWorkflowNodeScriptArgs = {
   environmentId: Scalars['Long']['input'];
+  executionId?: InputMaybe<Scalars['String']['input']>;
   inputParameters?: InputMaybe<Scalars['Map']['input']>;
   workflowId: Scalars['String']['input'];
   workflowNodeName: Scalars['String']['input'];
@@ -2884,6 +3342,12 @@ export type MutationUpdateAutomationProjectArgs = {
 };
 
 
+export type MutationUpdateAutomationProjectCodeWorkflowSourceArgs = {
+  automationProjectId: Scalars['ID']['input'];
+  content: Scalars['String']['input'];
+};
+
+
 export type MutationUpdateAutomationProjectConfigurationArgs = {
   automationHubVisible: Scalars['Boolean']['input'];
   enabled: Scalars['Boolean']['input'];
@@ -2915,8 +3379,20 @@ export type MutationUpdateAutomationProjectWorkflowPermissionExpressionArgs = {
 };
 
 
+export type MutationUpdateCodeWorkflowSourceArgs = {
+  content: Scalars['String']['input'];
+  projectId: Scalars['ID']['input'];
+};
+
+
 export type MutationUpdateConnectionCredentialsArgs = {
   input: UpdateConnectionCredentialsInput;
+};
+
+
+export type MutationUpdateCustomComponentSourceArgs = {
+  content: Scalars['String']['input'];
+  id: Scalars['ID']['input'];
 };
 
 
@@ -2927,6 +3403,11 @@ export type MutationUpdateDataTableRowArgs = {
 
 export type MutationUpdateDataTableTagsArgs = {
   input: UpdateDataTableTagsInput;
+};
+
+
+export type MutationUpdateEmbeddedAiAutoMemoryArgs = {
+  input: UpdateEmbeddedAiAutoMemoryInput;
 };
 
 
@@ -2972,6 +3453,12 @@ export type MutationUpdateIdentityProviderArgs = {
 };
 
 
+export type MutationUpdateIntegrationCodeWorkflowSourceArgs = {
+  content: Scalars['String']['input'];
+  integrationId: Scalars['ID']['input'];
+};
+
+
 export type MutationUpdateIntegrationWorkflowPermissionExpressionArgs = {
   integrationWorkflowId: Scalars['ID']['input'];
   permissionExpression?: InputMaybe<Scalars['String']['input']>;
@@ -3000,6 +3487,24 @@ export type MutationUpdateKnowledgeBaseTagsArgs = {
 };
 
 
+export type MutationUpdateMcpAutomationProjectConfigurationArgs = {
+  id: Scalars['ID']['input'];
+  input: UpdateMcpAutomationProjectConfigurationInput;
+};
+
+
+export type MutationUpdateMcpAutomationProjectConfigurationWorkflowEnabledArgs = {
+  enabled: Scalars['Boolean']['input'];
+  id: Scalars['ID']['input'];
+};
+
+
+export type MutationUpdateMcpAutomationProjectConfigurationWorkflowParametersArgs = {
+  id: Scalars['ID']['input'];
+  parameters: Scalars['Map']['input'];
+};
+
+
 export type MutationUpdateMcpComponentWithToolsArgs = {
   id: Scalars['ID']['input'];
   input: McpComponentWithToolsInput;
@@ -3009,12 +3514,6 @@ export type MutationUpdateMcpComponentWithToolsArgs = {
 export type MutationUpdateMcpIntegrationInstanceConfigurationArgs = {
   id: Scalars['ID']['input'];
   input: UpdateMcpIntegrationInstanceConfigurationInput;
-};
-
-
-export type MutationUpdateMcpIntegrationInstanceConfigurationVersionArgs = {
-  id: Scalars['ID']['input'];
-  input: UpdateMcpIntegrationInstanceConfigurationVersionInput;
 };
 
 
@@ -3086,6 +3585,7 @@ export type MutationUpdateWorkspaceMcpToolEnabledArgs = {
 export type MutationUpgradeAutomationProjectConfigurationConnectedUsersArgs = {
   connectedUserIds: Array<Scalars['ID']['input']>;
   targetId: Scalars['ID']['input'];
+  workflowInputs?: InputMaybe<Array<ConfigurationMoveWorkflowInputs>>;
 };
 
 export type NodeValidationIssue = {
@@ -3419,15 +3919,23 @@ export enum PropertyType {
   Time = 'TIME'
 }
 
+export type ProvisionConnectedUserProjectWorkflowConnectionInput = {
+  componentName: Scalars['String']['input'];
+  connectionId: Scalars['ID']['input'];
+};
+
 export type ProvisionConnectedUserProjectWorkflowInput = {
+  connections?: InputMaybe<Array<ProvisionConnectedUserProjectWorkflowConnectionInput>>;
   inputs?: InputMaybe<Scalars['Map']['input']>;
   workflowUuid: Scalars['ID']['input'];
 };
 
 export type ProvisionableConnectedUserMcpServer = {
   __typename?: 'ProvisionableConnectedUserMcpServer';
+  coveredAutomationNames: Array<Scalars['String']['output']>;
   coveredComponentNames: Array<Scalars['String']['output']>;
   id: Scalars['ID']['output'];
+  missingAutomationNames: Array<Scalars['String']['output']>;
   missingComponentNames: Array<Scalars['String']['output']>;
   name: Scalars['String']['output'];
   provisioned: Scalars['Boolean']['output'];
@@ -3454,11 +3962,19 @@ export type ProvisionableConnectedUserProjectConfiguration = {
 
 export type ProvisionableConnectedUserProjectWorkflow = {
   __typename?: 'ProvisionableConnectedUserProjectWorkflow';
+  components: Array<ProvisionableConnectedUserProjectWorkflowComponent>;
   dangling: Scalars['Boolean']['output'];
   inputs: Array<ProvisionableConnectedUserProjectWorkflowInputDefinition>;
   label?: Maybe<Scalars['String']['output']>;
   provisioned: Scalars['Boolean']['output'];
   workflowUuid: Scalars['ID']['output'];
+};
+
+export type ProvisionableConnectedUserProjectWorkflowComponent = {
+  __typename?: 'ProvisionableConnectedUserProjectWorkflowComponent';
+  icon?: Maybe<Scalars['String']['output']>;
+  name: Scalars['String']['output'];
+  title?: Maybe<Scalars['String']['output']>;
 };
 
 export type ProvisionableConnectedUserProjectWorkflowInputDefinition = {
@@ -3533,7 +4049,10 @@ export type Query = {
   auditEventTypes: Array<Scalars['String']['output']>;
   auditEvents: AuditEventPageType;
   authorities: Array<Scalars['String']['output']>;
+  automationGettingStarted: AutomationGettingStarted;
+  automationGettingStartedCompleted: Scalars['Boolean']['output'];
   automationProjectCategories: Array<AutomationProjectCategory>;
+  automationProjectCodeWorkflowSource: AutomationProjectCodeWorkflowSource;
   automationProjectConfigurationConnectedUsers: Array<AutomationProjectConfigurationConnectedUser>;
   automationProjectConfigurationDeleteImpact: AutomationProjectConfigurationDeleteImpact;
   automationProjectConfigurationMoveImpact: AutomationProjectConfigurationMoveImpact;
@@ -3545,7 +4064,10 @@ export type Query = {
   automationProjectTags: Array<AutomationProjectTag>;
   automationProjectVersionWorkflowChange: VersionWorkflowChange;
   automationProjectVersionWorkflowChanges: VersionWorkflowChanges;
+  automationProjectVersionWorkflows: Array<AutomationProjectVersionWorkflow>;
   automationProjectVersions: Array<AutomationProjectVersion>;
+  automationProjectWorkflowInputOptions: Array<AutomationProjectConfigurationInputOption>;
+  automationProjectWorkflowProvidableValues: AutomationProjectConfigurationWorkflowProvidableValues;
   automationProjects: Array<AutomationProject>;
   automationSearch: Array<SearchResult>;
   clusterElementComponentConnections: Array<ComponentConnection>;
@@ -3555,24 +4077,32 @@ export type Query = {
   clusterElementMissingRequiredProperties: Array<Scalars['String']['output']>;
   clusterElementOptions: Array<Option>;
   clusterElementScriptInput?: Maybe<Scalars['Map']['output']>;
+  codeWorkflowSource: Scalars['String']['output'];
   componentDefinition: ComponentDefinition;
   componentDefinitionSearch: Array<ComponentDefinition>;
   componentDefinitionVersions: Array<ComponentDefinition>;
   componentDefinitions: Array<ComponentDefinition>;
   componentPropertyDisplayConditions: Scalars['Map']['output'];
   connectedUser?: Maybe<ConnectedUser>;
+  connectedUserCatalogWorkflowCopies: Array<ConnectedUserCatalogWorkflowCopy>;
   connectedUserCodeWorkflowReferences: Array<ConnectedUserCodeWorkflowReference>;
   connectedUserMcpServers: Array<ConnectedUserMcpServer>;
+  connectedUserProjectWorkflowReferenceValues: ConnectedUserProjectWorkflowReferenceValues;
   connectedUserProjects: Array<ConnectedUserProject>;
   connectedUsers?: Maybe<ConnectedUserPage>;
   connectionComponentDefinition: ComponentDefinition;
   connectionDefinition: ConnectionDefinition;
   connectionDefinitions: Array<ConnectionDefinition>;
+  /** The workflows that use a connection, through a deployment or through the workflow editor. */
+  connectionWorkflows: Array<ConnectionWorkflow>;
   customComponent?: Maybe<CustomComponent>;
   customComponentDefinition?: Maybe<CustomComponentDefinition>;
+  customComponentSource: Scalars['String']['output'];
   customComponents: Array<CustomComponent>;
+  dataTableLinkOptions: Array<DataTableLinkOption>;
   dataTableRows: Array<DataTableRow>;
   dataTableRowsPage: DataTableRowPage;
+  dataTableStorageUsage: DataTableStorageUsage;
   dataTableTags: Array<Tag>;
   dataTableTagsByTable: Array<DataTableTagsEntry>;
   dataTableWebhooks: Array<DataTableWebhook>;
@@ -3580,6 +4110,15 @@ export type Query = {
   editorJobFileLogs: LogPage;
   editorJobFileLogsExist: Scalars['Boolean']['output'];
   editorTaskExecutionFileLogs: Array<LogEntry>;
+  /**
+   * Lists the memories of every Embedded integration instance and automation deployment in the environment (the Environment ordinal: 0
+   * DEVELOPMENT, 1 STAGING, 2 PRODUCTION). connectedUserId and memoryType narrow the list. Admin only.
+   */
+  embeddedAiAutoMemories: Array<EmbeddedAiAutoMemory>;
+  /** The connected users holding at least one memory in the environment. Admin only. */
+  embeddedAiAutoMemoryConnectedUsers: Array<EmbeddedAiAutoMemoryConnectedUser>;
+  embeddedGettingStarted: EmbeddedGettingStarted;
+  embeddedGettingStartedCompleted: Scalars['Boolean']['output'];
   embeddedMcpComponentsByServerId?: Maybe<Array<Maybe<McpComponent>>>;
   embeddedMcpServerTags?: Maybe<Array<Maybe<Tag>>>;
   embeddedMcpServers?: Maybe<Array<Maybe<McpServer>>>;
@@ -3593,6 +4132,8 @@ export type Query = {
   generationJobStatus?: Maybe<GenerationJobStatus>;
   identityProvider?: Maybe<IdentityProviderType>;
   identityProviders: Array<Maybe<IdentityProviderType>>;
+  integrationCodeWorkflowSource: Scalars['String']['output'];
+  integrationConnectionWorkflows: Array<IntegrationConnectionWorkflow>;
   integrationVersionWorkflowChange: VersionWorkflowChange;
   integrationVersionWorkflowChanges: VersionWorkflowChanges;
   integrationWorkflows: Array<IntegrationWorkflow>;
@@ -3612,6 +4153,9 @@ export type Query = {
   knowledgeBases?: Maybe<Array<Maybe<KnowledgeBase>>>;
   managementMcpServerCanonicalUrl: Scalars['String']['output'];
   managementMcpServerUrl?: Maybe<Scalars['String']['output']>;
+  mcpAutomationProjectConfigurationToolWorkflowUuids: Array<Scalars['String']['output']>;
+  mcpAutomationProjectConfigurationWorkflowProperties?: Maybe<Array<Maybe<Property>>>;
+  mcpAutomationProjectConfigurationsByServerId: Array<McpAutomationProjectConfiguration>;
   mcpComponent?: Maybe<McpComponent>;
   mcpComponentDefinitions: Array<ComponentDefinition>;
   mcpComponentIntegrations: Array<Integration>;
@@ -3663,9 +4207,12 @@ export type Query = {
   taskDispatcherDefinitionVersions: Array<TaskDispatcherDefinition>;
   taskDispatcherDefinitions: Array<TaskDispatcherDefinition>;
   taskExecutionFileLogs: Array<LogEntry>;
+  toolEligibleAutomationProjectConfigurationWorkflowProperties?: Maybe<Array<Maybe<Property>>>;
+  toolEligibleIntegrationInstanceConfigurationWorkflowProperties?: Maybe<Array<Maybe<Property>>>;
   toolEligibleIntegrationInstanceConfigurationWorkflows: Array<IntegrationWorkflow>;
   toolEligibleIntegrationVersionWorkflows: Array<IntegrationWorkflow>;
   toolEligibleProjectVersionWorkflows: Array<ProjectWorkflow>;
+  toolEligibleWorkflowProperties?: Maybe<Array<Maybe<Property>>>;
   triggerDefinition: TriggerDefinition;
   triggerDefinitions: Array<TriggerDefinition>;
   triggerExecutionFileLogs: LogPage;
@@ -3868,6 +4415,21 @@ export type QueryAuditEventsArgs = {
 };
 
 
+export type QueryAutomationGettingStartedArgs = {
+  workspaceId: Scalars['ID']['input'];
+};
+
+
+export type QueryAutomationGettingStartedCompletedArgs = {
+  workspaceId: Scalars['ID']['input'];
+};
+
+
+export type QueryAutomationProjectCodeWorkflowSourceArgs = {
+  automationProjectId: Scalars['ID']['input'];
+};
+
+
 export type QueryAutomationProjectConfigurationConnectedUsersArgs = {
   id: Scalars['ID']['input'];
 };
@@ -3902,6 +4464,7 @@ export type QueryAutomationProjectConfigurationWorkflowInputOptionsArgs = {
   id: Scalars['ID']['input'];
   inputName: Scalars['String']['input'];
   lookupDependsOnValues?: InputMaybe<Scalars['Map']['input']>;
+  projectVersion?: InputMaybe<Scalars['Int']['input']>;
   propertyName: Scalars['String']['input'];
   searchText?: InputMaybe<Scalars['String']['input']>;
   workflowUuid: Scalars['ID']['input'];
@@ -3910,6 +4473,7 @@ export type QueryAutomationProjectConfigurationWorkflowInputOptionsArgs = {
 
 export type QueryAutomationProjectConfigurationWorkflowProvidableValuesArgs = {
   id: Scalars['ID']['input'];
+  projectVersion?: InputMaybe<Scalars['Int']['input']>;
   workflowUuid: Scalars['ID']['input'];
 };
 
@@ -3933,8 +4497,35 @@ export type QueryAutomationProjectVersionWorkflowChangesArgs = {
 };
 
 
+export type QueryAutomationProjectVersionWorkflowsArgs = {
+  id: Scalars['ID']['input'];
+  projectVersion: Scalars['Int']['input'];
+};
+
+
 export type QueryAutomationProjectVersionsArgs = {
   id: Scalars['ID']['input'];
+};
+
+
+export type QueryAutomationProjectWorkflowInputOptionsArgs = {
+  connectionId: Scalars['ID']['input'];
+  environmentId: Scalars['ID']['input'];
+  inputName: Scalars['String']['input'];
+  lookupDependsOnValues?: InputMaybe<Scalars['Map']['input']>;
+  projectId: Scalars['ID']['input'];
+  projectVersion: Scalars['Int']['input'];
+  propertyName: Scalars['String']['input'];
+  searchText?: InputMaybe<Scalars['String']['input']>;
+  workflowUuid: Scalars['ID']['input'];
+};
+
+
+export type QueryAutomationProjectWorkflowProvidableValuesArgs = {
+  environmentId: Scalars['ID']['input'];
+  projectId: Scalars['ID']['input'];
+  projectVersion: Scalars['Int']['input'];
+  workflowUuid: Scalars['ID']['input'];
 };
 
 
@@ -4011,6 +4602,11 @@ export type QueryClusterElementScriptInputArgs = {
 };
 
 
+export type QueryCodeWorkflowSourceArgs = {
+  projectId: Scalars['ID']['input'];
+};
+
+
 export type QueryComponentDefinitionArgs = {
   componentName: Scalars['String']['input'];
   componentVersion: Scalars['Int']['input'];
@@ -4052,13 +4648,25 @@ export type QueryConnectedUserArgs = {
 };
 
 
+export type QueryConnectedUserCatalogWorkflowCopiesArgs = {
+  automationUuids: Array<Scalars['ID']['input']>;
+  environmentId: Scalars['ID']['input'];
+};
+
+
 export type QueryConnectedUserCodeWorkflowReferencesArgs = {
   automationUuids: Array<Scalars['ID']['input']>;
+  environmentId: Scalars['ID']['input'];
 };
 
 
 export type QueryConnectedUserMcpServersArgs = {
   connectedUserId: Scalars['ID']['input'];
+};
+
+
+export type QueryConnectedUserProjectWorkflowReferenceValuesArgs = {
+  id: Scalars['ID']['input'];
 };
 
 
@@ -4096,6 +4704,11 @@ export type QueryConnectionDefinitionsArgs = {
 };
 
 
+export type QueryConnectionWorkflowsArgs = {
+  connectionId: Scalars['ID']['input'];
+};
+
+
 export type QueryCustomComponentArgs = {
   id: Scalars['ID']['input'];
 };
@@ -4106,17 +4719,43 @@ export type QueryCustomComponentDefinitionArgs = {
 };
 
 
+export type QueryCustomComponentSourceArgs = {
+  id: Scalars['ID']['input'];
+};
+
+
+export type QueryDataTableLinkOptionsArgs = {
+  columnName: Scalars['String']['input'];
+  environmentId: Scalars['ID']['input'];
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  search?: InputMaybe<Scalars['String']['input']>;
+  tableId: Scalars['ID']['input'];
+};
+
+
 export type QueryDataTableRowsArgs = {
   environmentId: Scalars['ID']['input'];
+  expand?: InputMaybe<Array<Scalars['String']['input']>>;
   tableId: Scalars['ID']['input'];
 };
 
 
 export type QueryDataTableRowsPageArgs = {
   environmentId: Scalars['ID']['input'];
+  expand?: InputMaybe<Array<Scalars['String']['input']>>;
   limit?: InputMaybe<Scalars['Int']['input']>;
   offset?: InputMaybe<Scalars['Int']['input']>;
   tableId: Scalars['ID']['input'];
+};
+
+
+export type QueryDataTableTagsArgs = {
+  workspaceId: Scalars['ID']['input'];
+};
+
+
+export type QueryDataTableTagsByTableArgs = {
+  workspaceId: Scalars['ID']['input'];
 };
 
 
@@ -4148,6 +4787,18 @@ export type QueryEditorJobFileLogsExistArgs = {
 export type QueryEditorTaskExecutionFileLogsArgs = {
   jobId: Scalars['ID']['input'];
   taskExecutionId: Scalars['ID']['input'];
+};
+
+
+export type QueryEmbeddedAiAutoMemoriesArgs = {
+  connectedUserId?: InputMaybe<Scalars['ID']['input']>;
+  environment: Scalars['Int']['input'];
+  memoryType?: InputMaybe<AiAutoMemoryType>;
+};
+
+
+export type QueryEmbeddedAiAutoMemoryConnectedUsersArgs = {
+  environment: Scalars['Int']['input'];
 };
 
 
@@ -4189,9 +4840,9 @@ export type QueryExternalInvocationLogsArgs = {
   fromDate?: InputMaybe<Scalars['Long']['input']>;
   integrationInstanceId?: InputMaybe<Scalars['Long']['input']>;
   mcpServerId?: InputMaybe<Scalars['Long']['input']>;
-  outcome?: InputMaybe<Scalars['String']['input']>;
   page?: InputMaybe<Scalars['Int']['input']>;
   source?: InputMaybe<Scalars['String']['input']>;
+  status?: InputMaybe<Scalars['String']['input']>;
   toDate?: InputMaybe<Scalars['Long']['input']>;
   type: PlatformType;
 };
@@ -4204,6 +4855,16 @@ export type QueryGenerationJobStatusArgs = {
 
 export type QueryIdentityProviderArgs = {
   id: Scalars['ID']['input'];
+};
+
+
+export type QueryIntegrationCodeWorkflowSourceArgs = {
+  integrationId: Scalars['ID']['input'];
+};
+
+
+export type QueryIntegrationConnectionWorkflowsArgs = {
+  connectionId: Scalars['ID']['input'];
 };
 
 
@@ -4273,9 +4934,34 @@ export type QueryKnowledgeBaseEmbeddingActiveArgs = {
 };
 
 
+export type QueryKnowledgeBaseTagsArgs = {
+  workspaceId: Scalars['ID']['input'];
+};
+
+
+export type QueryKnowledgeBaseTagsByKnowledgeBaseArgs = {
+  workspaceId: Scalars['ID']['input'];
+};
+
+
 export type QueryKnowledgeBasesArgs = {
   environmentId: Scalars['ID']['input'];
   workspaceId: Scalars['ID']['input'];
+};
+
+
+export type QueryMcpAutomationProjectConfigurationToolWorkflowUuidsArgs = {
+  automationProjectConfigurationId: Scalars['ID']['input'];
+};
+
+
+export type QueryMcpAutomationProjectConfigurationWorkflowPropertiesArgs = {
+  mcpAutomationProjectConfigurationWorkflowId: Scalars['ID']['input'];
+};
+
+
+export type QueryMcpAutomationProjectConfigurationsByServerIdArgs = {
+  mcpServerId: Scalars['ID']['input'];
 };
 
 
@@ -4480,6 +5166,18 @@ export type QueryTaskExecutionFileLogsArgs = {
 };
 
 
+export type QueryToolEligibleAutomationProjectConfigurationWorkflowPropertiesArgs = {
+  automationProjectConfigurationId: Scalars['ID']['input'];
+  workflowUuid: Scalars['String']['input'];
+};
+
+
+export type QueryToolEligibleIntegrationInstanceConfigurationWorkflowPropertiesArgs = {
+  integrationInstanceConfigurationId: Scalars['ID']['input'];
+  workflowId: Scalars['String']['input'];
+};
+
+
 export type QueryToolEligibleIntegrationInstanceConfigurationWorkflowsArgs = {
   integrationInstanceConfigurationId: Scalars['ID']['input'];
 };
@@ -4494,6 +5192,12 @@ export type QueryToolEligibleIntegrationVersionWorkflowsArgs = {
 export type QueryToolEligibleProjectVersionWorkflowsArgs = {
   projectId: Scalars['ID']['input'];
   projectVersion: Scalars['Int']['input'];
+};
+
+
+export type QueryToolEligibleWorkflowPropertiesArgs = {
+  projectId: Scalars['ID']['input'];
+  workflowId: Scalars['String']['input'];
 };
 
 
@@ -4596,9 +5300,9 @@ export type QueryWorkspaceExternalInvocationLogsArgs = {
   fromDate?: InputMaybe<Scalars['Long']['input']>;
   integrationInstanceId?: InputMaybe<Scalars['Long']['input']>;
   mcpServerId?: InputMaybe<Scalars['Long']['input']>;
-  outcome?: InputMaybe<Scalars['String']['input']>;
   page?: InputMaybe<Scalars['Int']['input']>;
   source?: InputMaybe<Scalars['String']['input']>;
+  status?: InputMaybe<Scalars['String']['input']>;
   toDate?: InputMaybe<Scalars['Long']['input']>;
   type: PlatformType;
   workspaceId: Scalars['ID']['input'];
@@ -4959,6 +5663,24 @@ export type UpdateDataTableTagsInput = {
   tags?: InputMaybe<Array<TagInput>>;
 };
 
+/**
+ * A partial update. An omitted field keeps the stored value; a blank description clears it, while a blank title or
+ * content is rejected.
+ */
+export type UpdateEmbeddedAiAutoMemoryInput = {
+  content?: InputMaybe<Scalars['String']['input']>;
+  description?: InputMaybe<Scalars['String']['input']>;
+  environment: Scalars['Int']['input'];
+  expectedVersion: Scalars['Long']['input'];
+  id: Scalars['ID']['input'];
+  memoryType?: InputMaybe<AiAutoMemoryType>;
+  /** The memory's principalId. */
+  principalId: Scalars['ID']['input'];
+  /** The memory's principalType. */
+  principalType: AiAutoMemoryPrincipalType;
+  title?: InputMaybe<Scalars['String']['input']>;
+};
+
 export type UpdateKnowledgeBaseDocumentTagsInput = {
   knowledgeBaseDocumentId: Scalars['ID']['input'];
   tags?: InputMaybe<Array<Scalars['String']['input']>>;
@@ -4969,18 +5691,19 @@ export type UpdateKnowledgeBaseTagsInput = {
   tags?: InputMaybe<Array<TagInput>>;
 };
 
-export type UpdateMcpIntegrationInstanceConfigurationInput = {
-  selectedWorkflowIds: Array<Scalars['String']['input']>;
-  workflowConfigurations?: InputMaybe<Array<WorkflowConfigurationInput>>;
+export type UpdateMcpAutomationProjectConfigurationInput = {
+  workflowConfigurations?: InputMaybe<Array<McpAutomationWorkflowConfigurationInput>>;
+  workflowUuids: Array<Scalars['String']['input']>;
 };
 
-export type UpdateMcpIntegrationInstanceConfigurationVersionInput = {
-  integrationVersion: Scalars['Int']['input'];
-  workflowUuids: Array<Scalars['String']['input']>;
+export type UpdateMcpIntegrationInstanceConfigurationInput = {
+  selectedWorkflowIds: Array<Scalars['String']['input']>;
+  toolParameters?: InputMaybe<Array<WorkflowToolParametersInput>>;
 };
 
 export type UpdateMcpProjectInput = {
   selectedWorkflowIds: Array<Scalars['String']['input']>;
+  toolParameters?: InputMaybe<Array<WorkflowToolParametersInput>>;
   workflowConfigurations?: InputMaybe<Array<WorkflowConfigurationInput>>;
 };
 
@@ -5154,6 +5877,11 @@ export type WorkflowTemplate = {
   projectVersion?: Maybe<Scalars['Int']['output']>;
   publicUrl?: Maybe<Scalars['String']['output']>;
   workflow: Workflow;
+};
+
+export type WorkflowToolParametersInput = {
+  parameters?: InputMaybe<Scalars['Map']['input']>;
+  workflowId: Scalars['String']['input'];
 };
 
 export type WorkflowTrigger = {

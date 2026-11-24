@@ -9,8 +9,12 @@ query automationProjects($environmentId: ID) {
         version
         lastPublishedVersion
         permissionExpression
+        codeWorkflowProject
+        codeWorkflowLanguage
+        codeWorkflowDraftPublishable
         configurationCount
         lastPublishedDate
+        unpublishedChanges
         workflowTemplates {
             workflowUuid
             workflowId

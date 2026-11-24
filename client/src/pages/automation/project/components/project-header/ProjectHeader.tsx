@@ -1,8 +1,6 @@
 import {ButtonGroup} from '@/components/ui/button-group';
 import useOpenSavedProjectDeployment from '@/pages/automation/project-deployments/hooks/useOpenSavedProjectDeployment';
-import ProjectDeploymentsSheet, {
-    ProjectDeploymentsSheetStateI,
-} from '@/pages/automation/project/components/ProjectDeploymentsSheet';
+import ProjectDeploymentsSheet from '@/pages/automation/project/components/ProjectDeploymentsSheet';
 import DeployButton from '@/pages/automation/project/components/project-header/components/DeployButton';
 import OutputPanelButton from '@/pages/automation/project/components/project-header/components/OutputButton';
 import ProjectBreadcrumb from '@/pages/automation/project/components/project-header/components/ProjectBreadcrumb';
@@ -10,20 +8,24 @@ import ProjectBreadcrumbSkeleton from '@/pages/automation/project/components/pro
 import ProjectDeploymentsButton from '@/pages/automation/project/components/project-header/components/ProjectDeploymentsButton';
 import ProjectItemSelect from '@/pages/automation/project/components/project-header/components/ProjectItemSelect';
 import ProjectSkeleton from '@/pages/automation/project/components/project-header/components/ProjectSkeleton';
-import PublishPopover from '@/pages/automation/project/components/project-header/components/PublishPopover';
 import SettingsMenu from '@/pages/automation/project/components/project-header/components/settings-menu/SettingsMenu';
 import {useProjectHeader} from '@/pages/automation/project/components/project-header/hooks/useProjectHeader';
+import useProjectHeaderDialogsStore from '@/pages/automation/project/stores/useProjectHeaderDialogsStore';
 import useProjectsLeftSidebarStore from '@/pages/automation/project/stores/useProjectsLeftSidebarStore';
+import CodeWorkflowHeaderActions, {
+    CodeWorkflowSaveButton,
+} from '@/pages/platform/code-workflow/components/CodeWorkflowHeaderActions';
 import WorkflowActionsButton from '@/pages/platform/workflow-editor/components/WorkflowActionsButton';
 import useWorkflowDataStore from '@/pages/platform/workflow-editor/stores/useWorkflowDataStore';
 import useWorkflowEditorStore from '@/pages/platform/workflow-editor/stores/useWorkflowEditorStore';
 import LoadingIndicator from '@/shared/components/LoadingIndicator';
+import PublishPopover from '@/shared/components/PublishPopover';
 import useCopilotCompactHeader from '@/shared/components/copilot/hooks/useCopilotCompactHeader';
 import useCopilotLayoutShifted from '@/shared/components/copilot/hooks/useCopilotLayoutShifted';
 import LeftSidebarButton from '@/shared/layout/LeftSidebarButton';
 import {UpdateWorkflowMutationType} from '@/shared/types';
 import {onlineManager, useIsMutating} from '@tanstack/react-query';
-import {RefObject, useState, useSyncExternalStore} from 'react';
+import {RefObject, useEffect, useSyncExternalStore} from 'react';
 import {PanelImperativeHandle} from 'react-resizable-panels';
 import {twMerge} from 'tailwind-merge';
 import {useShallow} from 'zustand/react/shallow';
@@ -35,6 +37,7 @@ const subscribeToOnlineStatus = (onOnlineStatusChange: () => void) => onlineMana
 interface ProjectHeaderProps {
     bottomResizablePanelRef: RefObject<PanelImperativeHandle | null>;
     chatTrigger?: boolean;
+    codeWorkflow?: boolean;
     embedded?: boolean;
     projectId: number;
     projectWorkflowId: number;
@@ -45,16 +48,13 @@ interface ProjectHeaderProps {
 const ProjectHeader = ({
     bottomResizablePanelRef,
     chatTrigger,
+    codeWorkflow,
     embedded,
     projectId,
     projectWorkflowId,
     runDisabled,
     updateWorkflowMutation,
 }: ProjectHeaderProps) => {
-    const [projectDeploymentsSheetState, setProjectDeploymentsSheetState] = useState<
-        ProjectDeploymentsSheetStateI | undefined
-    >();
-
     const copilotLayoutShifted = useCopilotLayoutShifted();
 
     useCopilotCompactHeader();
@@ -62,6 +62,23 @@ const ProjectHeader = ({
         useShallow((state) => ({
             projectLeftSidebarOpen: state.projectLeftSidebarOpen,
             setProjectLeftSidebarOpen: state.setProjectLeftSidebarOpen,
+        }))
+    );
+    const {
+        deployDialogOpen,
+        deploymentsSheetState: projectDeploymentsSheetState,
+        publishPopoverOpen,
+        setDeployDialogOpen,
+        setDeploymentsSheetState: setProjectDeploymentsSheetState,
+        setPublishPopoverOpen,
+    } = useProjectHeaderDialogsStore(
+        useShallow((state) => ({
+            deployDialogOpen: state.deployDialogOpen,
+            deploymentsSheetState: state.deploymentsSheetState,
+            publishPopoverOpen: state.publishPopoverOpen,
+            setDeployDialogOpen: state.setDeployDialogOpen,
+            setDeploymentsSheetState: state.setDeploymentsSheetState,
+            setPublishPopoverOpen: state.setPublishPopoverOpen,
         }))
     );
     const {workflowIsRunning} = useWorkflowEditorStore(
@@ -100,6 +117,15 @@ const ProjectHeader = ({
         chatTrigger,
         projectId,
     });
+
+    useEffect(
+        () => () => {
+            setDeployDialogOpen(false);
+            setProjectDeploymentsSheetState(undefined);
+            setPublishPopoverOpen(false);
+        },
+        [projectId, projectWorkflowId, setDeployDialogOpen, setProjectDeploymentsSheetState, setPublishPopoverOpen]
+    );
 
     const loadingIndicator = (isSaving > 0 || !isOnline) && (
         <LoadingIndicator className="shrink-0" isFetching={isSaving} isOnline={isOnline} showLabel />
@@ -145,8 +171,11 @@ const ProjectHeader = ({
             </div>
 
             <div className="flex shrink-0 items-center gap-1">
+                {codeWorkflow && <CodeWorkflowHeaderActions />}
+
                 <WorkflowActionsButton
                     chatTrigger={chatTrigger ?? false}
+                    leadingAction={codeWorkflow ? <CodeWorkflowSaveButton /> : undefined}
                     onRunClick={handleRunClick}
                     onStopClick={handleStopClick}
                     runDisabled={runDisabled}
@@ -157,10 +186,19 @@ const ProjectHeader = ({
                     <PublishPopover
                         disabled={!hasUnpublishedChanges}
                         isPending={publishProjectMutationIsPending}
-                        onPublishProjectSubmit={handlePublishProjectSubmit}
+                        onOpenChange={setPublishPopoverOpen}
+                        onPublishSubmit={handlePublishProjectSubmit}
+                        open={publishPopoverOpen}
+                        title="Publish Project"
+                        tooltip="Publish the project"
                     />
 
-                    <DeployButton onDeploymentSaved={openSavedProjectDeployment} project={project} />
+                    <DeployButton
+                        onDeploymentSaved={openSavedProjectDeployment}
+                        onOpenChange={setDeployDialogOpen}
+                        open={deployDialogOpen}
+                        project={project}
+                    />
 
                     <ProjectDeploymentsButton onClick={() => setProjectDeploymentsSheetState({})} />
                 </ButtonGroup>

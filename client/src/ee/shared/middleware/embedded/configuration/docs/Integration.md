@@ -22,9 +22,12 @@ Name | Type
 `name` | string
 `permissionExpression` | string
 `category` | [Category](Category.md)
+`codeWorkflow` | boolean
+`codeWorkflowLanguage` | string
 `developmentConfigurationCount` | number
 `integrationWorkflowIds` | Array&lt;number&gt;
 `tags` | [Array&lt;Tag&gt;](Tag.md)
+`unpublishedChanges` | boolean
 `version` | number
 
 ## Example
@@ -49,9 +52,12 @@ const example = {
   "name": null,
   "permissionExpression": null,
   "category": null,
+  "codeWorkflow": null,
+  "codeWorkflowLanguage": null,
   "developmentConfigurationCount": null,
   "integrationWorkflowIds": null,
   "tags": null,
+  "unpublishedChanges": null,
   "version": null,
 } satisfies Integration
 

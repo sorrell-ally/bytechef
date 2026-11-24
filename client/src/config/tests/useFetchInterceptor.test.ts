@@ -260,11 +260,11 @@ describe('useFetchInterceptor', () => {
 
             hoisted.registeredHandlers!.response(response);
 
-            expect(hoisted.navigate).toHaveBeenCalledWith('/automation/settings/billing');
+            expect(hoisted.navigate).toHaveBeenCalledWith('/settings/billing');
         });
 
         it('does not navigate again when already on the billing settings page', () => {
-            window.history.pushState({}, '', '/automation/settings/billing');
+            window.history.pushState({}, '', '/settings/billing');
 
             renderHook(() => useFetchInterceptor());
 
@@ -381,6 +381,24 @@ describe('useFetchInterceptor', () => {
                 jsonData: {detail: 'Something went wrong', title: 'Error'},
                 status: 500,
                 url: 'http://localhost/api/platform/internal/ai/chat/ai_hub/status?threadIds=thread-1',
+            });
+
+            hoisted.registeredHandlers!.response(response);
+
+            await act(async () => {
+                await new Promise((resolve) => setTimeout(resolve, 0));
+            });
+
+            expect(hoisted.toastError).not.toHaveBeenCalled();
+        });
+
+        it('skips toast for editor autocomplete dynamic property lookups', async () => {
+            renderHook(() => useFetchInterceptor());
+
+            const response = createMockResponse({
+                jsonData: {detail: 'Connection failed', title: 'Internal Server Error'},
+                status: 500,
+                url: 'http://localhost/internal/workflows/w1/workflow-nodes/script_1/component-operations/dynamic-properties/fields?environmentId=1',
             });
 
             hoisted.registeredHandlers!.response(response);

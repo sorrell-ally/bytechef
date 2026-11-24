@@ -1,6 +1,6 @@
 import AlertDialog from '@/components/AlertDialog';
 import Button from '@/components/Button/Button';
-import {DropdownMenu, DropdownMenuContent, DropdownMenuTrigger} from '@/components/ui/dropdown-menu';
+import {DropdownMenu, DropdownMenuContent, DropdownMenuTrigger} from '@/components/DropdownMenu/DropdownMenu';
 import {Tabs, TabsContent, TabsList, TabsTrigger} from '@/components/ui/tabs';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip';
 import IntegrationVersionHistorySheet from '@/ee/pages/embedded/integration/components/IntegrationVersionHistorySheet';
@@ -18,7 +18,7 @@ import WorkflowDialog from '@/shared/components/workflow/WorkflowDialog';
 import {UpdateWorkflowMutationType} from '@/shared/types';
 import {useQueryClient} from '@tanstack/react-query';
 import {SettingsIcon} from 'lucide-react';
-import {RefObject, useState} from 'react';
+import {ChangeEvent, RefObject, useRef, useState} from 'react';
 import {PanelImperativeHandle} from 'react-resizable-panels';
 import {useShallow} from 'zustand/react/shallow';
 
@@ -42,6 +42,8 @@ const SettingsMenu = ({
     const [showEditIntegrationDialog, setShowEditIntegrationDialog] = useState(false);
     const [showIntegrationVersionHistorySheet, setShowIntegrationVersionHistorySheet] = useState(false);
 
+    const workflowFileInputRef = useRef<HTMLInputElement>(null);
+
     const {setShowEditWorkflowDialog, showEditWorkflowDialog} = useWorkflowEditorStore(
         useShallow((state) => ({
             setShowEditWorkflowDialog: state.setShowEditWorkflowDialog,
@@ -60,8 +62,35 @@ const SettingsMenu = ({
         handleDeleteIntegrationAlertDialogClick,
         handleDeleteWorkflowAlertDialogClick,
         handleImportWorkflow,
+        handleRestoreIntegrationVersion,
         isDeleteIntegrationPending,
+        restoreIntegrationVersionPending,
     } = useSettingsMenu({integration, workflow});
+
+    const handleWorkflowFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+        const workflowFile = event.target.files?.[0];
+
+        if (!workflowFile) {
+            return;
+        }
+
+        handleImportWorkflow(await workflowFile.text());
+
+        if (workflowFileInputRef.current) {
+            workflowFileInputRef.current.value = '';
+        }
+    };
+
+    const integrationTabButtons = (
+        <IntegrationTabButtons
+            codeWorkflow={integration.codeWorkflow}
+            onDeleteIntegrationClick={() => setShowDeleteIntegrationAlertDialog(true)}
+            onImportWorkflowClick={() => workflowFileInputRef.current?.click()}
+            onNewWorkflowClick={() => setShowCreateWorkflowDialog(true)}
+            onShowEditIntegrationDialogClick={() => setShowEditIntegrationDialog(true)}
+            onShowIntegrationVersionHistorySheet={() => setShowIntegrationVersionHistorySheet(true)}
+        />
+    );
 
     return (
         <>
@@ -79,48 +108,52 @@ const SettingsMenu = ({
                     <TooltipContent>Integration and workflow settings</TooltipContent>
                 </Tooltip>
 
-                <DropdownMenuContent align="end" className="p-0">
-                    <Tabs aria-label="Settings menu" defaultValue="workflow">
-                        <TabsList className="rounded-none">
-                            <TabsTrigger
-                                aria-label="Workflow tab"
-                                className="w-1/2 px-9 py-1 data-[state=active]:shadow-none"
-                                value="workflow"
-                            >
-                                Workflow
-                            </TabsTrigger>
+                <DropdownMenuContent align="end">
+                    {integration.codeWorkflow ? (
+                        integrationTabButtons
+                    ) : (
+                        <Tabs aria-label="Settings menu" defaultValue="workflow">
+                            <TabsList className="rounded-none">
+                                <TabsTrigger
+                                    aria-label="Workflow tab"
+                                    className="w-1/2 px-9 py-1 data-[state=active]:shadow-none"
+                                    value="workflow"
+                                >
+                                    Workflow
+                                </TabsTrigger>
 
-                            <TabsTrigger
-                                aria-label="Integration tab"
-                                className="w-1/2 px-9 py-1 data-[state=active]:shadow-none"
-                                value="integration"
-                            >
-                                Integration
-                            </TabsTrigger>
-                        </TabsList>
+                                <TabsTrigger
+                                    aria-label="Integration tab"
+                                    className="w-1/2 px-9 py-1 data-[state=active]:shadow-none"
+                                    value="integration"
+                                >
+                                    Integration
+                                </TabsTrigger>
+                            </TabsList>
 
-                        <TabsContent className="mt-0" value="workflow">
-                            <WorkflowTabButtons
-                                onCloseDropdownMenu={() => setOpenDropdownMenu(false)}
-                                onShowDeleteWorkflowAlertDialog={() => setShowDeleteWorkflowAlertDialog(true)}
-                                onShowEditWorkflowDialog={() => setShowEditWorkflowDialog(true)}
-                                workflowId={workflow.id!}
-                            />
-                        </TabsContent>
+                            <TabsContent className="mt-0" value="workflow">
+                                <WorkflowTabButtons
+                                    onShowDeleteWorkflowAlertDialog={() => setShowDeleteWorkflowAlertDialog(true)}
+                                    onShowEditWorkflowDialog={() => setShowEditWorkflowDialog(true)}
+                                    workflowId={workflow.id!}
+                                />
+                            </TabsContent>
 
-                        <TabsContent className="mt-0" value="integration">
-                            <IntegrationTabButtons
-                                onCloseDropdownMenuClick={() => setOpenDropdownMenu(false)}
-                                onDeleteIntegrationClick={() => setShowDeleteIntegrationAlertDialog(true)}
-                                onImportWorkflow={handleImportWorkflow}
-                                onNewWorkflowClick={() => setShowCreateWorkflowDialog(true)}
-                                onShowEditIntegrationDialogClick={() => setShowEditIntegrationDialog(true)}
-                                onShowIntegrationVersionHistorySheet={() => setShowIntegrationVersionHistorySheet(true)}
-                            />
-                        </TabsContent>
-                    </Tabs>
+                            <TabsContent className="mt-0" value="integration">
+                                {integrationTabButtons}
+                            </TabsContent>
+                        </Tabs>
+                    )}
                 </DropdownMenuContent>
             </DropdownMenu>
+
+            <input
+                accept=".json,.yaml,.yml"
+                className="hidden"
+                onChange={handleWorkflowFileChange}
+                ref={workflowFileInputRef}
+                type="file"
+            />
 
             {showCreateWorkflowDialog && (
                 <WorkflowDialog
@@ -178,6 +211,9 @@ const SettingsMenu = ({
                 <IntegrationVersionHistorySheet
                     integrationId={integration.id!}
                     onClose={() => setShowIntegrationVersionHistorySheet(false)}
+                    onRestoreIntegrationVersion={handleRestoreIntegrationVersion}
+                    restoreIntegrationVersionPending={restoreIntegrationVersionPending}
+                    unpublishedChanges={integration.unpublishedChanges}
                 />
             )}
         </>

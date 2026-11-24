@@ -20,10 +20,11 @@ import {
     AutomationProjectConfigurationsQuery,
     AutomationProjectsQuery,
     useAutomationProjectConfigurationDeleteImpactQuery,
+    useDeleteAutomationProjectConfigurationMutation,
     useEnableAutomationProjectConfigurationMutation,
 } from '@/shared/middleware/graphql';
 import {useQueryClient} from '@tanstack/react-query';
-import {EllipsisVerticalIcon, FolderIcon, PencilIcon, RefreshCcwIcon, Trash2Icon, UsersIcon} from 'lucide-react';
+import {EditIcon, EllipsisVerticalIcon, FolderIcon, RefreshCcwIcon, Trash2Icon, UsersIcon} from 'lucide-react';
 import {MouseEvent, useCallback, useRef, useState} from 'react';
 
 import AutomationProjectConfigurationMoveUsersDialog from './AutomationProjectConfigurationMoveUsersDialog';
@@ -36,7 +37,7 @@ type AutomationProjectType = AutomationProjectsQuery['automationProjects'][numbe
 interface AutomationProjectConfigurationListItemProps {
     configuration: AutomationProjectConfigurationType;
     configurations?: AutomationProjectConfigurationType[];
-    onDelete: (configuration: AutomationProjectConfigurationType) => void;
+    divided?: boolean;
     onEdit: (configuration: AutomationProjectConfigurationType) => void;
     onUpdateVersion: (configuration: AutomationProjectConfigurationType) => void;
     project: AutomationProjectType;
@@ -49,7 +50,7 @@ const formatCount = (count: number, noun: string): string => `${count} ${count =
 const AutomationProjectConfigurationListItem = ({
     configuration,
     configurations = [],
-    onDelete,
+    divided = false,
     onEdit,
     onUpdateVersion,
     project,
@@ -62,6 +63,15 @@ const AutomationProjectConfigurationListItem = ({
     const workflowsCollapsibleTriggerRef = useRef<HTMLButtonElement | null>(null);
 
     const queryClient = useQueryClient();
+
+    const deleteConfigurationMutation = useDeleteAutomationProjectConfigurationMutation({
+        onSuccess: () => {
+            void queryClient.invalidateQueries({queryKey: ['automationProjectConfigurations']});
+            void queryClient.invalidateQueries({queryKey: ['automationProjects']});
+
+            setShowDeleteDialog(false);
+        },
+    });
 
     const enableConfigurationMutation = useEnableAutomationProjectConfigurationMutation();
 
@@ -121,7 +131,7 @@ const AutomationProjectConfigurationListItem = ({
     }, []);
 
     return (
-        <Collapsible className="rounded border border-border/50" defaultOpen>
+        <Collapsible className={divided ? undefined : 'rounded border border-border/50'} defaultOpen>
             <div
                 className="flex w-full cursor-pointer items-center justify-between rounded-md px-3 hover:bg-surface-neutral-primary-hover"
                 onClick={handleConfigurationListItemClick}
@@ -131,13 +141,13 @@ const AutomationProjectConfigurationListItem = ({
 
                 <div className="flex flex-1 items-center py-3">
                     <div className="flex-1">
-                        <div className="flex min-h-8 items-center gap-2">
+                        <div className="flex items-center gap-2">
                             <span className="text-base font-semibold text-content-neutral-primary">
                                 {configuration.name}
                             </span>
                         </div>
 
-                        <div className="mt-2 flex min-h-7 items-center">
+                        <div className="mt-2 flex items-center">
                             {showProjectName && (
                                 <span className="mr-4 flex items-center gap-1 text-xs font-semibold text-muted-foreground">
                                     <FolderIcon aria-hidden="true" className="size-4 shrink-0" />
@@ -163,7 +173,7 @@ const AutomationProjectConfigurationListItem = ({
                             <Badge label="Hidden from hub" styleType="secondary-outline" />
                         )}
 
-                        {newerVersionAvailable && <Badge label="Newer version available" styleType="warning-outline" />}
+                        {newerVersionAvailable && <Badge label="Newer version available" styleType="warning-filled" />}
 
                         <Tooltip>
                             <TooltipTrigger asChild>
@@ -177,8 +187,8 @@ const AutomationProjectConfigurationListItem = ({
                             <TooltipContent>The project version released to this environment</TooltipContent>
                         </Tooltip>
 
-                        <div className="flex min-w-52 flex-col items-end gap-y-2">
-                            <div className="flex min-h-8 items-center">
+                        <div className="flex min-w-52 flex-col items-end gap-y-4">
+                            <div className="flex items-center">
                                 <Switch
                                     aria-label="Enable Configuration"
                                     checked={configuration.enabled}
@@ -202,7 +212,7 @@ const AutomationProjectConfigurationListItem = ({
                             </div>
 
                             <Tooltip>
-                                <TooltipTrigger className="flex min-h-7 items-center text-sm text-content-neutral-secondary">
+                                <TooltipTrigger className="flex items-center text-sm text-content-neutral-secondary">
                                     {lastExecutionDate ? (
                                         <span className="text-xs">
                                             {`Executed at ${lastExecutionDate.toLocaleDateString()} ${lastExecutionDate.toLocaleTimeString()}`}
@@ -229,15 +239,15 @@ const AutomationProjectConfigurationListItem = ({
                             <DropdownMenuContent align="end">
                                 <DropdownMenuItem
                                     aria-label="Edit Configuration"
-                                    icon={<PencilIcon />}
+                                    icon={<EditIcon />}
                                     label="Edit"
                                     onClick={() => onEdit(configuration)}
                                 />
 
                                 <DropdownMenuItem
-                                    aria-label="Update Project Version"
+                                    aria-label="Change Project Version"
                                     icon={<RefreshCcwIcon />}
-                                    label="Update Project Version"
+                                    label="Change Project Version"
                                     onClick={() => onUpdateVersion(configuration)}
                                 />
 
@@ -285,12 +295,9 @@ const AutomationProjectConfigurationListItem = ({
             <AlertDialog
                 confirmDisabled={!deleteImpact}
                 description={deleteDescription}
+                isPending={deleteConfigurationMutation.isPending}
                 onCancel={() => setShowDeleteDialog(false)}
-                onConfirm={() => {
-                    onDelete(configuration);
-
-                    setShowDeleteDialog(false);
-                }}
+                onConfirm={() => deleteConfigurationMutation.mutate({id: configuration.id})}
                 open={showDeleteDialog}
             />
 

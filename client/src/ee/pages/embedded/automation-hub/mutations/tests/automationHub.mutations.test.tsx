@@ -8,6 +8,7 @@ import {
     useProvisionReferenceMutation,
     usePublishAutomationMutation,
     useSetAutomationEnabledMutation,
+    useSetAutomationMcpEnabledMutation,
     useUpdateAutomationInputsMutation,
     useWireNodeConnectionMutation,
 } from '@/ee/pages/embedded/automation-hub/mutations/automationHub.mutations';
@@ -17,7 +18,7 @@ import {act, renderHook} from '@testing-library/react';
 import {ReactNode} from 'react';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 
-const {connectedUserProjectWorkflowApiMock, connectionApiMock} = vi.hoisted(() => ({
+const {connectedUserProjectWorkflowApiMock, connectionApiMock, mcpAutomationWorkflowApiMock} = vi.hoisted(() => ({
     connectedUserProjectWorkflowApiMock: {
         copyFrontendWorkflowTemplate: vi.fn(),
         createFrontendProjectWorkflow: vi.fn(),
@@ -33,9 +34,13 @@ const {connectedUserProjectWorkflowApiMock, connectionApiMock} = vi.hoisted(() =
     connectionApiMock: {
         deleteFrontendConnection: vi.fn(),
     },
+    mcpAutomationWorkflowApiMock: {
+        disableFrontendMcpAutomationWorkflow: vi.fn(),
+        enableFrontendMcpAutomationWorkflow: vi.fn(),
+    },
 }));
 
-vi.mock('@/ee/shared/middleware/embedded/public', () => ({
+vi.mock('@bytechef/embedded-api', () => ({
     ConnectedUserProjectWorkflowApi: class {
         constructor() {
             return connectedUserProjectWorkflowApiMock;
@@ -44,6 +49,11 @@ vi.mock('@/ee/shared/middleware/embedded/public', () => ({
     ConnectionApi: class {
         constructor() {
             return connectionApiMock;
+        }
+    },
+    McpAutomationWorkflowApi: class {
+        constructor() {
+            return mcpAutomationWorkflowApiMock;
         }
     },
 }));
@@ -120,7 +130,7 @@ describe('automationHub.mutations', () => {
         expect(invalidateQueriesSpy).toHaveBeenCalledWith({queryKey: AutomationHubKeys.automations});
     });
 
-    it('omits the connections and inputs the administrator provides from the provision body', async () => {
+    it('omits the connections the administrator provides from the provision body', async () => {
         const {result} = renderMutationHook(useProvisionReferenceMutation);
 
         await act(async () => {
@@ -128,13 +138,12 @@ describe('automationHub.mutations', () => {
                 connections: {gmail: 3, slack: 7},
                 inputs: {region: 'eu', sheetName: 'Leads'},
                 providedComponentNames: ['gmail'],
-                providedInputNames: ['region'],
                 workflowUuid: 'template-uuid',
             });
         });
 
         expect(connectedUserProjectWorkflowApiMock.provisionFrontendWorkflowReference).toHaveBeenCalledWith({
-            provisionWorkflowReferenceRequest: {connections: {slack: 7}, inputs: {sheetName: 'Leads'}},
+            provisionWorkflowReferenceRequest: {connections: {slack: 7}, inputs: {region: 'eu', sheetName: 'Leads'}},
             workflowUuid: 'template-uuid',
         });
     });
@@ -164,6 +173,34 @@ describe('automationHub.mutations', () => {
             workflowUuid: 'workflow-uuid',
         });
         expect(connectedUserProjectWorkflowApiMock.enableFrontendProjectWorkflow).not.toHaveBeenCalled();
+    });
+
+    it('turns an automation on for AI agents and refreshes the automations', async () => {
+        const {invalidateQueriesSpy, result} = renderMutationHook(useSetAutomationMcpEnabledMutation);
+
+        await act(async () => {
+            await result.current.mutateAsync({enabled: true, workflowUuid: 'workflow-uuid'});
+        });
+
+        expect(mcpAutomationWorkflowApiMock.enableFrontendMcpAutomationWorkflow).toHaveBeenCalledWith({
+            workflowUuid: 'workflow-uuid',
+        });
+        expect(mcpAutomationWorkflowApiMock.disableFrontendMcpAutomationWorkflow).not.toHaveBeenCalled();
+        expect(connectedUserProjectWorkflowApiMock.enableFrontendProjectWorkflow).not.toHaveBeenCalled();
+        expect(invalidateQueriesSpy).toHaveBeenCalledWith({queryKey: AutomationHubKeys.automations});
+    });
+
+    it('turns an automation off for AI agents', async () => {
+        const {result} = renderMutationHook(useSetAutomationMcpEnabledMutation);
+
+        await act(async () => {
+            await result.current.mutateAsync({enabled: false, workflowUuid: 'workflow-uuid'});
+        });
+
+        expect(mcpAutomationWorkflowApiMock.disableFrontendMcpAutomationWorkflow).toHaveBeenCalledWith({
+            workflowUuid: 'workflow-uuid',
+        });
+        expect(mcpAutomationWorkflowApiMock.enableFrontendMcpAutomationWorkflow).not.toHaveBeenCalled();
     });
 
     it('deletes an automation and refreshes the automations', async () => {

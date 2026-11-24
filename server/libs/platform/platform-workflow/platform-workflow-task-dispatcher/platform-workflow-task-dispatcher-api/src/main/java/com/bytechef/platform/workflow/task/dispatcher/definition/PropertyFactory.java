@@ -79,12 +79,19 @@ public record PropertyFactory() implements SchemaPropertyFactory {
                     ((ModifiableObjectProperty) property).getProperties());
             }
         }
+
+        @Override
+        public void setRequired(BaseProperty.BaseValueProperty<?> property, boolean required) {
+            if (property instanceof ModifiableValueProperty<?, ?> modifiableValueProperty) {
+                modifiableValueProperty.required(required);
+            }
+        }
     };
 
     public static final SchemaUtils.OutputFactoryFunction OUTPUT_FACTORY_FUNCTION =
-        (outputSchema, sampleOutput, placeholder) -> new OutputResponse(
+        (outputSchema, sampleOutput, placeholder, sampleOutputGenerated) -> new OutputResponse(
             com.bytechef.platform.workflow.task.dispatcher.domain.Property.toProperty((Property) outputSchema),
-            sampleOutput, placeholder);
+            sampleOutput, placeholder, sampleOutputGenerated);
 
     public static final PropertyFactory PROPERTY_FACTORY = new PropertyFactory();
 

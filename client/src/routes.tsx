@@ -1,5 +1,7 @@
 import ImportApp from '@/ImportApp';
 import DevelopmentAutomationConfigurationsRedirect from '@/ee/pages/embedded/automation-configurations/DevelopmentAutomationConfigurationsRedirect';
+import loadEmbeddedIndexRedirect from '@/ee/pages/embedded/getting-started/loadEmbeddedIndexRedirect';
+import {EMBEDDED_GETTING_STARTED_ROUTE_PATH} from '@/ee/pages/embedded/getting-started/resolveEmbeddedIndexRedirect';
 import DevelopmentIntegrationInstanceConfigurationsRedirect from '@/ee/pages/embedded/integration-instance-configurations/DevelopmentIntegrationInstanceConfigurationsRedirect';
 import AcceptInvitation from '@/pages/account/public/AcceptInvitation';
 import AccountErrorPage from '@/pages/account/public/AccountErrorPage';
@@ -12,6 +14,8 @@ import PasswordResetInit from '@/pages/account/public/PasswordResetInit';
 import Register from '@/pages/account/public/Register';
 import RegisterSuccess from '@/pages/account/public/RegisterSuccess';
 import VerifyEmail from '@/pages/account/public/VerifyEmail';
+import loadAutomationIndexRedirect from '@/pages/automation/getting-started/loadAutomationIndexRedirect';
+import {AUTOMATION_GETTING_STARTED_ROUTE_PATH} from '@/pages/automation/getting-started/resolveAutomationIndexRedirect';
 import DevelopmentProjectDeploymentsRedirect from '@/pages/automation/project-deployments/DevelopmentProjectDeploymentsRedirect';
 import loadProject from '@/pages/automation/project/loadProject';
 import ResumeForm from '@/pages/automation/resume-form/ResumeForm';
@@ -24,8 +28,16 @@ import ErrorPage from '@/shared/error/ErrorPage';
 import LazyLoadWrapper from '@/shared/error/LazyLoadWrapper';
 import PageNotFound from '@/shared/error/PageNotFound';
 import Settings from '@/shared/layout/Settings';
+import SettingsLayout from '@/shared/layout/SettingsLayout';
 import {ProjectApi} from '@/shared/middleware/automation/configuration';
 import {EnvironmentApi} from '@/shared/middleware/platform/configuration';
+import OrganizationSettingsRedirect from '@/shared/navigation/OrganizationSettingsRedirect';
+import {
+    AI_SKILLS_SETTINGS_PATH,
+    MEMORIES_SETTINGS_PATH,
+    ORGANIZATION_SETTINGS_PAGES,
+    ORGANIZATION_SETTINGS_PATH,
+} from '@/shared/navigation/settingsPaths';
 import {ProjectKeys} from '@/shared/queries/automation/projects.queries';
 import {EnvironmentKeys} from '@/shared/queries/platform/environments.queries';
 import {authenticationStore} from '@/shared/stores/useAuthenticationStore';
@@ -87,7 +99,10 @@ const ApiConnectorImportPage = lazy(
 );
 const ApiConnectorAiPage = lazy(() => import('@/ee/pages/settings/platform/api-connectors/pages/ApiConnectorAiPage'));
 const EmbeddedApiKeys = lazy(() => import('@/ee/pages/settings/embedded/api-keys/ApiKeys'));
+const EmbeddedMemories = lazy(() => import('@/ee/pages/settings/embedded/memories/EmbeddedMemories'));
 const AppEvents = lazy(() => import('@/ee/pages/embedded/app-events/AppEvents'));
+const AutomationGettingStarted = lazy(() => import('@/pages/automation/getting-started/AutomationGettingStarted'));
+const EmbeddedGettingStarted = lazy(() => import('@/ee/pages/embedded/getting-started/EmbeddedGettingStarted'));
 const AdminApiKeys = lazy(() => import('@/ee/pages/settings/platform/admin-api-keys/AdminApiKeys'));
 const AuditEvents = lazy(() => import('@/ee/pages/settings/platform/audit-events/AuditEvents'));
 const Billing = lazy(() => import('@/ee/pages/settings/platform/billing/Billing'));
@@ -99,9 +114,15 @@ const AutomationConfigurations = lazy(
     () => import('@/ee/pages/embedded/automation-configurations/AutomationConfigurations')
 );
 const Automations = lazy(() => import('@/ee/pages/embedded/automations/Automations'));
+const AutomationProjectCodeWorkflow = lazy(
+    () => import('@/ee/pages/embedded/automation-project-code-workflow/AutomationProjectCodeWorkflow')
+);
 const Automation = lazy(() => import('@/ee/pages/embedded/automation/Automation'));
 const ConnectedUsers = lazy(() => import('@/ee/pages/embedded/connected-users/ConnectedUsers'));
 const CustomComponents = lazy(() => import('@/ee/pages/settings/platform/custom-components/CustomComponents'));
+const CustomComponentDetail = lazy(
+    () => import('@/ee/pages/settings/platform/custom-components/CustomComponentDetail')
+);
 const EmbeddedConnections = lazy(() =>
     import('@/ee/pages/embedded/connections/Connections').then((module) => ({default: module.Connections}))
 );
@@ -208,23 +229,6 @@ const currentWorkspaceSettingsRoutes = {
             path: 'workspace-api-keys',
         },
     ],
-    navItems: [
-        {
-            title: 'Current Workspace',
-        },
-        {
-            href: 'git-configuration',
-            title: 'Git Configuration',
-        },
-        {
-            href: 'workspace-api-keys',
-            title: 'API Keys',
-        },
-    ],
-};
-
-const organizationSettingsNavItem = {
-    title: 'Organization',
 };
 
 // Platform settings routes
@@ -294,16 +298,6 @@ const platformSettingsRoutes = {
             element: (
                 <PrivateRoute hasAnyAuthorities={[AUTHORITIES.ADMIN, AUTHORITIES.USER]}>
                     <LazyLoadWrapper>
-                        <AiAutoMemories />
-                    </LazyLoadWrapper>
-                </PrivateRoute>
-            ),
-            path: 'ai/memories',
-        },
-        {
-            element: (
-                <PrivateRoute hasAnyAuthorities={[AUTHORITIES.ADMIN, AUTHORITIES.USER]}>
-                    <LazyLoadWrapper>
                         <McpServer />
                     </LazyLoadWrapper>
                 </PrivateRoute>
@@ -311,15 +305,32 @@ const platformSettingsRoutes = {
             path: 'mcp-server',
         },
         {
-            element: (
-                <PrivateRoute hasAnyAuthorities={[AUTHORITIES.ADMIN, AUTHORITIES.USER]}>
-                    <EEVersion>
-                        <LazyLoadWrapper>
-                            <CustomComponents />
-                        </LazyLoadWrapper>
-                    </EEVersion>
-                </PrivateRoute>
-            ),
+            children: [
+                {
+                    element: (
+                        <PrivateRoute hasAnyAuthorities={[AUTHORITIES.ADMIN, AUTHORITIES.USER]}>
+                            <EEVersion>
+                                <LazyLoadWrapper>
+                                    <CustomComponents />
+                                </LazyLoadWrapper>
+                            </EEVersion>
+                        </PrivateRoute>
+                    ),
+                    index: true,
+                },
+                {
+                    element: (
+                        <PrivateRoute hasAnyAuthorities={[AUTHORITIES.ADMIN, AUTHORITIES.USER]}>
+                            <EEVersion>
+                                <LazyLoadWrapper>
+                                    <CustomComponentDetail />
+                                </LazyLoadWrapper>
+                            </EEVersion>
+                        </PrivateRoute>
+                    ),
+                    path: ':id',
+                },
+            ],
             path: 'custom-components',
         },
         {
@@ -434,70 +445,23 @@ const platformSettingsRoutes = {
             path: 'audit-events',
         },
     ],
-    navItems: [
-        {
-            href: 'users',
-            title: 'Users',
-        },
-        {
-            href: 'billing',
-            title: 'Billing',
-        },
-        {
-            href: 'single-sign-on',
-            title: 'Single Sign-On',
-        },
-        {
-            items: [
-                {
-                    href: 'ai-providers',
-                    title: 'Providers',
-                },
-                {
-                    href: 'ai/skills',
-                    title: 'Skills',
-                },
-                {
-                    href: 'ai/memories',
-                    title: 'Memories',
-                },
-            ],
-            title: 'AI',
-        },
-        {
-            href: 'mcp-server',
-            title: 'MCP Server',
-        },
-        {
-            href: 'custom-components',
-            title: 'Custom Components',
-        },
-        {
-            href: `api-connectors`,
-            title: 'API Connectors',
-        },
-        {
-            href: 'notifications',
-            title: 'Notifications',
-        },
-        {
-            href: 'identity-providers',
-            title: 'Identity Providers',
-        },
-        {
-            href: 'registered-clients',
-            title: 'OAuth2 Clients',
-        },
-        {
-            href: 'admin-api-keys',
-            title: 'Admin API Keys',
-        },
-        {
-            href: 'audit-events',
-            title: 'Audit Events',
-        },
-    ],
 };
+
+const automationMemoriesRoute = {
+    element: (
+        <PrivateRoute hasAnyAuthorities={[AUTHORITIES.ADMIN, AUTHORITIES.USER]}>
+            <LazyLoadWrapper>
+                <AiAutoMemories />
+            </LazyLoadWrapper>
+        </PrivateRoute>
+    ),
+    path: 'ai/memories',
+};
+
+const organizationSettingsRedirectRoutes = ORGANIZATION_SETTINGS_PAGES.map((organizationSettingsPage) => ({
+    element: <OrganizationSettingsRedirect />,
+    path: `${organizationSettingsPage}/*`,
+}));
 
 export const loadEnvironments = async (queryClient: QueryClient) => {
     if (authenticationStore.getState().authenticated) {
@@ -654,11 +618,21 @@ export const getRouter = (queryClient: QueryClient) =>
                             children: [
                                 {
                                     index: true,
-                                    loader: async () => {
-                                        return redirect('projects');
-                                    },
+                                    loader: async () => redirect(await loadAutomationIndexRedirect(queryClient)),
                                 },
                                 getAccountRoutes('/automation'),
+                                {
+                                    element: (
+                                        <PrivateRoute hasAnyAuthorities={[AUTHORITIES.ADMIN, AUTHORITIES.USER]}>
+                                            <LazyLoadWrapper>
+                                                <AutomationGettingStarted />
+                                            </LazyLoadWrapper>
+                                        </PrivateRoute>
+                                    ),
+                                    loader: async () =>
+                                        redirectOutsideDevelopmentEnvironment('/automation/deployments'),
+                                    path: AUTOMATION_GETTING_STARTED_ROUTE_PATH,
+                                },
                                 {
                                     element: (
                                         <PrivateRoute hasAnyAuthorities={[AUTHORITIES.ADMIN, AUTHORITIES.USER]}>
@@ -901,36 +875,36 @@ export const getRouter = (queryClient: QueryClient) =>
                                     path: 'approval-tasks',
                                 },
                                 {
-                                    loader: async () => redirect('/automation/settings/ai/skills'),
+                                    loader: async () => redirect(AI_SKILLS_SETTINGS_PATH),
                                     path: 'ai',
                                 },
                                 {
-                                    loader: async () => redirect('/automation/settings/ai/skills'),
+                                    loader: async () => redirect(AI_SKILLS_SETTINGS_PATH),
                                     path: 'ai/skills',
                                 },
                                 {
-                                    loader: async () => redirect('/automation/settings/ai/skills'),
+                                    loader: async () => redirect(AI_SKILLS_SETTINGS_PATH),
                                     path: 'ai/skills/create',
                                 },
                                 {
-                                    loader: async () => redirect('/automation/settings/ai/skills'),
+                                    loader: async () => redirect(AI_SKILLS_SETTINGS_PATH),
                                     path: 'ai/skills/create/write',
                                 },
                                 {
-                                    loader: async () => redirect('/automation/settings/ai/skills'),
+                                    loader: async () => redirect(AI_SKILLS_SETTINGS_PATH),
                                     path: 'ai/skills/create/upload',
                                 },
                                 {
-                                    loader: async () => redirect('/automation/settings/ai/skills'),
+                                    loader: async () => redirect(AI_SKILLS_SETTINGS_PATH),
                                     path: 'ai/skills/create/ai',
                                 },
                                 {
                                     loader: async ({params}) =>
-                                        redirect(`/automation/settings/ai/skills/${params.skillId}`),
+                                        redirect(`${AI_SKILLS_SETTINGS_PATH}/${params.skillId}`),
                                     path: 'ai/skills/:skillId',
                                 },
                                 {
-                                    loader: () => redirect('/automation/settings/ai/memories'),
+                                    loader: () => redirect(MEMORIES_SETTINGS_PATH),
                                     path: 'ai/memories',
                                 },
                                 {
@@ -954,21 +928,10 @@ export const getRouter = (queryClient: QueryClient) =>
                                             path: 'workspaces',
                                         },
                                         ...currentWorkspaceSettingsRoutes.children,
-                                        ...platformSettingsRoutes.children,
+                                        automationMemoriesRoute,
+                                        ...organizationSettingsRedirectRoutes,
                                     ],
-                                    element: (
-                                        <Settings
-                                            sidebarNavItems={[
-                                                ...currentWorkspaceSettingsRoutes.navItems,
-                                                organizationSettingsNavItem,
-                                                {
-                                                    href: '/automation/settings/workspaces',
-                                                    title: 'Workspaces',
-                                                },
-                                                ...platformSettingsRoutes.navItems,
-                                            ]}
-                                        />
-                                    ),
+                                    element: <SettingsLayout />,
                                     path: 'settings',
                                 },
                             ],
@@ -979,11 +942,21 @@ export const getRouter = (queryClient: QueryClient) =>
                             children: [
                                 {
                                     index: true,
-                                    loader: async () => {
-                                        return redirect('integrations');
-                                    },
+                                    loader: async () => redirect(await loadEmbeddedIndexRedirect(queryClient)),
                                 },
                                 getAccountRoutes('/embedded'),
+                                {
+                                    element: (
+                                        <PrivateRoute hasAnyAuthorities={[AUTHORITIES.ADMIN]}>
+                                            <EEVersion>
+                                                <LazyLoadWrapper>
+                                                    <EmbeddedGettingStarted />
+                                                </LazyLoadWrapper>
+                                            </EEVersion>
+                                        </PrivateRoute>
+                                    ),
+                                    path: EMBEDDED_GETTING_STARTED_ROUTE_PATH,
+                                },
                                 {
                                     element: (
                                         <PrivateRoute hasAnyAuthorities={[AUTHORITIES.ADMIN, AUTHORITIES.USER]}>
@@ -1093,6 +1066,18 @@ export const getRouter = (queryClient: QueryClient) =>
                                         <PrivateRoute hasAnyAuthorities={[AUTHORITIES.ADMIN, AUTHORITIES.USER]}>
                                             <EEVersion>
                                                 <LazyLoadWrapper>
+                                                    <AutomationProjectCodeWorkflow />
+                                                </LazyLoadWrapper>
+                                            </EEVersion>
+                                        </PrivateRoute>
+                                    ),
+                                    path: 'automations/projects/:automationProjectId/code',
+                                },
+                                {
+                                    element: (
+                                        <PrivateRoute hasAnyAuthorities={[AUTHORITIES.ADMIN, AUTHORITIES.USER]}>
+                                            <EEVersion>
+                                                <LazyLoadWrapper>
                                                     <ConnectedUsers />
                                                 </LazyLoadWrapper>
                                             </EEVersion>
@@ -1192,29 +1177,38 @@ export const getRouter = (queryClient: QueryClient) =>
                                             ),
                                             path: 'api-keys',
                                         },
-                                        ...platformSettingsRoutes.children,
+                                        {
+                                            element: (
+                                                <PrivateRoute hasAnyAuthorities={[AUTHORITIES.ADMIN]}>
+                                                    <EEVersion>
+                                                        <LazyLoadWrapper>
+                                                            <EmbeddedMemories />
+                                                        </LazyLoadWrapper>
+                                                    </EEVersion>
+                                                </PrivateRoute>
+                                            ),
+                                            path: 'ai/memories',
+                                        },
+                                        ...organizationSettingsRedirectRoutes,
                                     ],
-                                    element: (
-                                        <Settings
-                                            sidebarNavItems={[
-                                                {
-                                                    href: '/embedded/settings/signing-keys',
-                                                    title: 'Signing Keys',
-                                                },
-                                                {
-                                                    href: '/embedded/settings/api-keys',
-                                                    title: 'API Keys',
-                                                },
-                                                organizationSettingsNavItem,
-                                                ...platformSettingsRoutes.navItems,
-                                            ]}
-                                        />
-                                    ),
+                                    element: <SettingsLayout />,
                                     path: 'settings',
                                 },
                             ],
                             errorElement: <ErrorPage />,
                             path: 'embedded',
+                        },
+                        {
+                            children: [
+                                {
+                                    index: true,
+                                    loader: () => redirect(`${ORGANIZATION_SETTINGS_PATH}/users`),
+                                },
+                                ...platformSettingsRoutes.children,
+                            ],
+                            element: <SettingsLayout />,
+                            errorElement: <ErrorPage />,
+                            path: 'settings',
                         },
                     ],
                     path: '/',

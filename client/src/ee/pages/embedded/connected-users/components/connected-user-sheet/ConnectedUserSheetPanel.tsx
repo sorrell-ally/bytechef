@@ -1,13 +1,12 @@
 import {Tabs, TabsContent, TabsList, TabsTrigger} from '@/components/ui/tabs';
+import ConnectedUserSheetPanelConnectionList from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserSheetPanelConnectionList';
 import ConnectedUserSheetPanelExternalInvocationList from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserSheetPanelExternalInvocationList';
 import ConnectedUserSheetPanelIntegrationList from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserSheetPanelIntegrationList';
 import ConnectedUserSheetPanelMcpServerList from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserSheetPanelMcpServerList';
 import ConnectedUserSheetPanelProfile from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserSheetPanelProfile';
+import ConnectedUserSheetPanelWorkflowExecutionList from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserSheetPanelWorkflowExecutionList';
 import ConnectedUserSheetPanelWorkflowList from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserSheetPanelWorkflowList';
 import {ConnectedUser} from '@/ee/shared/middleware/embedded/connected-user';
-
-const tabsTriggerClassName =
-    'grow rounded-none border-0 border-b border-border py-2.5 text-content-neutral-secondary shadow-none hover:text-content-brand-primary group-data-[variant=default]/tabs-list:data-[state=active]:shadow-none data-[state=active]:border-stroke-brand-primary data-[state=active]:bg-transparent data-[state=active]:text-content-brand-primary data-[state=active]:shadow-none';
 
 interface ConnectedUserSheetPanelProps {
     connectedUser: ConnectedUser;
@@ -23,22 +22,18 @@ const ConnectedUserSheetPanel = ({connectedUser}: ConnectedUserSheetPanelProps) 
             </div>
 
             <Tabs className="w-full" defaultValue="integrations">
-                <TabsList className="h-auto w-full justify-start rounded-none bg-transparent p-0">
-                    <TabsTrigger className={tabsTriggerClassName} value="integrations">
-                        Integrations
-                    </TabsTrigger>
+                <TabsList>
+                    <TabsTrigger value="integrations">Integrations</TabsTrigger>
 
-                    <TabsTrigger className={tabsTriggerClassName} value="mcp-servers">
-                        MCP Servers
-                    </TabsTrigger>
+                    <TabsTrigger value="workflows">Automations</TabsTrigger>
 
-                    <TabsTrigger className={tabsTriggerClassName} value="workflows">
-                        Automations
-                    </TabsTrigger>
+                    <TabsTrigger value="mcp-servers">MCP Servers</TabsTrigger>
 
-                    <TabsTrigger className={tabsTriggerClassName} value="external-invocations">
-                        External Invocations
-                    </TabsTrigger>
+                    <TabsTrigger value="connections">Connections</TabsTrigger>
+
+                    <TabsTrigger value="workflow-executions">Workflow Executions</TabsTrigger>
+
+                    <TabsTrigger value="external-invocations">External Invocations</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="integrations">
@@ -47,6 +42,16 @@ const ConnectedUserSheetPanel = ({connectedUser}: ConnectedUserSheetPanelProps) 
                             connectedUser={connectedUser}
                             connectedUserId={connectedUser.id!}
                             connectedUserIntegrationInstances={connectedUser.integrationInstances}
+                        />
+                    )}
+                </TabsContent>
+
+                <TabsContent value="workflows">
+                    {connectedUser.id != null && (
+                        <ConnectedUserSheetPanelWorkflowList
+                            connectedUserEmail={connectedUser.email}
+                            connectedUserId={connectedUser.id}
+                            connectedUserName={connectedUser.name}
                         />
                     )}
                 </TabsContent>
@@ -60,13 +65,18 @@ const ConnectedUserSheetPanel = ({connectedUser}: ConnectedUserSheetPanelProps) 
                     )}
                 </TabsContent>
 
-                <TabsContent value="workflows">
+                <TabsContent value="connections">
                     {connectedUser.id != null && (
-                        <ConnectedUserSheetPanelWorkflowList
-                            connectedUserEmail={connectedUser.email}
+                        <ConnectedUserSheetPanelConnectionList
                             connectedUserId={connectedUser.id}
-                            connectedUserName={connectedUser.name}
+                            connectedUserIntegrationInstances={connectedUser.integrationInstances ?? []}
                         />
+                    )}
+                </TabsContent>
+
+                <TabsContent value="workflow-executions">
+                    {connectedUser.id != null && (
+                        <ConnectedUserSheetPanelWorkflowExecutionList connectedUserId={connectedUser.id} />
                     )}
                 </TabsContent>
 

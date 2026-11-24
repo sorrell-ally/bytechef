@@ -30,6 +30,26 @@ export const useCreateConnectionMutation = (mutationProps?: CreateConnectionMuta
         onSuccess: mutationProps?.onSuccess,
     });
 
+interface DeleteConnectedUserConnectionMutationProps {
+    onSuccess?: () => void;
+    onError?: (error: Error, connectionId: number) => void;
+}
+
+export const useDeleteConnectedUserConnectionMutation = (
+    connectedUserId: number,
+    mutationProps?: DeleteConnectedUserConnectionMutationProps
+) =>
+    useMutation<void, Error, number>({
+        mutationFn: (connectionId: number) => {
+            return new ConnectionApi().deleteConnectedUserConnection({
+                connectedUserId,
+                connectionId,
+            });
+        },
+        onError: mutationProps?.onError,
+        onSuccess: mutationProps?.onSuccess,
+    });
+
 interface DeleteConnectionMutationProps {
     onSuccess?: () => void;
     onError?: (error: Error, id: number) => void;
@@ -50,6 +70,23 @@ interface UpdateConnectionCredentialsMutationProps {
     onSuccess?: (result: void, variables: Connection) => void;
     onError?: (error: Error, variables: Connection) => void;
 }
+
+export const getUpdateConnectedUserConnectionCredentials =
+    (connectedUserId: number) => (mutationProps?: UpdateConnectionCredentialsMutationProps) =>
+        useMutation<void, Error, Connection>({
+            mutationFn: (connection: Connection) => {
+                return new ConnectionApi().updateConnectedUserConnectionCredentials({
+                    connectedUserId,
+                    connectionId: connection.id!,
+                    updateConnectionCredentialsRequest: {
+                        parameters: connection.parameters!,
+                        version: connection.version!,
+                    },
+                });
+            },
+            onError: mutationProps?.onError,
+            onSuccess: mutationProps?.onSuccess,
+        });
 
 export const useUpdateConnectionCredentialsMutation = (mutationProps?: UpdateConnectionCredentialsMutationProps) =>
     useMutation<void, Error, Connection>({
@@ -78,6 +115,7 @@ export const useUpdateConnectionMutation = (mutationProps?: UpdateConnectionMuta
                 id: connection.id!,
                 updateConnectionRequest: {
                     name: connection.name,
+                    shared: connection.shared,
                     tags: connection.tags!,
                     version: connection.version!,
                 },

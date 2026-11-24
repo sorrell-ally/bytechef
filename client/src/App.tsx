@@ -1,17 +1,26 @@
 import {SidebarInset, SidebarProvider} from '@/components/ui/sidebar';
 import {Toaster} from '@/components/ui/sonner';
 import useFetchInterceptor from '@/config/useFetchInterceptor';
+import useEmbeddedGettingStartedCompleted from '@/ee/pages/embedded/getting-started/hooks/useEmbeddedGettingStartedCompleted';
+import shouldShowEmbeddedGettingStarted from '@/ee/pages/embedded/getting-started/shouldShowEmbeddedGettingStarted';
 import {useUserGuiding} from '@/hooks/useUserGuiding';
+import useAutomationGettingStartedCompleted from '@/pages/automation/getting-started/hooks/useAutomationGettingStartedCompleted';
+import shouldShowAutomationGettingStarted from '@/pages/automation/getting-started/shouldShowAutomationGettingStarted';
 import {useCloseProjectsLeftSidebarOnLeave} from '@/pages/automation/project/hooks/useCloseProjectsLeftSidebarOnLeave';
+import {useWorkspaceStore} from '@/pages/automation/stores/useWorkspaceStore';
+import {AUTOMATION_GETTING_STARTED_PATH, EMBEDDED_GETTING_STARTED_PATH} from '@/pages/home/constants/platformModes';
 import {PlatformType, usePlatformTypeStore} from '@/pages/home/stores/usePlatformTypeStore';
 import useCopilotPanelStore from '@/shared/components/copilot/stores/useCopilotPanelStore';
-import {DEVELOPMENT_ENVIRONMENT} from '@/shared/constants';
+import {AUTHORITIES, DEVELOPMENT_ENVIRONMENT} from '@/shared/constants';
 import {useAnalytics} from '@/shared/hooks/useAnalytics';
+import {useHasWorkspaceScope} from '@/shared/hooks/useHasWorkspaceScope';
 import {useHelpHub} from '@/shared/hooks/useHelpHub';
+import {useLoadWorkspaceScopes} from '@/shared/hooks/useLoadWorkspaceScopes';
 import {useOnLogout} from '@/shared/hooks/useOnLogout';
 import {MobileTopNavigation} from '@/shared/layout/MobileTopNavigation';
 import {TrialBanner} from '@/shared/layout/TrialBanner';
 import {AppSidebar} from '@/shared/layout/app-sidebar/AppSidebar';
+import {resolveShellPlatformMode} from '@/shared/navigation/platformMode';
 import {isStandaloneRoute} from '@/shared/navigation/standaloneRoutes';
 import {EditionType, useApplicationInfoStore} from '@/shared/stores/useApplicationInfoStore';
 import {useAuthenticationStore} from '@/shared/stores/useAuthenticationStore';
@@ -30,6 +39,7 @@ import {
     MessagesSquareIcon,
     NetworkIcon,
     RadioTowerIcon,
+    RocketIcon,
     ServerIcon,
     Settings2Icon,
     SlidersHorizontalIcon,
@@ -66,6 +76,11 @@ const serversNavigationGroup: NavigationGroupType = {icon: RadioTowerIcon, name:
 
 const automationNavigation: NavigationType[] = [
     {
+        href: AUTOMATION_GETTING_STARTED_PATH,
+        icon: RocketIcon,
+        name: 'Getting Started',
+    },
+    {
         href: '/automation/projects',
         icon: FolderIcon,
         name: 'Projects',
@@ -74,11 +89,6 @@ const automationNavigation: NavigationType[] = [
         href: '/automation/deployments',
         icon: Layers3Icon,
         name: 'Project Deployments',
-    },
-    {
-        href: '/automation/api-platform',
-        icon: LayoutTemplateIcon,
-        name: 'API Collections',
     },
     {
         group: serversNavigationGroup,
@@ -91,6 +101,11 @@ const automationNavigation: NavigationType[] = [
         href: '/automation/a2a-servers',
         icon: NetworkIcon,
         name: 'A2A Servers',
+    },
+    {
+        href: '/automation/api-platform',
+        icon: LayoutTemplateIcon,
+        name: 'API Collections',
     },
     {
         group: executionsNavigationGroup,
@@ -119,6 +134,7 @@ const automationNavigation: NavigationType[] = [
 ];
 
 const embeddedNavigation: NavigationType[] = [
+    {href: EMBEDDED_GETTING_STARTED_PATH, icon: RocketIcon, name: 'Getting Started'},
     {
         href: '/embedded/integrations',
         icon: SquareIcon,
@@ -129,7 +145,6 @@ const embeddedNavigation: NavigationType[] = [
         icon: Settings2Icon,
         name: 'Integration Configurations',
     },
-    {href: '/embedded/app-events', icon: ZapIcon, name: 'App Events'},
     {
         href: '/embedded/automations',
         icon: Workflow,
@@ -140,6 +155,7 @@ const embeddedNavigation: NavigationType[] = [
         icon: SlidersHorizontalIcon,
         name: 'Automation Configurations',
     },
+    {href: '/embedded/app-events', icon: ZapIcon, name: 'App Events'},
     {href: '/embedded/mcp-servers', icon: ServerIcon, name: 'MCP Servers'},
     {
         href: '/embedded/connected-users',
@@ -192,6 +208,7 @@ function App() {
     );
     const copilotPanelOpen = useCopilotPanelStore((state) => state.copilotPanelOpen);
     const currentEnvironmentId = useEnvironmentStore((state) => state.currentEnvironmentId);
+    const currentWorkspaceId = useWorkspaceStore((state) => state.currentWorkspaceId);
     const {currentType, setCurrentType} = usePlatformTypeStore(
         useShallow((state) => ({
             currentType: state.currentType,
@@ -205,12 +222,51 @@ function App() {
     const queryClient = useQueryClient();
     const userGuiding = useUserGuiding();
 
+    const platformMode = resolveShellPlatformMode(location.pathname, currentType);
+
     useFetchInterceptor();
+    useLoadWorkspaceScopes(platformMode === PlatformType.AUTOMATION ? currentWorkspaceId : undefined);
+
+    const canEditWorkspace = useHasWorkspaceScope(currentWorkspaceId, 'PROJECT_CREATE');
 
     const ff_1023 = useFeatureFlagsStore()('ff-1023');
     const ff_2396 = useFeatureFlagsStore()('ff-2396');
 
+    const isAdmin = !!account?.authorities?.includes(AUTHORITIES.ADMIN);
+    const isAutomationMode = platformMode === PlatformType.AUTOMATION;
+    const isEmbeddedMode = platformMode === PlatformType.EMBEDDED;
+
+    const embeddedGettingStartedCompleted = useEmbeddedGettingStartedCompleted(
+        currentEnvironmentId === DEVELOPMENT_ENVIRONMENT && isEmbeddedMode && isAdmin && edition === EditionType.EE
+    );
+
+    const automationGettingStartedCompleted = useAutomationGettingStartedCompleted({
+        enabled:
+            isAutomationMode &&
+            canEditWorkspace &&
+            currentEnvironmentId === DEVELOPMENT_ENVIRONMENT &&
+            currentWorkspaceId !== undefined,
+        workspaceId: currentWorkspaceId,
+    });
+
+    const showAutomationGettingStarted = shouldShowAutomationGettingStarted({
+        canEdit: canEditWorkspace,
+        completed: automationGettingStartedCompleted,
+        development: currentEnvironmentId === DEVELOPMENT_ENVIRONMENT,
+    });
+
+    const showEmbeddedGettingStarted = shouldShowEmbeddedGettingStarted({
+        completed: embeddedGettingStartedCompleted,
+        edition,
+        environmentId: currentEnvironmentId,
+        isAdmin,
+    });
+
     const filteredAutomationNavigation = automationNavigation.filter((navItem) => {
+        if (navItem.href === AUTOMATION_GETTING_STARTED_PATH) {
+            return showAutomationGettingStarted;
+        }
+
         if (
             currentEnvironmentId !== DEVELOPMENT_ENVIRONMENT &&
             edition === EditionType.EE &&
@@ -239,6 +295,10 @@ function App() {
     });
 
     const filteredEmbeddedNavigation = embeddedNavigation.filter((navItem) => {
+        if (navItem.href === EMBEDDED_GETTING_STARTED_PATH) {
+            return showEmbeddedGettingStarted;
+        }
+
         if (currentEnvironmentId !== 0 && navItem.href === '/embedded/integrations') {
             return false;
         }
@@ -263,9 +323,9 @@ function App() {
 
     let navigation: NavigationType[] = [];
 
-    if (location.pathname.includes('/automation/')) {
+    if (platformMode === PlatformType.AUTOMATION) {
         navigation = filteredAutomationNavigation;
-    } else if (location.pathname.includes('/embedded/')) {
+    } else if (platformMode === PlatformType.EMBEDDED) {
         navigation = filteredEmbeddedNavigation;
     }
 
@@ -343,7 +403,7 @@ function App() {
 
     return authenticated ? (
         <div className="flex h-full flex-col">
-            {billingEnabled && location.pathname.includes('/automation/') && <TrialBanner />}
+            {billingEnabled && platformMode === PlatformType.AUTOMATION && <TrialBanner />}
 
             {/* transform-gpu gives fixed-position descendants (page sidebars) a containing
                 block scoped to this element, so they render below the banner instead of

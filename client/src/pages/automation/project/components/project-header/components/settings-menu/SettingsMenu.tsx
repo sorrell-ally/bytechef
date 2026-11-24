@@ -1,8 +1,7 @@
 import Button from '@/components/Button/Button';
-import {DropdownMenu, DropdownMenuContent, DropdownMenuTrigger} from '@/components/ui/dropdown-menu';
+import {DropdownMenu, DropdownMenuContent, DropdownMenuTrigger} from '@/components/DropdownMenu/DropdownMenu';
 import {Tabs, TabsContent, TabsList, TabsTrigger} from '@/components/ui/tabs';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip';
-import LoadWorkflowVersionDialog from '@/pages/automation/project/components/LoadWorkflowVersionDialog';
 import {ProjectShareDialog} from '@/pages/automation/project/components/ProjectShareDialog';
 import ProjectVersionHistorySheet from '@/pages/automation/project/components/ProjectVersionHistorySheet';
 import {WorkflowShareDialog} from '@/pages/automation/project/components/WorkflowShareDialog';
@@ -52,7 +51,6 @@ const SettingsMenu = ({
     const [showDeleteProjectAlertDialog, setShowDeleteProjectAlertDialog] = useState(false);
     const [showDeleteWorkflowAlertDialog, setShowDeleteWorkflowAlertDialog] = useState(false);
     const [showEditProjectDialog, setShowEditProjectDialog] = useState(false);
-    const [showLoadWorkflowVersionDialog, setShowLoadWorkflowVersionDialog] = useState(false);
     const [showProjectGitConfigurationDialog, setShowProjectGitConfigurationDialog] = useState(false);
     const [showProjectGitSyncDialog, setShowProjectGitSyncDialog] = useState(false);
     const [showProjectShareDialog, setShowProjectShareDialog] = useState(false);
@@ -97,6 +95,27 @@ const SettingsMenu = ({
         restoreProjectVersionPending,
     } = useSettingsMenu({project, workflow});
 
+    const projectTabButtons = (
+        <ProjectTabButtons
+            codeWorkflow={project.codeWorkflow}
+            importN8nWorkflowDisabled={importN8nWorkflowDisabled}
+            onDeleteProjectClick={() => setShowDeleteProjectAlertDialog(true)}
+            onDuplicateProjectClick={handleDuplicateProjectClick}
+            onImportN8nWorkflowClick={() => n8nWorkflowFileInputRef.current?.click()}
+            onImportWorkflowClick={() => workflowFileInputRef.current?.click()}
+            onNewWorkflowClick={() => setShowCreateWorkflowDialog(true)}
+            onNewWorkflowFromTemplateClick={() => navigate(`/automation/projects/${project.id}/templates`)}
+            onPullProjectFromGitClick={handlePullProjectFromGitClick}
+            onShareProject={() => setShowProjectShareDialog(true)}
+            onShowEditProjectDialogClick={() => setShowEditProjectDialog(true)}
+            onShowProjectGitConfigurationDialog={() => setShowProjectGitConfigurationDialog(true)}
+            onShowProjectGitSyncDialog={() => setShowProjectGitSyncDialog(true)}
+            onShowProjectVersionHistorySheet={() => setShowProjectVersionHistorySheet(true)}
+            projectGitConfigurationEnabled={projectGitConfiguration?.enabled ?? false}
+            projectId={project.id!}
+        />
+    );
+
     return (
         <>
             <DropdownMenu onOpenChange={setOpenDropdownMenu} open={openDropdownMenu}>
@@ -124,61 +143,44 @@ const SettingsMenu = ({
                     <TooltipContent>Project and workflow settings</TooltipContent>
                 </Tooltip>
 
-                <DropdownMenuContent align="end" className="p-0">
-                    <Tabs aria-label="Settings menu" defaultValue="workflow">
-                        <TabsList className="rounded-none">
-                            <TabsTrigger
-                                aria-label="Workflow tab"
-                                className="w-1/2 px-9 py-1 data-[state=active]:shadow-none"
-                                value="workflow"
-                            >
-                                Workflow
-                            </TabsTrigger>
+                <DropdownMenuContent align="end">
+                    {project.codeWorkflow ? (
+                        projectTabButtons
+                    ) : (
+                        <Tabs aria-label="Settings menu" defaultValue="workflow">
+                            <TabsList className="rounded-none">
+                                <TabsTrigger
+                                    aria-label="Workflow tab"
+                                    className="w-1/2 px-9 py-1 data-[state=active]:shadow-none"
+                                    value="workflow"
+                                >
+                                    Workflow
+                                </TabsTrigger>
 
-                            <TabsTrigger
-                                aria-label="Project tab"
-                                className="w-1/2 px-9 py-1 data-[state=active]:shadow-none"
-                                value="project"
-                            >
-                                Project
-                            </TabsTrigger>
-                        </TabsList>
+                                <TabsTrigger
+                                    aria-label="Project tab"
+                                    className="w-1/2 px-9 py-1 data-[state=active]:shadow-none"
+                                    value="project"
+                                >
+                                    Project
+                                </TabsTrigger>
+                            </TabsList>
 
-                        <TabsContent className="mt-0" value="workflow">
-                            <WorkflowTabButtons
-                                onCloseDropdownMenu={() => setOpenDropdownMenu(false)}
-                                onDuplicateWorkflow={handleDuplicateWorkflowClick}
-                                onShareWorkflow={() => setShowWorkflowShareDialog(true)}
-                                onShowDeleteWorkflowAlertDialog={() => setShowDeleteWorkflowAlertDialog(true)}
-                                onShowEditWorkflowDialog={() => setShowEditWorkflowDialog(true)}
-                                onShowLoadWorkflowVersionDialog={() => setShowLoadWorkflowVersionDialog(true)}
-                                workflowId={workflow.id!}
-                            />
-                        </TabsContent>
+                            <TabsContent className="mt-0" value="workflow">
+                                <WorkflowTabButtons
+                                    onDuplicateWorkflow={handleDuplicateWorkflowClick}
+                                    onShareWorkflow={() => setShowWorkflowShareDialog(true)}
+                                    onShowDeleteWorkflowAlertDialog={() => setShowDeleteWorkflowAlertDialog(true)}
+                                    onShowEditWorkflowDialog={() => setShowEditWorkflowDialog(true)}
+                                    workflowId={workflow.id!}
+                                />
+                            </TabsContent>
 
-                        <TabsContent className="mt-0" value="project">
-                            <ProjectTabButtons
-                                importN8nWorkflowDisabled={importN8nWorkflowDisabled}
-                                onCloseDropdownMenuClick={() => setOpenDropdownMenu(false)}
-                                onDeleteProjectClick={() => setShowDeleteProjectAlertDialog(true)}
-                                onDuplicateProjectClick={handleDuplicateProjectClick}
-                                onImportN8nWorkflowClick={() => n8nWorkflowFileInputRef.current?.click()}
-                                onImportWorkflowClick={() => workflowFileInputRef.current?.click()}
-                                onNewWorkflowClick={() => setShowCreateWorkflowDialog(true)}
-                                onNewWorkflowFromTemplateClick={() =>
-                                    navigate(`/automation/projects/${project.id}/templates`)
-                                }
-                                onPullProjectFromGitClick={handlePullProjectFromGitClick}
-                                onShareProject={() => setShowProjectShareDialog(true)}
-                                onShowEditProjectDialogClick={() => setShowEditProjectDialog(true)}
-                                onShowProjectGitConfigurationDialog={() => setShowProjectGitConfigurationDialog(true)}
-                                onShowProjectGitSyncDialog={() => setShowProjectGitSyncDialog(true)}
-                                onShowProjectVersionHistorySheet={() => setShowProjectVersionHistorySheet(true)}
-                                projectGitConfigurationEnabled={projectGitConfiguration?.enabled ?? false}
-                                projectId={project.id!}
-                            />
-                        </TabsContent>
-                    </Tabs>
+                            <TabsContent className="mt-0" value="project">
+                                {projectTabButtons}
+                            </TabsContent>
+                        </Tabs>
+                    )}
                 </DropdownMenuContent>
             </DropdownMenu>
 
@@ -243,14 +245,6 @@ const SettingsMenu = ({
                 />
             )}
 
-            {showLoadWorkflowVersionDialog && workflow.workflowUuid && (
-                <LoadWorkflowVersionDialog
-                    onClose={() => setShowLoadWorkflowVersionDialog(false)}
-                    projectId={project.id!}
-                    workflowUuid={workflow.workflowUuid}
-                />
-            )}
-
             {showProjectGitConfigurationDialog && (
                 <EEVersion hidden={true}>
                     <Suspense fallback={null}>
@@ -288,6 +282,7 @@ const SettingsMenu = ({
                     projectVersions={projectVersions}
                     restoreProjectVersionPending={restoreProjectVersionPending}
                     sheetOpen={showProjectVersionHistorySheet}
+                    unpublishedChanges={project.unpublishedChanges}
                 />
             )}
 

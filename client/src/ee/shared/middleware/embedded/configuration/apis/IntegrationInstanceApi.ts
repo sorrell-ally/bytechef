@@ -38,6 +38,16 @@ import {
     UpdateConnectionCredentialsRequestFromJSON,
     UpdateConnectionCredentialsRequestToJSON,
 } from '../models/UpdateConnectionCredentialsRequest';
+import {
+    type UpdateIntegrationInstanceConnectionRequest,
+    UpdateIntegrationInstanceConnectionRequestFromJSON,
+    UpdateIntegrationInstanceConnectionRequestToJSON,
+} from '../models/UpdateIntegrationInstanceConnectionRequest';
+import {
+    type UpdateIntegrationInstanceWorkflowRequest,
+    UpdateIntegrationInstanceWorkflowRequestFromJSON,
+    UpdateIntegrationInstanceWorkflowRequestToJSON,
+} from '../models/UpdateIntegrationInstanceWorkflowRequest';
 
 export interface DeleteIntegrationInstanceRequest {
     /**
@@ -104,6 +114,17 @@ export interface ProvisionIntegrationInstanceOperationRequest {
     provisionIntegrationInstanceRequest: ProvisionIntegrationInstanceRequest;
 }
 
+export interface UpdateIntegrationInstanceConnectionOperationRequest {
+    /**
+     * The id of an integration instance.
+     */
+    id: number;
+    /**
+     * 
+     */
+    updateIntegrationInstanceConnectionRequest: UpdateIntegrationInstanceConnectionRequest;
+}
+
 export interface UpdateIntegrationInstanceCredentialsRequest {
     /**
      * The id of an integration instance.
@@ -113,6 +134,21 @@ export interface UpdateIntegrationInstanceCredentialsRequest {
      * 
      */
     updateConnectionCredentialsRequest: UpdateConnectionCredentialsRequest;
+}
+
+export interface UpdateIntegrationInstanceWorkflowOperationRequest {
+    /**
+     * The id of an integration instance.
+     */
+    id: number;
+    /**
+     * The id of an integration instance workflow.
+     */
+    workflowId: string;
+    /**
+     * 
+     */
+    updateIntegrationInstanceWorkflowRequest: UpdateIntegrationInstanceWorkflowRequest;
 }
 
 /**
@@ -485,6 +521,62 @@ export class IntegrationInstanceApi extends runtime.BaseAPI {
     }
 
     /**
+     * Creates request options for updateIntegrationInstanceConnection without sending the request
+     */
+    async updateIntegrationInstanceConnectionRequestOpts(requestParameters: UpdateIntegrationInstanceConnectionOperationRequest): Promise<runtime.RequestOpts> {
+        if (requestParameters['id'] == null) {
+            throw new runtime.RequiredError(
+                'id',
+                'Required parameter "id" was null or undefined when calling updateIntegrationInstanceConnection().'
+            );
+        }
+
+        if (requestParameters['updateIntegrationInstanceConnectionRequest'] == null) {
+            throw new runtime.RequiredError(
+                'updateIntegrationInstanceConnectionRequest',
+                'Required parameter "updateIntegrationInstanceConnectionRequest" was null or undefined when calling updateIntegrationInstanceConnection().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        headerParameters['Content-Type'] = 'application/json';
+
+
+        let urlPath = `/integration-instances/{id}/connection`;
+        urlPath = urlPath.replace('{id}', encodeURIComponent(String(requestParameters['id'])));
+
+        return {
+            path: urlPath,
+            method: 'PUT',
+            headers: headerParameters,
+            query: queryParameters,
+            body: UpdateIntegrationInstanceConnectionRequestToJSON(requestParameters['updateIntegrationInstanceConnectionRequest']),
+        };
+    }
+
+    /**
+     * Switches an integration instance provisioned by a tenant admin to another connection of its connected user.
+     * Switch the connection of a provisioned integration instance
+     */
+    async updateIntegrationInstanceConnectionRaw(requestParameters: UpdateIntegrationInstanceConnectionOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<void>> {
+        const requestOptions = await this.updateIntegrationInstanceConnectionRequestOpts(requestParameters);
+        const response = await this.request(requestOptions, initOverrides);
+
+        return new runtime.VoidApiResponse(response);
+    }
+
+    /**
+     * Switches an integration instance provisioned by a tenant admin to another connection of its connected user.
+     * Switch the connection of a provisioned integration instance
+     */
+    async updateIntegrationInstanceConnection(requestParameters: UpdateIntegrationInstanceConnectionOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void> {
+        await this.updateIntegrationInstanceConnectionRaw(requestParameters, initOverrides);
+    }
+
+    /**
      * Creates request options for updateIntegrationInstanceCredentials without sending the request
      */
     async updateIntegrationInstanceCredentialsRequestOpts(requestParameters: UpdateIntegrationInstanceCredentialsRequest): Promise<runtime.RequestOpts> {
@@ -538,6 +630,70 @@ export class IntegrationInstanceApi extends runtime.BaseAPI {
      */
     async updateIntegrationInstanceCredentials(requestParameters: UpdateIntegrationInstanceCredentialsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void> {
         await this.updateIntegrationInstanceCredentialsRaw(requestParameters, initOverrides);
+    }
+
+    /**
+     * Creates request options for updateIntegrationInstanceWorkflow without sending the request
+     */
+    async updateIntegrationInstanceWorkflowRequestOpts(requestParameters: UpdateIntegrationInstanceWorkflowOperationRequest): Promise<runtime.RequestOpts> {
+        if (requestParameters['id'] == null) {
+            throw new runtime.RequiredError(
+                'id',
+                'Required parameter "id" was null or undefined when calling updateIntegrationInstanceWorkflow().'
+            );
+        }
+
+        if (requestParameters['workflowId'] == null) {
+            throw new runtime.RequiredError(
+                'workflowId',
+                'Required parameter "workflowId" was null or undefined when calling updateIntegrationInstanceWorkflow().'
+            );
+        }
+
+        if (requestParameters['updateIntegrationInstanceWorkflowRequest'] == null) {
+            throw new runtime.RequiredError(
+                'updateIntegrationInstanceWorkflowRequest',
+                'Required parameter "updateIntegrationInstanceWorkflowRequest" was null or undefined when calling updateIntegrationInstanceWorkflow().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        headerParameters['Content-Type'] = 'application/json';
+
+
+        let urlPath = `/integration-instances/{id}/workflows/{workflowId}`;
+        urlPath = urlPath.replace('{id}', encodeURIComponent(String(requestParameters['id'])));
+        urlPath = urlPath.replace('{workflowId}', encodeURIComponent(String(requestParameters['workflowId'])));
+
+        return {
+            path: urlPath,
+            method: 'PUT',
+            headers: headerParameters,
+            query: queryParameters,
+            body: UpdateIntegrationInstanceWorkflowRequestToJSON(requestParameters['updateIntegrationInstanceWorkflowRequest']),
+        };
+    }
+
+    /**
+     * Update the inputs of an integration instance workflow.
+     * Update the inputs of an integration instance workflow
+     */
+    async updateIntegrationInstanceWorkflowRaw(requestParameters: UpdateIntegrationInstanceWorkflowOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<void>> {
+        const requestOptions = await this.updateIntegrationInstanceWorkflowRequestOpts(requestParameters);
+        const response = await this.request(requestOptions, initOverrides);
+
+        return new runtime.VoidApiResponse(response);
+    }
+
+    /**
+     * Update the inputs of an integration instance workflow.
+     * Update the inputs of an integration instance workflow
+     */
+    async updateIntegrationInstanceWorkflow(requestParameters: UpdateIntegrationInstanceWorkflowOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void> {
+        await this.updateIntegrationInstanceWorkflowRaw(requestParameters, initOverrides);
     }
 
 }

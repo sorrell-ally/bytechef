@@ -31,7 +31,7 @@ import jakarta.annotation.Generated;
 
 @Schema(name = "Integration", description = "A group of workflows that make one logical integration.")
 @JsonTypeName("Integration")
-@Generated(value = "org.openapitools.codegen.languages.SpringCodegen", date = "2026-10-28T07:55:59.220524+01:00[Europe/Zagreb]", comments = "Generator version: 7.26.0")
+@Generated(value = "org.openapitools.codegen.languages.SpringCodegen", date = "2026-11-13T19:43:07.740396+01:00[Europe/Zagreb]", comments = "Generator version: 7.27.0")
 public class IntegrationModel {
 
   private String componentName;
@@ -67,11 +67,17 @@ public class IntegrationModel {
 
   private @Nullable CategoryModel category;
 
+  private @Nullable Boolean codeWorkflow;
+
+  private @Nullable String codeWorkflowLanguage;
+
   private @Nullable Integer developmentConfigurationCount;
 
   private List<Long> integrationWorkflowIds = new ArrayList<>();
 
   private List<@Valid TagModel> tags = new ArrayList<>();
+
+  private @Nullable Boolean unpublishedChanges;
 
   private @Nullable Integer version;
 
@@ -402,6 +408,48 @@ public class IntegrationModel {
     this.category = category;
   }
 
+  public IntegrationModel codeWorkflow(@Nullable Boolean codeWorkflow) {
+    this.codeWorkflow = codeWorkflow;
+    return this;
+  }
+
+  /**
+   * Whether the integration is backed by a code workflow.
+   * @return codeWorkflow
+   */
+  
+  @Schema(name = "codeWorkflow", accessMode = Schema.AccessMode.READ_ONLY, description = "Whether the integration is backed by a code workflow.", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+  @JsonProperty("codeWorkflow")
+  public @Nullable Boolean getCodeWorkflow() {
+    return codeWorkflow;
+  }
+
+  @JsonProperty("codeWorkflow")
+  public void setCodeWorkflow(@Nullable Boolean codeWorkflow) {
+    this.codeWorkflow = codeWorkflow;
+  }
+
+  public IntegrationModel codeWorkflowLanguage(@Nullable String codeWorkflowLanguage) {
+    this.codeWorkflowLanguage = codeWorkflowLanguage;
+    return this;
+  }
+
+  /**
+   * The programming language of the code workflow, if the integration is code-backed.
+   * @return codeWorkflowLanguage
+   */
+  
+  @Schema(name = "codeWorkflowLanguage", accessMode = Schema.AccessMode.READ_ONLY, description = "The programming language of the code workflow, if the integration is code-backed.", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+  @JsonProperty("codeWorkflowLanguage")
+  public @Nullable String getCodeWorkflowLanguage() {
+    return codeWorkflowLanguage;
+  }
+
+  @JsonProperty("codeWorkflowLanguage")
+  public void setCodeWorkflowLanguage(@Nullable String codeWorkflowLanguage) {
+    this.codeWorkflowLanguage = codeWorkflowLanguage;
+  }
+
   public IntegrationModel developmentConfigurationCount(@Nullable Integer developmentConfigurationCount) {
     this.developmentConfigurationCount = developmentConfigurationCount;
     return this;
@@ -481,6 +529,27 @@ public class IntegrationModel {
     this.tags = tags;
   }
 
+  public IntegrationModel unpublishedChanges(@Nullable Boolean unpublishedChanges) {
+    this.unpublishedChanges = unpublishedChanges;
+    return this;
+  }
+
+  /**
+   * If the integration's draft version differs from its last published version. Computed only by the integration list endpoint; false in every other response.
+   * @return unpublishedChanges
+   */
+  
+  @Schema(name = "unpublishedChanges", accessMode = Schema.AccessMode.READ_ONLY, description = "If the integration's draft version differs from its last published version. Computed only by the integration list endpoint; false in every other response.", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+  @JsonProperty("unpublishedChanges")
+  public @Nullable Boolean getUnpublishedChanges() {
+    return unpublishedChanges;
+  }
+
+  @JsonProperty("unpublishedChanges")
+  public void setUnpublishedChanges(@Nullable Boolean unpublishedChanges) {
+    this.unpublishedChanges = unpublishedChanges;
+  }
+
   public IntegrationModel version(@Nullable Integer version) {
     this.version = version;
     return this;
@@ -526,15 +595,18 @@ public class IntegrationModel {
         Objects.equals(this.name, integration.name) &&
         Objects.equals(this.permissionExpression, integration.permissionExpression) &&
         Objects.equals(this.category, integration.category) &&
+        Objects.equals(this.codeWorkflow, integration.codeWorkflow) &&
+        Objects.equals(this.codeWorkflowLanguage, integration.codeWorkflowLanguage) &&
         Objects.equals(this.developmentConfigurationCount, integration.developmentConfigurationCount) &&
         Objects.equals(this.integrationWorkflowIds, integration.integrationWorkflowIds) &&
         Objects.equals(this.tags, integration.tags) &&
+        Objects.equals(this.unpublishedChanges, integration.unpublishedChanges) &&
         Objects.equals(this.version, integration.version);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(componentName, createdBy, createdDate, description, icon, id, lastModifiedBy, lastModifiedDate, lastPublishedDate, lastStatus, lastIntegrationVersion, multipleInstances, name, permissionExpression, category, developmentConfigurationCount, integrationWorkflowIds, tags, version);
+    return Objects.hash(componentName, createdBy, createdDate, description, icon, id, lastModifiedBy, lastModifiedDate, lastPublishedDate, lastStatus, lastIntegrationVersion, multipleInstances, name, permissionExpression, category, codeWorkflow, codeWorkflowLanguage, developmentConfigurationCount, integrationWorkflowIds, tags, unpublishedChanges, version);
   }
 
   @Override
@@ -556,9 +628,12 @@ public class IntegrationModel {
     sb.append("    name: ").append(toIndentedString(name)).append("\n");
     sb.append("    permissionExpression: ").append(toIndentedString(permissionExpression)).append("\n");
     sb.append("    category: ").append(toIndentedString(category)).append("\n");
+    sb.append("    codeWorkflow: ").append(toIndentedString(codeWorkflow)).append("\n");
+    sb.append("    codeWorkflowLanguage: ").append(toIndentedString(codeWorkflowLanguage)).append("\n");
     sb.append("    developmentConfigurationCount: ").append(toIndentedString(developmentConfigurationCount)).append("\n");
     sb.append("    integrationWorkflowIds: ").append(toIndentedString(integrationWorkflowIds)).append("\n");
     sb.append("    tags: ").append(toIndentedString(tags)).append("\n");
+    sb.append("    unpublishedChanges: ").append(toIndentedString(unpublishedChanges)).append("\n");
     sb.append("    version: ").append(toIndentedString(version)).append("\n");
     sb.append("}");
     return sb.toString();

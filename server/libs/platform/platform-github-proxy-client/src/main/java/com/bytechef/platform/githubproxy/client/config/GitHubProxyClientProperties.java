@@ -22,6 +22,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 class GitHubProxyClientProperties {
 
     private String baseUrl = "http://localhost:6123";
+    private OauthApps oauthApps = new OauthApps();
 
     public String getBaseUrl() {
         return baseUrl;
@@ -29,5 +30,26 @@ class GitHubProxyClientProperties {
 
     public void setBaseUrl(String baseUrl) {
         this.baseUrl = baseUrl;
+    }
+
+    public OauthApps getOauthApps() {
+        return oauthApps;
+    }
+
+    public void setOauthApps(OauthApps oauthApps) {
+        this.oauthApps = oauthApps;
+    }
+
+    static class OauthApps {
+
+        private String apiKey = "";
+
+        public String getApiKey() {
+            return apiKey;
+        }
+
+        public void setApiKey(String apiKey) {
+            this.apiKey = apiKey;
+        }
     }
 }

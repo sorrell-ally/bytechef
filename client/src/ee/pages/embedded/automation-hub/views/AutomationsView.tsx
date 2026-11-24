@@ -5,6 +5,7 @@ import {
     useDeleteAutomationMutation,
     useDeprovisionReferenceMutation,
     useSetAutomationEnabledMutation,
+    useSetAutomationMcpEnabledMutation,
 } from '@/ee/pages/embedded/automation-hub/mutations/automationHub.mutations';
 import {
     AutomationHubKeys,
@@ -20,8 +21,8 @@ import TemplateGridSection, {
     CatalogLayoutType,
 } from '@/ee/pages/embedded/automation-hub/views/components/TemplateGridSection';
 import {getEmbedCredentials} from '@/ee/pages/embedded/shared/embedCredentials';
-import {AutomationProjectWorkflowTemplate, ConnectedUserProjectWorkflow} from '@/ee/shared/middleware/embedded/public';
 import {ActivationDialog} from '@bytechef/embedded';
+import {AutomationProjectWorkflowTemplate, ConnectedUserProjectWorkflow} from '@bytechef/embedded-api';
 import {useQueryClient} from '@tanstack/react-query';
 import {useCallback, useMemo, useState} from 'react';
 import {useNavigate} from 'react-router-dom';
@@ -76,6 +77,7 @@ const AutomationsView = ({onActivate}: AutomationsViewProps) => {
     const {mutateAsync: deleteAutomation} = useDeleteAutomationMutation();
     const {mutateAsync: deprovisionReference} = useDeprovisionReferenceMutation();
     const {mutateAsync: setEnabled} = useSetAutomationEnabledMutation();
+    const {mutateAsync: setMcpEnabled} = useSetAutomationMcpEnabledMutation();
 
     const handleActivated = useCallback(() => {
         void queryClient.invalidateQueries({queryKey: AutomationHubKeys.automations});
@@ -190,6 +192,7 @@ const AutomationsView = ({onActivate}: AutomationsViewProps) => {
                     onDeleteAutomation={deleteAutomation}
                     onDeprovisionReference={deprovisionReference}
                     onSetEnabled={setEnabled}
+                    onSetMcpEnabled={setMcpEnabled}
                     onUseTemplate={handleUseTemplate}
                     projects={projects || []}
                     search={search}

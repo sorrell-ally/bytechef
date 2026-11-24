@@ -32,10 +32,7 @@ const templates = [
     {
         components: [{connectionRequired: true, integrationId: 5, name: 'slack', provided: true, title: 'Slack'}],
         id: 'wf-provided',
-        inputs: [
-            {label: 'Region', name: 'region', provided: true, required: true},
-            {label: 'Note', name: 'note'},
-        ],
+        inputs: [{label: 'Note', name: 'note'}],
         label: 'Provided automation',
     },
     {
@@ -43,6 +40,32 @@ const templates = [
         id: 'wf-provided-only',
         inputs: [],
         label: 'Provided connection only',
+    },
+    {
+        components: [{connectionRequired: true, integrationId: 5, name: 'slack', title: 'Slack'}],
+        id: 'wf-slack-channel',
+        inputs: [
+            {
+                componentReference: {componentName: 'slack', componentVersion: 1, groupName: 'channel'},
+                label: 'Channel',
+                name: 'channel',
+                required: true,
+            },
+        ],
+        label: 'Slack digest',
+    },
+    {
+        components: [],
+        id: 'wf-unconnected-channel',
+        inputs: [
+            {
+                componentReference: {componentName: 'slack', componentVersion: 1, groupName: 'channel'},
+                label: 'Channel',
+                name: 'channel',
+                required: true,
+            },
+        ],
+        label: 'Unconnected digest',
     },
     {components: [], id: 'wf-code', inputs: [], kind: 'REFERENCE', label: 'Code workflow'},
     {components: [], id: 'wf-hidden', inputs: [], label: 'Hidden from the hub'},
@@ -66,6 +89,7 @@ let connectionsStatus = 200;
 let deprovisionStatus = 200;
 let provisionGate: Promise<void> | undefined;
 let enableResponse: {body: unknown; status: number} = {body: {}, status: 200};
+let componentInputOptionsByConnectionId: Record<number, Array<{label: string; value: string}>> = {};
 let provisionResponse: {body: unknown; status: number} = {body: {}, status: 200};
 let workflowsResponse: {body: unknown; status: number} = {body: [], status: 200};
 let copyResponse: {body: unknown; status: number} = {body: 'wf-copy', status: 200};
@@ -108,6 +132,12 @@ const installFetch = () => {
             return respond(enableResponse.status, enableResponse.body);
         }
 
+        if (url.endsWith('/automation/component-input-options') && method === 'POST') {
+            const {connectionId} = JSON.parse(init?.body as string) as {connectionId: number};
+
+            return respond(200, componentInputOptionsByConnectionId[connectionId] ?? []);
+        }
+
         if (url.endsWith('/copy') && method === 'POST') {
             return respond(copyResponse.status, copyResponse.body);
         }
@@ -139,6 +169,7 @@ describe('ActivationDialog', () => {
         provisionResponse = {body: {}, status: 200};
         workflowsResponse = {body: [], status: 200};
         copyResponse = {body: 'wf-copy', status: 200};
+        componentInputOptionsByConnectionId = {};
         installFetch();
         useConnectDialogMock.mockReturnValue({closeDialog: vi.fn(), openDialog: openConnectDialogMock});
         vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -269,13 +300,12 @@ describe('ActivationDialog', () => {
         expect(screen.getByRole('button', {name: 'Next'})).toBeDisabled();
     });
 
-    it('does not require, show a picker for or send what the administrator provides', async () => {
+    it('does not require, show a picker for or send the connection the administrator provides', async () => {
         const onActivated = vi.fn();
 
         renderDialog({onActivated, workflowTemplateId: 'wf-provided'});
 
-        expect(await screen.findByText('Provided by your administrator')).toBeInTheDocument();
-        expect(screen.queryByLabelText(/Region/)).not.toBeInTheDocument();
+        expect(await screen.findByLabelText(/Note/)).toBeInTheDocument();
         expect(screen.queryByTestId('connect-row-slack')).not.toBeInTheDocument();
         expect(screen.getByRole('button', {name: 'Next'})).toBeEnabled();
 
@@ -329,12 +359,12 @@ describe('ActivationDialog', () => {
         ).toBe(true);
     });
 
-    it('explains a locked provided value instead of the generic failure', async () => {
-        provisionResponse = {body: {providedInputName: 'region'}, status: 409};
+    it('explains a locked provided connection instead of the generic failure', async () => {
+        provisionResponse = {body: {providedComponentName: 'slack'}, status: 409};
 
         renderDialog({workflowTemplateId: 'wf-provided'});
 
-        await screen.findByText('Provided by your administrator');
+        await screen.findByLabelText(/Note/);
         await userEvent.click(screen.getByRole('button', {name: 'Next'}));
         await userEvent.click(screen.getByRole('button', {name: 'Activate'}));
 
@@ -345,8 +375,13 @@ describe('ActivationDialog', () => {
     const isDeprovision = (call: FetchCall) =>
         call.url.endsWith('/workflow-templates/wf-plain/provision') && call.method === 'DELETE';
 
-    it('keeps an automation that was already activated when re-activating it fails', async () => {
+    it('keeps an automation activated elsewhere after the dialog opened when activating it fails', async () => {
         provisionResponse = {body: {missingConnectionComponentName: 'slack'}, status: 409};
+
+        renderDialog({workflowTemplateId: 'wf-plain'});
+
+        const activateButton = await screen.findByRole('button', {name: 'Activate'});
+
         workflowsResponse = {
             body: [
                 {automationUuid: 'wf-other', kind: 'REFERENCE', name: 'Other', tasks: []},
@@ -355,9 +390,7 @@ describe('ActivationDialog', () => {
             status: 200,
         };
 
-        renderDialog({workflowTemplateId: 'wf-plain'});
-
-        await userEvent.click(await screen.findByRole('button', {name: 'Activate'}));
+        await userEvent.click(activateButton);
 
         expect(await screen.findByRole('alert')).toBeInTheDocument();
         expect(calls.some(isDeprovision)).toBe(false);
@@ -414,21 +447,213 @@ describe('ActivationDialog', () => {
         expect(await screen.findByText(/could not be fully undone/)).toBeInTheDocument();
     });
 
-    it('says the settings were saved when re-activating an existing automation fails to enable', async () => {
+    it('says the settings were saved when an automation activated elsewhere meanwhile fails to enable', async () => {
         enableResponse = {body: {}, status: 500};
+
+        renderDialog({workflowTemplateId: 'wf-plain'});
+
+        const activateButton = await screen.findByRole('button', {name: 'Activate'});
+
         workflowsResponse = {
             body: [{automationUuid: 'wf-plain', kind: 'REFERENCE', name: 'Plain', tasks: []}],
             status: 200,
         };
 
-        renderDialog({workflowTemplateId: 'wf-plain'});
-
-        await userEvent.click(await screen.findByRole('button', {name: 'Activate'}));
+        await userEvent.click(activateButton);
 
         expect(
             await screen.findByText(/settings were saved, but the automation could not be switched on/)
         ).toBeInTheDocument();
         expect(calls.some(isDeprovision)).toBe(false);
+    });
+
+    describe('editing an automation the user already activated', () => {
+        const existingSlackReference = (overrides: Record<string, unknown> = {}) => ({
+            body: [
+                {
+                    automationUuid: 'wf-slack',
+                    connections: {slack: 9},
+                    inputValues: {channel: '#general'},
+                    kind: 'REFERENCE',
+                    name: 'Daily standup reminder',
+                    tasks: [],
+                    ...overrides,
+                },
+            ],
+            status: 200,
+        });
+
+        beforeEach(() => {
+            connections = [
+                {componentName: 'slack', id: 9, name: 'Team Slack'},
+                {componentName: 'slack', id: 10, name: 'Ops Slack'},
+            ];
+        });
+
+        it('shows the webhook URL of an activated automation that starts with a webhook', async () => {
+            const webhookUrl = 'https://bytechef.example.com/webhooks/abc';
+
+            workflowsResponse = existingSlackReference({staticWebhookUrl: webhookUrl});
+
+            renderDialog();
+
+            expect(await screen.findByText(webhookUrl)).toBeInTheDocument();
+            expect(screen.getByRole('button', {name: 'About the webhook URL'})).toHaveAccessibleDescription(
+                /start this automation/
+            );
+            expect(screen.getByRole('button', {name: 'Copy webhook URL'})).toBeInTheDocument();
+        });
+
+        it('offers Done instead of Save when the activated automation has nothing to set up', async () => {
+            const onClose = vi.fn();
+
+            workflowsResponse = {body: [{automationUuid: 'wf-plain', kind: 'REFERENCE'}], status: 200};
+
+            renderDialog({onClose, workflowTemplateId: 'wf-plain'});
+
+            expect(await screen.findByText('This automation has nothing to set up.')).toBeInTheDocument();
+            expect(screen.queryByRole('button', {name: 'Save'})).not.toBeInTheDocument();
+            expect(screen.getByRole('button', {name: 'Deactivate'})).toBeInTheDocument();
+
+            await userEvent.click(screen.getByRole('button', {name: 'Done'}));
+
+            expect(onClose).toHaveBeenCalled();
+            expect(calls.filter((call) => call.method !== 'GET')).toHaveLength(0);
+        });
+
+        it('shows no webhook URL for an activated automation without one', async () => {
+            workflowsResponse = existingSlackReference();
+
+            renderDialog();
+
+            await screen.findByTestId('connect-row-slack');
+
+            expect(screen.queryByText('WEBHOOK URL')).not.toBeInTheDocument();
+        });
+
+        it('opens with the connections and inputs the user chose, and offers Save instead of Activate', async () => {
+            workflowsResponse = existingSlackReference();
+
+            renderDialog();
+
+            const row = await screen.findByTestId('connect-row-slack');
+
+            await within(row).findByRole('option', {name: 'Team Slack'});
+
+            expect(within(row).getByRole('combobox')).toHaveValue('9');
+
+            await userEvent.click(screen.getByRole('button', {name: 'Next'}));
+
+            expect(screen.getByLabelText(/Channel/)).toHaveValue('#general');
+
+            await userEvent.click(screen.getByRole('button', {name: 'Next'}));
+
+            expect(screen.getByRole('button', {name: 'Save'})).toBeInTheDocument();
+            expect(screen.queryByRole('button', {name: 'Activate'})).not.toBeInTheDocument();
+        });
+
+        it('sends only the changed connection and never switches the automation on', async () => {
+            workflowsResponse = existingSlackReference();
+
+            const onActivated = vi.fn();
+            const onClose = vi.fn();
+            const onSaved = vi.fn();
+
+            renderDialog({onActivated, onClose, onSaved});
+
+            const row = await screen.findByTestId('connect-row-slack');
+
+            await within(row).findByRole('option', {name: 'Ops Slack'});
+
+            await userEvent.selectOptions(within(row).getByRole('combobox'), '10');
+            await userEvent.click(screen.getByRole('button', {name: 'Next'}));
+            await userEvent.click(screen.getByRole('button', {name: 'Next'}));
+            await userEvent.click(screen.getByRole('button', {name: 'Save'}));
+
+            await waitFor(() => expect(onSaved).toHaveBeenCalledWith('wf-slack'));
+
+            const provision = calls.find(
+                (call) => call.url.endsWith('/workflow-templates/wf-slack/provision') && call.method === 'POST'
+            );
+
+            expect(JSON.parse(provision!.body!)).toEqual({connections: {slack: 10}});
+            expect(calls.some((call) => call.url.endsWith('/enable'))).toBe(false);
+            expect(onActivated).not.toHaveBeenCalled();
+            expect(onClose).toHaveBeenCalledTimes(1);
+        });
+
+        it('sends the inputs when one of them changed', async () => {
+            workflowsResponse = existingSlackReference();
+
+            const onSaved = vi.fn();
+
+            renderDialog({onSaved});
+
+            await within(await screen.findByTestId('connect-row-slack')).findByRole('option', {name: 'Team Slack'});
+            await userEvent.click(screen.getByRole('button', {name: 'Next'}));
+
+            const channelInput = screen.getByLabelText(/Channel/);
+
+            await userEvent.clear(channelInput);
+            await userEvent.type(channelInput, '#random');
+            await userEvent.click(screen.getByRole('button', {name: 'Next'}));
+            await userEvent.click(screen.getByRole('button', {name: 'Save'}));
+
+            await waitFor(() => expect(onSaved).toHaveBeenCalledWith('wf-slack'));
+
+            const provision = calls.find(
+                (call) => call.url.endsWith('/workflow-templates/wf-slack/provision') && call.method === 'POST'
+            );
+
+            expect(JSON.parse(provision!.body!)).toEqual({inputs: {channel: '#random'}});
+        });
+
+        it('closes without a request when nothing changed', async () => {
+            workflowsResponse = existingSlackReference();
+
+            const onClose = vi.fn();
+            const onSaved = vi.fn();
+
+            renderDialog({onClose, onSaved});
+
+            await within(await screen.findByTestId('connect-row-slack')).findByRole('option', {name: 'Team Slack'});
+            await userEvent.click(screen.getByRole('button', {name: 'Next'}));
+            await userEvent.click(screen.getByRole('button', {name: 'Next'}));
+            await userEvent.click(screen.getByRole('button', {name: 'Save'}));
+
+            expect(onClose).toHaveBeenCalledTimes(1);
+            expect(onSaved).not.toHaveBeenCalled();
+            expect(calls.some((call) => call.url.endsWith('/provision'))).toBe(false);
+        });
+
+        it('asks for a connection the automation is missing and keeps the automation when saving fails', async () => {
+            workflowsResponse = existingSlackReference({connections: {}});
+            provisionResponse = {body: {missingConnectionComponentName: 'slack'}, status: 409};
+
+            renderDialog();
+
+            const row = await screen.findByTestId('connect-row-slack');
+
+            await within(row).findByRole('option', {name: 'Team Slack'});
+
+            expect(screen.getByRole('button', {name: 'Next'})).toBeDisabled();
+
+            await userEvent.selectOptions(within(row).getByRole('combobox'), '9');
+            await userEvent.click(screen.getByRole('button', {name: 'Next'}));
+            await userEvent.click(screen.getByRole('button', {name: 'Next'}));
+            await userEvent.click(screen.getByRole('button', {name: 'Save'}));
+
+            expect(await screen.findByText('Connect Slack to continue')).toBeInTheDocument();
+            expect(calls.some(isDeprovision)).toBe(false);
+        });
+
+        it('opens to activate when it cannot tell whether the automation is already active', async () => {
+            workflowsResponse = {body: {}, status: 500};
+
+            renderDialog({workflowTemplateId: 'wf-plain'});
+
+            expect(await screen.findByRole('button', {name: 'Activate'})).toBeInTheDocument();
+        });
     });
 
     it('keeps the automation on when the host onActivated callback throws', async () => {
@@ -696,6 +921,102 @@ describe('ActivationDialog', () => {
                     expect.objectContaining({connectionOnly: true, newConnection: true})
                 )
             );
+        });
+    });
+
+    describe('an input that references a component input', () => {
+        const optionCalls = () =>
+            calls.filter((call) => call.url.endsWith('/automation/component-input-options') && call.method === 'POST');
+
+        const pickSlackConnection = async (connectionId: string) => {
+            const row = await screen.findByTestId('connect-row-slack');
+
+            await within(row).findByRole('option', {name: 'Team Slack'});
+
+            await userEvent.selectOptions(within(row).getByRole('combobox'), connectionId);
+        };
+
+        beforeEach(() => {
+            connections = [
+                {componentName: 'slack', id: 9, name: 'Team Slack'},
+                {componentName: 'slack', id: 10, name: 'Other Slack'},
+            ];
+            componentInputOptionsByConnectionId = {
+                9: [
+                    {label: '#general', value: 'C1'},
+                    {label: '#random', value: 'C2'},
+                ],
+                10: [{label: '#other', value: 'C9'}],
+            };
+        });
+
+        it('loads its options with the connection picked for the component and provisions the chosen value', async () => {
+            const onActivated = vi.fn();
+
+            renderDialog({onActivated, workflowTemplateId: 'wf-slack-channel'});
+
+            await pickSlackConnection('9');
+            await userEvent.click(screen.getByRole('button', {name: 'Next'}));
+
+            const select = screen.getByLabelText(/Channel/);
+
+            await within(select).findByRole('option', {name: '#random'});
+
+            expect(JSON.parse(optionCalls()[0].body!)).toEqual({
+                componentName: 'slack',
+                componentVersion: 1,
+                connectionId: 9,
+                groupName: 'channel',
+                lookupDependsOnValues: {},
+                propertyName: 'channel',
+            });
+            expect(screen.getByRole('button', {name: 'Next'})).toBeDisabled();
+
+            await userEvent.selectOptions(select, 'C2');
+            await userEvent.click(screen.getByRole('button', {name: 'Next'}));
+            await userEvent.click(screen.getByRole('button', {name: 'Activate'}));
+
+            await waitFor(() => expect(onActivated).toHaveBeenCalledWith('wf-slack-channel'));
+
+            const provision = calls.find(
+                (call) => call.url.endsWith('/workflow-templates/wf-slack-channel/provision') && call.method === 'POST'
+            );
+
+            expect(JSON.parse(provision!.body!)).toEqual({connections: {slack: 9}, inputs: {channel: 'C2'}});
+        });
+
+        it('reloads its options and clears its value when another connection is picked', async () => {
+            renderDialog({workflowTemplateId: 'wf-slack-channel'});
+
+            await pickSlackConnection('9');
+            await userEvent.click(screen.getByRole('button', {name: 'Next'}));
+
+            await within(screen.getByLabelText(/Channel/)).findByRole('option', {name: '#general'});
+
+            await userEvent.selectOptions(screen.getByLabelText(/Channel/), 'C1');
+            await userEvent.click(screen.getByRole('button', {name: 'Back'}));
+            await pickSlackConnection('10');
+            await userEvent.click(screen.getByRole('button', {name: 'Next'}));
+
+            const select = screen.getByLabelText(/Channel/);
+
+            await within(select).findByRole('option', {name: '#other'});
+
+            expect(within(select).queryByRole('option', {name: '#general'})).not.toBeInTheDocument();
+            expect(JSON.parse(optionCalls()[optionCalls().length - 1].body!).connectionId).toBe(10);
+            expect(select).toHaveValue('');
+            expect(screen.getByRole('button', {name: 'Next'})).toBeDisabled();
+        });
+
+        it('stays disabled with a hint until a connection for the component is picked', async () => {
+            renderDialog({workflowTemplateId: 'wf-unconnected-channel'});
+
+            const select = await screen.findByLabelText(/Channel/);
+
+            expect(select).toBeDisabled();
+            expect(screen.getByText('Pick a slack connection first')).toBeInTheDocument();
+            expect(optionCalls()).toHaveLength(0);
+            expect(screen.getByRole('button', {name: 'Next'})).toBeDisabled();
         });
     });
 });

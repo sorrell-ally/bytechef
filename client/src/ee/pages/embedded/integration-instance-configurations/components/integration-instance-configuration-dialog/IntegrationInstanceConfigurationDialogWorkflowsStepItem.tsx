@@ -1,6 +1,11 @@
 import IntegrationInstanceConfigurationDialogWorkflowsStepItemConnections from '@/ee/pages/embedded/integration-instance-configurations/components/integration-instance-configuration-dialog/IntegrationInstanceConfigurationDialogWorkflowsStepItemConnections';
 import {useWorkflowsEnabledStore} from '@/ee/pages/embedded/integration-instance-configurations/stores/useWorkflowsEnabledStore';
+import {
+    REQUIRED_INTERNAL_ONLY_INPUT_HINT,
+    isEmptyInternalOnlyInputValue,
+} from '@/ee/pages/embedded/shared/internalOnlyInputs';
 import {ComponentConnection, IntegrationInstanceConfiguration} from '@/ee/shared/middleware/embedded/configuration';
+import {getEnabledWorkflowTasks} from '@/pages/platform/workflow-editor/utils/getEnabledWorkflowTasks';
 import InputConfigurationList from '@/shared/components/InputConfigurationList';
 import WorkflowConfigurationCard from '@/shared/components/workflow-configuration/WorkflowConfigurationCard';
 import {Workflow} from '@/shared/middleware/automation/configuration';
@@ -11,6 +16,8 @@ import {useShallow} from 'zustand/react/shallow';
 export interface IntegrationInstanceConfigurationDialogWorkflowListItemProps {
     componentName: string;
     control: Control<IntegrationInstanceConfiguration>;
+    disabled?: boolean;
+    disabledMessage?: string;
     enabled?: boolean;
     formState: FormState<IntegrationInstanceConfiguration>;
     label: string;
@@ -24,6 +31,8 @@ export interface IntegrationInstanceConfigurationDialogWorkflowListItemProps {
 const IntegrationInstanceConfigurationDialogWorkflowsStepItem = ({
     componentName,
     control,
+    disabled,
+    disabledMessage,
     enabled,
     formState,
     label,
@@ -37,19 +46,32 @@ const IntegrationInstanceConfigurationDialogWorkflowsStepItem = ({
         useShallow(({setWorkflowEnabled, workflowEnabledMap}) => [setWorkflowEnabled, workflowEnabledMap])
     );
 
-    const componentConnections: ComponentConnection[] = (workflow?.tasks ?? [])
+    const componentConnections: ComponentConnection[] = getEnabledWorkflowTasks(workflow)
         .flatMap((task) => task.connections ?? [])
         .concat((workflow?.triggers ?? []).flatMap((trigger) => trigger.connections ?? []))
         .filter((connection) => connection.componentName !== componentName);
 
-    const inputs = (workflow.inputs ?? []).filter(
-        (input) => input.componentReference?.componentName !== componentName && input.internalOnly
-    );
+    const inputs = (workflow.inputs ?? [])
+        .filter((input) => input.internalOnly)
+        .map((input) =>
+            input.componentReference?.componentName === componentName
+                ? {...input, componentReference: undefined}
+                : input
+        );
 
     const watchedConnections = useWatch({
         control,
         name: `integrationInstanceConfigurationWorkflows.${workflowIndex}.connections`,
     });
+
+    const watchedInputs = useWatch({
+        control,
+        name: `integrationInstanceConfigurationWorkflows.${workflowIndex}.inputs`,
+    }) as Record<string, unknown> | undefined;
+
+    const emptyRequiredInputs = inputs.filter(
+        (input) => input.required && isEmptyInternalOnlyInputValue(watchedInputs?.[input.name])
+    );
 
     const configuredConnectionIds = componentConnections.map(
         (componentConnection, connectionIndex) => watchedConnections?.[connectionIndex]?.connectionId
@@ -85,18 +107,32 @@ const IntegrationInstanceConfigurationDialogWorkflowsStepItem = ({
                     workflowIndex={workflowIndex}
                 />
             }
+            disabled={disabled}
+            disabledMessage={disabledMessage}
             enabled={workflowEnabled}
             inputCount={inputs.length}
             inputsContent={
-                <InputConfigurationList
-                    componentConnections={componentConnections}
-                    configuredConnectionIds={configuredConnectionIds}
-                    control={control as unknown as Control<FieldValues>}
-                    controlPath={`integrationInstanceConfigurationWorkflows.${workflowIndex}.inputs`}
-                    formState={formState as unknown as FormState<FieldValues>}
-                    inputs={inputs}
-                    workflowId={workflow.id}
-                />
+                <div className="space-y-4">
+                    {emptyRequiredInputs.length > 0 && (
+                        <ul className="space-y-1">
+                            {emptyRequiredInputs.map((input) => (
+                                <li className="text-xs text-content-destructive-primary" key={input.name}>
+                                    {`${input.label || input.name}: ${REQUIRED_INTERNAL_ONLY_INPUT_HINT}`}
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+
+                    <InputConfigurationList
+                        componentConnections={componentConnections}
+                        configuredConnectionIds={configuredConnectionIds}
+                        control={control as unknown as Control<FieldValues>}
+                        controlPath={`integrationInstanceConfigurationWorkflows.${workflowIndex}.inputs`}
+                        formState={formState as unknown as FormState<FieldValues>}
+                        inputs={inputs}
+                        workflowId={workflow.id}
+                    />
+                </div>
             }
             label={label}
             onEnabledChange={handleEnabledChange}

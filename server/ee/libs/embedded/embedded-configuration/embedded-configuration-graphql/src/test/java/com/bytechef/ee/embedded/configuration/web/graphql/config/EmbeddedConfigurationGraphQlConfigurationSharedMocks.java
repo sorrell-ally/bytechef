@@ -24,7 +24,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 @MockitoBean(types = {
-    AutomationProjectFacade.class, IntegrationWorkflowFacade.class, IntegrationWorkflowService.class
+    AutomationProjectFacade.class, IntegrationWorkflowFacade.class,
+    IntegrationWorkflowService.class
 })
 public @interface EmbeddedConfigurationGraphQlConfigurationSharedMocks {
 }

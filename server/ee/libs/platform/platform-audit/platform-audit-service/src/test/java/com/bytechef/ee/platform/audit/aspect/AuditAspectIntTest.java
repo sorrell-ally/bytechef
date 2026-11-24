@@ -96,6 +96,9 @@ class AuditAspectIntTest {
     private AuditEventService auditEventService;
 
     @Autowired
+    private AuditedBusinessCaller auditedBusinessCaller;
+
+    @Autowired
     private AuditedBusinessService auditedBusinessService;
 
     @Autowired
@@ -118,6 +121,9 @@ class AuditAspectIntTest {
 
     @Autowired
     private PersistenceAuditEventRepository persistenceAuditEventRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Autowired
     private PlatformTransactionManager platformTransactionManager;
@@ -591,6 +597,91 @@ class AuditAspectIntTest {
     }
 
     @Test
+    void testStrictAuditedWriteCommitsTheChangeAndItsAuditEventOnce() {
+        assertThat(auditedBusinessService.writeBusinessRow()).isEqualTo("written");
+
+        assertThat(findAll())
+            .extracting(PersistentAuditEvent::getEventType)
+            .containsExactlyInAnyOrder("BUSINESS_WRITE", "STRICT_BUSINESS_TEST");
+    }
+
+    @Test
+    void testStrictAuditedWriteIsRolledBackWhenItsAuditEventCannotBeSaved() {
+        doThrow(new IllegalStateException("audit backend down"))
+            .when(auditEventService)
+            .saveAll(any());
+
+        assertThatThrownBy(() -> auditedBusinessService.writeBusinessRow())
+            .isInstanceOf(AuditPersistenceException.class)
+            .hasMessageContaining("STRICT_BUSINESS_TEST");
+
+        assertThat(findAll()).isEmpty();
+    }
+
+    @Test
+    void testBestEffortAuditedWriteKeepsTheChangeWhenItsAuditEventCannotBeSaved() {
+        doThrow(new IllegalStateException("audit backend down"))
+            .when(auditEventService)
+            .saveAll(any());
+
+        assertThat(auditedBusinessService.writeBusinessRowBestEffort()).isEqualTo("written");
+
+        assertThat(findAll())
+            .extracting(PersistentAuditEvent::getEventType)
+            .containsExactly("BUSINESS_WRITE");
+    }
+
+    @Test
+    void testStrictAuditedCallInsideACallerTransactionCommitsItsAuditEventOnce() {
+        TransactionTemplate transactionTemplate = new TransactionTemplate(platformTransactionManager);
+
+        String result = transactionTemplate.execute(status -> auditedBusinessService.writeBusinessRow());
+
+        assertThat(result).isEqualTo("written");
+
+        assertThat(findAll())
+            .extracting(PersistentAuditEvent::getEventType)
+            .containsExactlyInAnyOrder("BUSINESS_WRITE", "STRICT_BUSINESS_TEST");
+    }
+
+    @Test
+    void testStrictAuditEventIsSavedAgainWhenTheBatchItWasSavedInIsRolledBack() {
+        TransactionTemplate transactionTemplate = new TransactionTemplate(platformTransactionManager);
+
+        String result = transactionTemplate.execute(status -> {
+            jdbcTemplate.execute(
+                "ALTER TABLE persistent_audit_event ADD CONSTRAINT reject_audit_event "
+                    + "CHECK (event_type <> 'REJECTED_BY_THE_DATABASE')");
+
+            String written = auditedBusinessCaller.callStrictWriteInARejectedBatch();
+
+            jdbcTemplate.execute("ALTER TABLE persistent_audit_event DROP CONSTRAINT reject_audit_event");
+
+            return written;
+        });
+
+        assertThat(result).isEqualTo("written");
+
+        assertThat(findAll())
+            .extracting(PersistentAuditEvent::getEventType)
+            .containsExactlyInAnyOrder("BUSINESS_WRITE", "STRICT_BUSINESS_TEST");
+    }
+
+    @Test
+    void testStrictAuditedCallInsideACallerTransactionFailsTheCallerWhenItsAuditEventCannotBeSaved() {
+        doThrow(new IllegalStateException("audit backend down"))
+            .when(auditEventService)
+            .saveAll(any());
+
+        TransactionTemplate transactionTemplate = new TransactionTemplate(platformTransactionManager);
+
+        assertThatThrownBy(() -> transactionTemplate.execute(status -> auditedBusinessService.writeBusinessRow()))
+            .isInstanceOf(AuditPersistenceException.class);
+
+        assertThat(findAll()).isEmpty();
+    }
+
+    @Test
     void testStackOverflowWhileWritingDoesNotReplaceTheBusinessException() {
         doThrow(new StackOverflowError())
             .when(auditEventService)
@@ -841,6 +932,11 @@ class AuditAspectIntTest {
     static class GuardedServiceConfiguration {
 
         @Bean
+        AuditedBusinessCaller auditedBusinessCaller(AuditedBusinessService auditedBusinessService) {
+            return new AuditedBusinessCaller(auditedBusinessService);
+        }
+
+        @Bean
         AuditedBusinessService auditedBusinessService(
             PersistenceAuditEventRepository persistenceAuditEventRepository) {
 
@@ -1072,7 +1168,7 @@ class AuditAspectIntTest {
             return "inner";
         }
 
-        @Audited(event = "REJECTED_BY_THE_DATABASE", mapper = CountingAuditMapper.class)
+        @Audited(event = "REJECTED_BY_THE_DATABASE", mapper = CountingAuditMapper.class, strict = false)
         @PreAuthorize("hasRole('ADMIN')")
         @Transactional
         public String rejectedAuditAdminOnly() {
@@ -1205,6 +1301,20 @@ class AuditAspectIntTest {
         }
     }
 
+    static class AuditedBusinessCaller {
+
+        private final AuditedBusinessService auditedBusinessService;
+
+        AuditedBusinessCaller(AuditedBusinessService auditedBusinessService) {
+            this.auditedBusinessService = auditedBusinessService;
+        }
+
+        @Audited(event = "REJECTED_BY_THE_DATABASE", strict = false)
+        public String callStrictWriteInARejectedBatch() {
+            return auditedBusinessService.writeBusinessRow();
+        }
+    }
+
     static class AuditedBusinessService {
 
         private final PersistenceAuditEventRepository persistenceAuditEventRepository;
@@ -1219,10 +1329,32 @@ class AuditAspectIntTest {
             return "written";
         }
 
+        @Audited(event = "STRICT_BUSINESS_TEST")
+        @Transactional
+        public String writeBusinessRow() {
+            saveBusinessRow();
+
+            return "written";
+        }
+
+        @Audited(event = "BEST_EFFORT_BUSINESS_TEST", strict = false)
+        @Transactional
+        public String writeBusinessRowBestEffort() {
+            saveBusinessRow();
+
+            return "written";
+        }
+
         @Audited(event = "BUSINESS_TEST", mapper = CountingAuditMapper.class)
         @PreAuthorize("hasRole('ADMIN')")
         @Transactional
         public String writeThenFail() {
+            saveBusinessRow();
+
+            throw new IllegalStateException("business failed");
+        }
+
+        private void saveBusinessRow() {
             PersistentAuditEvent persistentAuditEvent = new PersistentAuditEvent();
 
             persistentAuditEvent.setEventDate(LocalDateTime.now());
@@ -1230,8 +1362,6 @@ class AuditAspectIntTest {
             persistentAuditEvent.setPrincipal("alice");
 
             persistenceAuditEventRepository.save(persistentAuditEvent);
-
-            throw new IllegalStateException("business failed");
         }
     }
 

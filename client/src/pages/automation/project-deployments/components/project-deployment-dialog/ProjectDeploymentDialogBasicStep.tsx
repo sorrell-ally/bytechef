@@ -1,4 +1,3 @@
-import Badge from '@/components/Badge/Badge';
 import {Input} from '@/components/Input/Input';
 import {Note} from '@/components/Note';
 import ReadOnlyInput from '@/components/ReadOnlyInput/ReadOnlyInput';
@@ -16,7 +15,6 @@ import {useWorkflowsEnabledStore} from '@/pages/automation/project-deployments/s
 import {useWorkspaceStore} from '@/pages/automation/stores/useWorkspaceStore';
 import EnvironmentBadge from '@/shared/components/EnvironmentBadge';
 import {DEVELOPMENT_ENVIRONMENT} from '@/shared/constants';
-import {ENVIRONMENT_CONFIGS} from '@/shared/constants/environmentConfigs';
 import {ProjectDeployment} from '@/shared/middleware/automation/configuration';
 import {useGetWorkspaceProjectsQuery} from '@/shared/queries/automation/projects.queries';
 import {useEnvironmentStore} from '@/shared/stores/useEnvironmentStore';
@@ -35,6 +33,7 @@ interface ProjectDialogBasicStepProps {
     projectDeployment: ProjectDeployment | undefined;
     projectDeployments?: ProjectDeployment[];
     projectDeploymentsLoading?: boolean;
+    projectLocked?: boolean;
     setValue: UseFormSetValue<ProjectDeployment>;
     showTabs?: boolean;
 }
@@ -49,6 +48,7 @@ const ProjectDeploymentDialogBasicStep = ({
     projectDeployment,
     projectDeployments,
     projectDeploymentsLoading,
+    projectLocked = false,
     setValue,
     showTabs,
 }: ProjectDialogBasicStepProps) => {
@@ -131,6 +131,24 @@ const ProjectDeploymentDialogBasicStep = ({
             ? 'A deployment already exists for this project. This will start an additional deployment instance.'
             : 'Deployments already exist for this project. This will start an additional deployment instance.';
 
+    const environmentField = (
+        <FormField
+            control={control}
+            name="environmentId"
+            render={({field}) => (
+                <FormItem className="space-x-2">
+                    <FormLabel>Environment</FormLabel>
+
+                    <FormControl>
+                        <EnvironmentBadge environmentId={field.value ?? currentEnvironmentId} />
+                    </FormControl>
+
+                    <FormMessage />
+                </FormItem>
+            )}
+        />
+    );
+
     const newDeploymentForm = (
         <>
             {!projectDeployment?.id && (
@@ -146,6 +164,7 @@ const ProjectDeploymentDialogBasicStep = ({
 
                             <FormControl>
                                 <ProjectDeploymentDialogBasicStepProjectsComboBox
+                                    disabled={projectLocked}
                                     onBlur={field.onBlur}
                                     onChange={handleProjectSelectionChange}
                                     projects={projects}
@@ -161,21 +180,7 @@ const ProjectDeploymentDialogBasicStep = ({
                 />
             )}
 
-            <FormField
-                control={control}
-                name="environmentId"
-                render={({field}) => (
-                    <FormItem className="space-x-2">
-                        <FormLabel>Environment</FormLabel>
-
-                        <FormControl>
-                            <EnvironmentBadge environmentId={field.value ?? currentEnvironmentId} />
-                        </FormControl>
-
-                        <FormMessage />
-                    </FormItem>
-                )}
-            />
+            {environmentField}
 
             {!changeProjectVersion && (
                 <FormField
@@ -295,6 +300,22 @@ const ProjectDeploymentDialogBasicStep = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [basicStepTab, projectDeployments, projectDeploymentsLoading, selectedDeploymentId, showTabs]);
 
+    useEffect(() => {
+        if (
+            changeProjectVersion ||
+            projectDeployment?.id ||
+            basicStepTab === 'change-version' ||
+            !currentProjectName ||
+            getValues('name')
+        ) {
+            return;
+        }
+
+        setValue('name', currentProjectName);
+
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [basicStepTab, changeProjectVersion, currentProjectName, projectDeployment?.id]);
+
     if (!showTabs) {
         return <div className="flex flex-col gap-4">{newDeploymentForm}</div>;
     }
@@ -346,6 +367,8 @@ const ProjectDeploymentDialogBasicStep = ({
                             text={currentProjectName || `Project ${currentProjectId}`}
                         />
 
+                        {environmentField}
+
                         <FormItem>
                             <FormLabel>Deployment</FormLabel>
 
@@ -365,41 +388,11 @@ const ProjectDeploymentDialogBasicStep = ({
                                                 </SelectTrigger>
 
                                                 <SelectContent>
-                                                    {projectDeployments.map((deployment) => {
-                                                        const environmentConfig =
-                                                            deployment.environmentId != null
-                                                                ? ENVIRONMENT_CONFIGS[deployment.environmentId]
-                                                                : undefined;
-                                                        const EnvironmentIcon = environmentConfig?.icon;
-
-                                                        return (
-                                                            <SelectItem
-                                                                className="pr-2 *:[span]:first:hidden *:[span]:last:w-full"
-                                                                key={
-                                                                    deployment.id?.toString() ??
-                                                                    `${deployment.name ?? 'deployment'}-${deployment.projectVersion}`
-                                                                }
-                                                                value={deployment.id?.toString() ?? ''}
-                                                            >
-                                                                <div className="flex w-full items-center justify-between gap-2">
-                                                                    <span>
-                                                                        {`${deployment.name ?? `Deployment ${deployment.id}`} - V${deployment.projectVersion}`}
-                                                                    </span>
-
-                                                                    {environmentConfig && EnvironmentIcon && (
-                                                                        <Badge
-                                                                            icon={
-                                                                                <EnvironmentIcon className="size-3" />
-                                                                            }
-                                                                            label={environmentConfig.label}
-                                                                            styleType={environmentConfig.styleType}
-                                                                            weight="semibold"
-                                                                        />
-                                                                    )}
-                                                                </div>
-                                                            </SelectItem>
-                                                        );
-                                                    })}
+                                                    {projectDeployments.map((deployment) => (
+                                                        <SelectItem key={deployment.id} value={String(deployment.id)}>
+                                                            {deployment.name || `Deployment ${deployment.id}`}
+                                                        </SelectItem>
+                                                    ))}
                                                 </SelectContent>
                                             </Select>
                                         )}

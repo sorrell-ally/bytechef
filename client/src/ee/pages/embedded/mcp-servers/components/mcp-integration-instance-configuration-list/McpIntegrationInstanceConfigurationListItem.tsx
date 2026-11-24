@@ -1,7 +1,6 @@
 import Badge from '@/components/Badge/Badge';
 import {Collapsible, CollapsibleContent} from '@/components/ui/collapsible';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip';
-import IntegrationInstanceConfigurationDialog from '@/ee/pages/embedded/integration-instance-configurations/components/integration-instance-configuration-dialog/IntegrationInstanceConfigurationDialog';
 import ListItemExpandButton from '@/shared/components/ListItemExpandButton';
 import {useGetComponentDefinitionQuery} from '@/shared/queries/platform/componentDefinitions.queries';
 import {ComponentIcon} from 'lucide-react';
@@ -23,15 +22,7 @@ const McpIntegrationInstanceConfigurationListItem = ({
 }: McpIntegrationInstanceConfigurationListItemProps) => {
     const [expanded, setExpanded] = useState(false);
 
-    const {
-        handleOnIntegrationInstanceConfigurationDialogClose,
-        integrationInstanceConfiguration,
-        mcpWorkflowUuids,
-        setShowEditWorkflowsDialog,
-        setShowUpdateIntegrationVersionDialog,
-        showEditWorkflowsDialog,
-        showUpdateIntegrationVersionDialog,
-    } = useMcpIntegrationInstanceConfigurationListItem(mcpIntegrationInstanceConfiguration);
+    const {setShowEditWorkflowsDialog, showEditWorkflowsDialog} = useMcpIntegrationInstanceConfigurationListItem();
 
     const {data: componentDefinition} = useGetComponentDefinitionQuery(
         {
@@ -43,12 +34,8 @@ const McpIntegrationInstanceConfigurationListItem = ({
 
     return (
         <>
-            <Collapsible
-                className="group rounded-md border border-border/50"
-                onOpenChange={setExpanded}
-                open={expanded}
-            >
-                <div className="relative flex items-center gap-2.5 rounded-md px-3 py-2.5 hover:bg-surface-neutral-primary-hover">
+            <Collapsible className="group" onOpenChange={setExpanded} open={expanded}>
+                <div className="relative flex items-center gap-2.5 rounded-md py-2.5 pl-3 hover:bg-surface-neutral-primary-hover">
                     <ListItemExpandButton
                         className="mr-0 after:absolute after:inset-0"
                         label={expanded ? 'Collapse integration' : 'Expand integration'}
@@ -97,12 +84,11 @@ const McpIntegrationInstanceConfigurationListItem = ({
                     <McpIntegrationInstanceConfigurationListItemDropdownMenu
                         mcpIntegrationInstanceConfiguration={mcpIntegrationInstanceConfiguration}
                         onEditWorkflowsClick={() => setShowEditWorkflowsDialog(true)}
-                        onUpdateIntegrationVersionClick={() => setShowUpdateIntegrationVersionDialog(true)}
                     />
                 </div>
 
                 <CollapsibleContent>
-                    <div className="border-t border-border/50 px-3 py-2 pl-10">
+                    <div className="px-3 py-2 pl-10">
                         <McpIntegrationInstanceConfigurationWorkflowList
                             componentName={mcpIntegrationInstanceConfiguration.integration?.componentName || ''}
                             integrationInstanceConfigurationName={
@@ -121,15 +107,6 @@ const McpIntegrationInstanceConfigurationListItem = ({
                 <McpIntegrationInstanceConfigurationWorkflowDialog
                     mcpIntegrationInstanceConfiguration={mcpIntegrationInstanceConfiguration}
                     onClose={() => setShowEditWorkflowsDialog(false)}
-                />
-            )}
-
-            {showUpdateIntegrationVersionDialog && (
-                <IntegrationInstanceConfigurationDialog
-                    filterWorkflowUuids={mcpWorkflowUuids}
-                    integrationInstanceConfiguration={integrationInstanceConfiguration}
-                    onClose={handleOnIntegrationInstanceConfigurationDialogClose}
-                    updateIntegrationVersion={true}
                 />
             )}
         </>

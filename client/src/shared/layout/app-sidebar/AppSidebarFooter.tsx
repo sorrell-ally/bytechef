@@ -11,9 +11,16 @@ import {
     DropdownMenuSubTrigger,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import shouldShowEmbeddedGettingStartedHelpLink from '@/ee/pages/embedded/getting-started/shouldShowEmbeddedGettingStartedHelpLink';
 import {useUserGuidingLauncher} from '@/hooks/useUserGuiding';
+import shouldShowAutomationGettingStartedHelpLink from '@/pages/automation/getting-started/shouldShowAutomationGettingStartedHelpLink';
+import {useWorkspaceStore} from '@/pages/automation/stores/useWorkspaceStore';
+import {AUTOMATION_GETTING_STARTED_PATH, EMBEDDED_GETTING_STARTED_PATH} from '@/pages/home/constants/platformModes';
 import {PlatformType, usePlatformTypeStore} from '@/pages/home/stores/usePlatformTypeStore';
+import {AUTHORITIES, DEVELOPMENT_ENVIRONMENT} from '@/shared/constants';
+import {useHasWorkspaceScope} from '@/shared/hooks/useHasWorkspaceScope';
 import {useEnvironmentsQuery} from '@/shared/middleware/graphql';
+import {resolvePlatformMode} from '@/shared/navigation/platformMode';
 import {useApplicationInfoStore} from '@/shared/stores/useApplicationInfoStore';
 import {useAuthenticationStore} from '@/shared/stores/useAuthenticationStore';
 import {useEnvironmentStore} from '@/shared/stores/useEnvironmentStore';
@@ -28,6 +35,7 @@ import {
     HelpCircleIcon,
     HistoryIcon,
     MessagesSquareIcon,
+    RocketIcon,
     SettingsIcon,
     User2Icon,
     UserRoundCogIcon,
@@ -39,7 +47,12 @@ import {useShallow} from 'zustand/react/shallow';
 const openExternalLink = (url: string) => window.open(url, '_blank', 'noopener,noreferrer');
 
 export function AppSidebarFooter() {
-    const docs = useApplicationInfoStore((state) => state.docs);
+    const {docs, edition} = useApplicationInfoStore(
+        useShallow((state) => ({
+            docs: state.docs,
+            edition: state.application?.edition,
+        }))
+    );
     const {account, logout} = useAuthenticationStore(
         useShallow((state) => ({
             account: state.account,
@@ -53,6 +66,9 @@ export function AppSidebarFooter() {
             setCurrentEnvironmentId: state.setCurrentEnvironmentId,
         }))
     );
+    const currentWorkspaceId = useWorkspaceStore((state) => state.currentWorkspaceId);
+
+    const canCreateProject = useHasWorkspaceScope(currentWorkspaceId, 'PROJECT_CREATE');
 
     const userGuidingLauncher = useUserGuidingLauncher();
 
@@ -60,7 +76,32 @@ export function AppSidebarFooter() {
 
     const navigate = useNavigate();
 
+    const platformMode = resolvePlatformMode(pathname, currentType);
+
+    const platformBasePath = platformMode === PlatformType.AUTOMATION ? '/automation' : '/embedded';
+
     const queryClient = useQueryClient();
+
+    const showEmbeddedGettingStartedHelpLink = shouldShowEmbeddedGettingStartedHelpLink({
+        edition,
+        environmentId: currentEnvironmentId,
+        isAdmin: !!account?.authorities?.includes(AUTHORITIES.ADMIN),
+        pathname,
+        storedPlatformType: currentType,
+    });
+
+    const showAutomationGettingStartedHelpLink = shouldShowAutomationGettingStartedHelpLink({
+        canCreateProject,
+        development: currentEnvironmentId === DEVELOPMENT_ENVIRONMENT,
+        pathname,
+        storedPlatformType: currentType,
+    });
+
+    const gettingStartedHelpPath = showEmbeddedGettingStartedHelpLink
+        ? EMBEDDED_GETTING_STARTED_PATH
+        : showAutomationGettingStartedHelpLink
+          ? AUTOMATION_GETTING_STARTED_PATH
+          : undefined;
 
     /* eslint-disable @typescript-eslint/no-non-null-asserted-optional-chain */
     const {data: environmentsQuery} = useEnvironmentsQuery();
@@ -133,7 +174,7 @@ export function AppSidebarFooter() {
                 <DropdownMenuSeparator />
 
                 <div className="space-y-1">
-                    {currentType === PlatformType.AUTOMATION && (
+                    {platformMode === PlatformType.AUTOMATION && (
                         <DropdownMenuItem
                             className="cursor-pointer font-semibold"
                             onClick={() => navigate('/automation/approval-tasks')}
@@ -148,9 +189,7 @@ export function AppSidebarFooter() {
 
                     <DropdownMenuItem
                         className="cursor-pointer font-semibold"
-                        onClick={() =>
-                            navigate(`${pathname.startsWith('/automation') ? '/automation' : '/embedded'}/settings`)
-                        }
+                        onClick={() => navigate(`${platformBasePath}/settings`)}
                     >
                         <div className="flex items-center space-x-1">
                             <SettingsIcon className="size-5" />
@@ -161,9 +200,7 @@ export function AppSidebarFooter() {
 
                     <DropdownMenuItem
                         className="cursor-pointer font-semibold"
-                        onClick={() =>
-                            navigate(`${pathname.startsWith('/automation') ? '/automation' : '/embedded'}/account`)
-                        }
+                        onClick={() => navigate(`${platformBasePath}/account`)}
                     >
                         <div className="flex items-center space-x-1">
                             <UserRoundCogIcon className="size-5" />
@@ -185,6 +222,17 @@ export function AppSidebarFooter() {
 
                         <DropdownMenuPortal>
                             <DropdownMenuSubContent className="w-56">
+                                {gettingStartedHelpPath && (
+                                    <DropdownMenuItem
+                                        className="cursor-pointer"
+                                        onClick={() => navigate(gettingStartedHelpPath)}
+                                    >
+                                        <RocketIcon className="size-4" />
+
+                                        <span>Getting started</span>
+                                    </DropdownMenuItem>
+                                )}
+
                                 {docs.documentationUrl && (
                                     <DropdownMenuItem
                                         className="cursor-pointer"

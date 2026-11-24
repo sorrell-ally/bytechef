@@ -31,6 +31,8 @@ import {
     createDateEditCellRenderer,
     createDateTimeCellRenderer,
     createDateTimeEditCellRenderer,
+    createLinkCellRenderer,
+    createLinkEditCellRenderer,
     createNumberEditCellRenderer,
     createStringEditCellRenderer,
 } from '../components/cell-renderers';
@@ -65,17 +67,20 @@ interface UseDataTableParamsI {
 
 interface ColumnDefinitionI {
     id: string;
+    link?: {displayColumnName?: string | null; targetDataTableName: string} | null;
     name: string;
     type: string;
 }
 
 interface BuildUserColumnParamsI {
     column: ColumnDefinitionI;
+    environmentId: string;
     isFirstNonFrozenColumn: boolean;
     onBooleanToggle: (rowId: string, columnName: string, value: boolean) => void;
     onDeleteColumn: (columnId: string, columnName: string) => void;
     onRenameColumn: (columnId: string, columnName: string) => void;
     setLocalRows: Dispatch<SetStateAction<GridRowType[]>>;
+    tableId: string;
     totalColumns: number;
 }
 
@@ -85,6 +90,7 @@ interface BuildTrailingColumnParamsI {
 
 interface BuildGridColumnsParamsI {
     dataTable: DataTable | undefined;
+    environmentId: string;
     handleAddRow: () => void;
     handleSelectedRowsChange: (next: ReadonlySet<string>) => void;
     handleToggleSelectAll: (nextChecked: boolean) => void;
@@ -102,11 +108,13 @@ interface BuildGridColumnsParamsI {
 
 function buildUserColumn({
     column,
+    environmentId,
     isFirstNonFrozenColumn,
     onBooleanToggle,
     onDeleteColumn,
     onRenameColumn,
     setLocalRows,
+    tableId,
     totalColumns,
 }: BuildUserColumnParamsI): Column<GridRowType, SummaryRowType> {
     const baseColumnConfig = {
@@ -119,6 +127,7 @@ function buildUserColumn({
             <ColumnHeaderCell
                 columnId={column.id}
                 columnName={column.name}
+                linkTargetTableName={column.link?.targetDataTableName}
                 onDelete={onDeleteColumn}
                 onRename={onRenameColumn}
             />
@@ -187,6 +196,22 @@ function buildUserColumn({
         };
     }
 
+    if (column.type === 'LINK') {
+        columnDefinition = {
+            ...columnDefinition,
+            renderCell: createLinkCellRenderer({
+                columnName: column.name,
+                displayColumnName: column.link?.displayColumnName,
+            }),
+            renderEditCell: createLinkEditCellRenderer({
+                columnName: column.name,
+                displayColumnName: column.link?.displayColumnName,
+                environmentId,
+                tableId,
+            }),
+        };
+    }
+
     return columnDefinition;
 }
 
@@ -214,6 +239,7 @@ function buildTrailingColumn({
 
 function buildGridColumns({
     dataTable,
+    environmentId,
     handleAddRow,
     handleSelectedRowsChange,
     handleToggleSelectAll,
@@ -268,11 +294,13 @@ function buildGridColumns({
 
         const columnDefinition = buildUserColumn({
             column,
+            environmentId,
             isFirstNonFrozenColumn: !isSummaryRowAssigned,
             onBooleanToggle,
             onDeleteColumn: setColumnToDelete,
             onRenameColumn: setColumnToRename,
             setLocalRows,
+            tableId: dataTable.id,
             totalColumns: totalColumnCount,
         });
 
@@ -303,12 +331,31 @@ export const useDataTable = ({tableId}: UseDataTableParamsI) => {
     const isDraftInsertPendingRef = useRef(false);
 
     const {setOpen: setAddColumnDialogOpen} = useAddDataTableColumnDialogStore();
-    const {dataTable, setDataTable} = useCurrentDataTableStore();
+    const {setDataTable} = useCurrentDataTableStore();
     const {setColumnToDelete} = useDeleteDataTableColumnDialogStore();
     const environmentId = useEnvironmentStore((state) => state.currentEnvironmentId);
     const {setColumnToRename} = useRenameDataTableColumnDialogStore();
     const {selectedRows, setSelectedRows} = useSelectedRowsStore();
     const workspaceId = useWorkspaceStore((state) => state.currentWorkspaceId);
+
+    const {
+        data: tablesData,
+        error: tablesError,
+        isLoading: tablesLoading,
+    } = useDataTablesQuery({
+        environmentId: String(environmentId),
+        workspaceId: String(workspaceId),
+    });
+
+    const dataTable = useMemo(
+        () => tablesData?.dataTables?.find((tableItem) => tableId != null && tableItem.id === tableId),
+        [tablesData, tableId]
+    );
+
+    const linkColumnNames = useMemo(
+        () => (dataTable?.columns ?? []).filter((column) => column.type === 'LINK').map((column) => column.name),
+        [dataTable?.columns]
+    );
 
     const {
         data: pagesData,
@@ -318,7 +365,12 @@ export const useDataTable = ({tableId}: UseDataTableParamsI) => {
         isFetchingNextPage,
         isLoading: rowsLoading,
     } = useDataTableRowsInfiniteQuery(
-        {environmentId: String(environmentId), limit: PAGE_SIZE, tableId: dataTable?.id ?? ''},
+        {
+            environmentId: String(environmentId),
+            expand: linkColumnNames,
+            limit: PAGE_SIZE,
+            tableId: dataTable?.id ?? '',
+        },
         {enabled: Boolean(dataTable && dataTable.id != null)}
     );
 
@@ -338,15 +390,6 @@ export const useDataTable = ({tableId}: UseDataTableParamsI) => {
     }, [draftRow, localRows]);
 
     const queryClient = useQueryClient();
-
-    const {
-        data: tablesData,
-        error: tablesError,
-        isLoading: tablesLoading,
-    } = useDataTablesQuery({
-        environmentId: String(environmentId),
-        workspaceId: String(workspaceId),
-    });
 
     const invalidateRows = useCallback(() => {
         void queryClient.invalidateQueries({queryKey: ['dataTableRowsPage']});
@@ -627,6 +670,7 @@ export const useDataTable = ({tableId}: UseDataTableParamsI) => {
         () =>
             buildGridColumns({
                 dataTable,
+                environmentId: String(environmentId),
                 handleAddRow,
                 handleSelectedRowsChange,
                 handleToggleSelectAll,
@@ -643,6 +687,7 @@ export const useDataTable = ({tableId}: UseDataTableParamsI) => {
             }),
         [
             dataTable,
+            environmentId,
             handleAddRow,
             handleBooleanToggle,
             handleSelectedRowsChange,
@@ -658,10 +703,8 @@ export const useDataTable = ({tableId}: UseDataTableParamsI) => {
     );
 
     useEffect(() => {
-        const selectedTable = tablesData?.dataTables?.find((tableItem) => tableId != null && tableItem.id === tableId);
-
-        setDataTable(selectedTable);
-    }, [tablesData, tableId, setDataTable]);
+        setDataTable(dataTable);
+    }, [dataTable, setDataTable]);
 
     useEffect(() => {
         handleSelectedRowsChange(new Set());

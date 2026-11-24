@@ -18,6 +18,7 @@ package com.bytechef.platform.configuration.facade;
 
 import com.bytechef.platform.configuration.dto.ScriptTestExecutionDTO;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 
 /**
  * @author Ivica Cardic
@@ -30,10 +31,14 @@ public interface WorkflowNodeScriptFacade {
 
     Map<String, Object> getWorkflowNodeScriptInput(String workflowId, String workflowNodeName, long environmentId);
 
+    boolean stopScriptTest(String executionId);
+
     ScriptTestExecutionDTO testClusterElementScript(
         String workflowId, String workflowNodeName, String clusterElementType,
-        String clusterElementWorkflowNodeName, long environmentId, Map<String, Object> inputParameters);
+        String clusterElementWorkflowNodeName, long environmentId, @Nullable String executionId,
+        Map<String, Object> inputParameters);
 
     ScriptTestExecutionDTO testWorkflowNodeScript(
-        String workflowId, String workflowNodeName, long environmentId, Map<String, Object> inputParameters);
+        String workflowId, String workflowNodeName, long environmentId, @Nullable String executionId,
+        Map<String, Object> inputParameters);
 }

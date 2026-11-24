@@ -29,7 +29,6 @@ import com.bytechef.ee.embedded.configuration.dto.ProvisionableIntegrationDTO.Pr
 import com.bytechef.ee.embedded.configuration.facade.AppEventFacade;
 import com.bytechef.ee.embedded.configuration.facade.ConnectedUserProjectFacade;
 import com.bytechef.ee.embedded.configuration.facade.IntegrationFacade;
-import com.bytechef.ee.embedded.configuration.facade.IntegrationInstanceAdminFacade;
 import com.bytechef.ee.embedded.configuration.facade.IntegrationInstanceConfigurationFacade;
 import com.bytechef.ee.embedded.configuration.facade.IntegrationInstanceFacade;
 import com.bytechef.ee.embedded.configuration.facade.IntegrationWorkflowFacade;
@@ -114,9 +113,6 @@ class IntegrationInstanceApiControllerIntTest {
     private WorkflowService workflowService;
 
     @Autowired
-    private IntegrationInstanceAdminFacade integrationInstanceAdminFacade;
-
-    @Autowired
     private MockMvc mockMvc;
 
     private WebTestClient webTestClient;
@@ -132,7 +128,7 @@ class IntegrationInstanceApiControllerIntTest {
     void testGetIntegrationInstanceConnectionObfuscatesTheCredentials() {
         String rawToken = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGH";
 
-        when(integrationInstanceAdminFacade.getIntegrationInstanceConnection(7L))
+        when(integrationInstanceFacade.getIntegrationInstanceConnection(7L))
             .thenReturn(
                 ConnectionDTO.builder()
                     .authorizationParameters(Map.of("token", rawToken))
@@ -161,13 +157,47 @@ class IntegrationInstanceApiControllerIntTest {
 
     @Test
     void testGetIntegrationInstanceConnectionAnswersNotFoundForAnUnknownOrSelfActivatedInstance() {
-        when(integrationInstanceAdminFacade.getIntegrationInstanceConnection(8L))
+        when(integrationInstanceFacade.getIntegrationInstanceConnection(8L))
             .thenThrow(new NoSuchElementException("Integration instance id=8 not found"));
 
         this.webTestClient
             .get()
             .uri("/internal/integration-instances/8/connection")
             .accept(MediaType.APPLICATION_JSON)
+            .exchange()
+            .expectStatus()
+            .isNotFound();
+    }
+
+    @Test
+    void testPutIntegrationInstanceConnection() {
+        this.webTestClient
+            .put()
+            .uri("/internal/integration-instances/7/connection")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(
+                """
+                    {"connectionId":11}""")
+            .exchange()
+            .expectStatus()
+            .isNoContent();
+
+        verify(integrationInstanceFacade).updateIntegrationInstanceConnection(7L, 11L);
+    }
+
+    @Test
+    void testPutIntegrationInstanceConnectionAnswersNotFoundForAnUnknownOrSelfActivatedInstance() {
+        doThrow(new NoSuchElementException("Integration instance id=8 not found"))
+            .when(integrationInstanceFacade)
+            .updateIntegrationInstanceConnection(8L, 11L);
+
+        this.webTestClient
+            .put()
+            .uri("/internal/integration-instances/8/connection")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(
+                """
+                    {"connectionId":11}""")
             .exchange()
             .expectStatus()
             .isNotFound();
@@ -186,13 +216,30 @@ class IntegrationInstanceApiControllerIntTest {
             .expectStatus()
             .isNoContent();
 
-        verify(integrationInstanceAdminFacade).updateIntegrationInstanceCredentials(7L, Map.of("token", "new"), 3);
+        verify(integrationInstanceFacade).updateIntegrationInstanceCredentials(7L, Map.of("token", "new"), 3);
+    }
+
+    @Test
+    void testPutIntegrationInstanceWorkflowUpdatesItsInputs() {
+        this.webTestClient
+            .put()
+            .uri("/internal/integration-instances/7/workflows/workflow-1")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(
+                """
+                    {"inputs":{"contactPageUrl":"https://example.com/contact"}}""")
+            .exchange()
+            .expectStatus()
+            .isNoContent();
+
+        verify(integrationInstanceFacade).updateIntegrationInstanceWorkflow(
+            7L, "workflow-1", Map.of("contactPageUrl", "https://example.com/contact"));
     }
 
     @Test
     void testPutIntegrationInstanceCredentialsAnswersNotFoundForAnUnknownOrSelfActivatedInstance() {
         doThrow(new NoSuchElementException("Integration instance id=8 not found"))
-            .when(integrationInstanceAdminFacade)
+            .when(integrationInstanceFacade)
             .updateIntegrationInstanceCredentials(eq(8L), any(), anyInt());
 
         this.webTestClient
@@ -208,8 +255,8 @@ class IntegrationInstanceApiControllerIntTest {
     }
 
     @Test
-    void testProvisionIntegrationInstancePassesBodyToTheAdminFacade() {
-        when(integrationInstanceAdminFacade.provisionIntegrationInstance(eq(5L), eq(9L), eq(Map.of("token", "t")),
+    void testProvisionIntegrationInstancePassesBodyToTheFacade() {
+        when(integrationInstanceFacade.provisionIntegrationInstance(eq(5L), eq(9L), eq(Map.of("token", "t")),
             any()))
                 .thenReturn(123L);
 
@@ -229,7 +276,7 @@ class IntegrationInstanceApiControllerIntTest {
 
         ArgumentCaptor<List<ProvisionIntegrationInstanceWorkflowDTO>> workflowsCaptor = ArgumentCaptor.captor();
 
-        verify(integrationInstanceAdminFacade)
+        verify(integrationInstanceFacade)
             .provisionIntegrationInstance(eq(5L), eq(9L), any(), workflowsCaptor.capture());
 
         assertThat(workflowsCaptor.getValue())
@@ -238,7 +285,7 @@ class IntegrationInstanceApiControllerIntTest {
 
     @Test
     void testProvisionIntegrationInstanceTreatsExplicitNullsAsEmpty() {
-        when(integrationInstanceAdminFacade.provisionIntegrationInstance(eq(5L), eq(9L), any(), any()))
+        when(integrationInstanceFacade.provisionIntegrationInstance(eq(5L), eq(9L), any(), any()))
             .thenReturn(124L);
 
         this.webTestClient
@@ -254,12 +301,12 @@ class IntegrationInstanceApiControllerIntTest {
             .expectBody(Long.class)
             .isEqualTo(124L);
 
-        verify(integrationInstanceAdminFacade).provisionIntegrationInstance(5L, 9L, Map.of(), List.of());
+        verify(integrationInstanceFacade).provisionIntegrationInstance(5L, 9L, Map.of(), List.of());
     }
 
     @Test
     void testGetProvisionableIntegrationsMapsSelfServeAndSharedParameterNames() {
-        when(integrationInstanceAdminFacade.getProvisionableIntegrations(5L))
+        when(integrationInstanceFacade.getProvisionableIntegrations(5L))
             .thenReturn(List.of(getProvisionableIntegration()));
 
         this.webTestClient
@@ -289,7 +336,9 @@ class IntegrationInstanceApiControllerIntTest {
             .jsonPath("$[0].integrationInstanceConfigurations[0].redirectUri")
             .isEqualTo("https://app.example.com/callback")
             .jsonPath("$[0].mcpWorkflowUuids[0]")
-            .isEqualTo("mcp-workflow-uuid");
+            .isEqualTo("mcp-workflow-uuid")
+            .jsonPath("$[0].toolOnlyMcpWorkflowUuids[0]")
+            .isEqualTo("tool-only-workflow-uuid");
     }
 
     @Test
@@ -325,7 +374,7 @@ class IntegrationInstanceApiControllerIntTest {
                 new ConfigurationMoveImpactDTO(
                     List.of(
                         new AutomationProjectConfigurationVersionImpactDTO.Workflow(
-                            "uuid-1", "Cron", List.of("cronExpression"), List.of("slack"), 1)),
+                            "uuid-1", "Cron", List.of("cronExpression"), List.of("slack"), 1, true)),
                     List.of(
                         new ConfigurationMoveResultDTO.Skipped(
                             2L, ConfigurationMoveResultDTO.Skipped.CONNECTION_MISMATCH, List.of()))));
@@ -346,6 +395,8 @@ class IntegrationInstanceApiControllerIntTest {
             .isEqualTo("cronExpression")
             .jsonPath("$.workflows[0].newRequiredConnections[0]")
             .isEqualTo("slack")
+            .jsonPath("$.workflows[0].awaitsConfiguration")
+            .isEqualTo(true)
             .jsonPath("$.workflows[0].affectedConnectedUserCount")
             .isEqualTo(1)
             .jsonPath("$.skipped[0].connectedUserId")
@@ -364,7 +415,7 @@ class IntegrationInstanceApiControllerIntTest {
                         new ConfigurationMoveResultDTO.Skipped(
                             2L, ConfigurationMoveResultDTO.Skipped.TARGET_LACKS_ENABLED_WORKFLOWS,
                             List.of("Cron"))),
-                    List.of(1L)));
+                    List.of(1L), 2L));
 
         this.webTestClient
             .post()
@@ -397,7 +448,7 @@ class IntegrationInstanceApiControllerIntTest {
                 new ConfigurationMoveImpactDTO(
                     List.of(
                         new AutomationProjectConfigurationVersionImpactDTO.Workflow(
-                            "uuid-1", "Cron", List.of("cronExpression"), List.of("slack"), 1)),
+                            "uuid-1", "Cron", List.of("cronExpression"), List.of("slack"), 1, false)),
                     List.of(
                         new ConfigurationMoveResultDTO.Skipped(
                             2L, ConfigurationMoveResultDTO.Skipped.CONNECTION_MISMATCH, List.of()))));
@@ -436,7 +487,7 @@ class IntegrationInstanceApiControllerIntTest {
                         new ConfigurationMoveResultDTO.Skipped(
                             2L, ConfigurationMoveResultDTO.Skipped.TARGET_LACKS_ENABLED_WORKFLOWS,
                             List.of("Cron"))),
-                    List.of(1L)));
+                    List.of(1L), 2L));
 
         this.webTestClient
             .post()
@@ -488,6 +539,6 @@ class IntegrationInstanceApiControllerIntTest {
                     new OAuth2AuthorizationParameters(
                         "https://auth.example.com", "client-id", Map.of(), Map.of("read", true)),
                     "https://app.example.com/callback")),
-            List.of("mcp-workflow-uuid"));
+            List.of("mcp-workflow-uuid"), List.of("tool-only-workflow-uuid"));
     }
 }

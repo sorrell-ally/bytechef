@@ -7,6 +7,7 @@
 
 package com.bytechef.ee.automation.configuration.remote.client.facade;
 
+import com.bytechef.automation.configuration.dto.ConnectionWorkflowDTO;
 import com.bytechef.automation.configuration.facade.WorkspaceConnectionFacade;
 import com.bytechef.platform.annotation.ConditionalOnEEVersion;
 import com.bytechef.platform.tag.domain.Tag;
@@ -39,6 +40,13 @@ public class RemoteWorkspaceConnectionFacadeClient implements WorkspaceConnectio
     }
 
     @Override
+    public void disconnectConnection(
+        long connectionId, ConnectionWorkflowDTO.Usage usage, long id) {
+
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public com.bytechef.platform.connection.dto.ConnectionDTO getConnection(long connectionId) {
         throw new UnsupportedOperationException();
     }
@@ -47,6 +55,18 @@ public class RemoteWorkspaceConnectionFacadeClient implements WorkspaceConnectio
     public List<com.bytechef.platform.connection.dto.ConnectionDTO> getConnections(
         long workspaceId, String componentName, Integer connectionVersion, Long connectionEnvironment,
         Long tagId) {
+
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public List<Tag> getConnectionTags(long workspaceId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public List<ConnectionWorkflowDTO> getConnectionWorkflows(
+        long connectionId) {
 
         throw new UnsupportedOperationException();
     }

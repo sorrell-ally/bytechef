@@ -2,11 +2,16 @@ import {Collapsible} from '@/components/ui/collapsible';
 import {TooltipProvider} from '@/components/ui/tooltip';
 import IntegrationListItem from '@/ee/pages/embedded/integrations/components/integration-list/IntegrationListItem';
 import {IntegrationListItemTabType} from '@/ee/pages/embedded/integrations/components/integration-list/IntegrationListItemTabs';
-import {Integration, IntegrationInstanceConfiguration} from '@/ee/shared/middleware/embedded/configuration';
-import {fireEvent, render, resetAll, screen, userEvent, windowResizeObserver} from '@/shared/util/test-utils';
+import {
+    Integration,
+    IntegrationInstanceConfiguration,
+    IntegrationStatus,
+} from '@/ee/shared/middleware/embedded/configuration';
+import {act, fireEvent, render, resetAll, screen, userEvent, windowResizeObserver} from '@/shared/util/test-utils';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
 const hoisted = vi.hoisted(() => ({
+    configurationDialogOnSuccess: {current: undefined as ((id: number) => void) | undefined},
     navigate: vi.fn(),
     onTabChange: vi.fn(),
 }));
@@ -33,6 +38,10 @@ vi.mock('react-router-dom', () => ({
 vi.mock('@/ee/shared/mutations/embedded/integrations.mutations', () => ({
     useDeleteIntegrationMutation: () => ({isPending: false, mutate: vi.fn()}),
     useUpdateIntegrationTagsMutation: () => ({mutate: vi.fn()}),
+}));
+
+vi.mock('@/ee/pages/embedded/integrations/components/integration-list/useIntegrationComponentElements', () => ({
+    default: () => ({actions: undefined, isError: false, isLoading: false, refetch: vi.fn(), tools: undefined}),
 }));
 
 vi.mock('@/ee/shared/mutations/embedded/workflows.mutations', () => ({
@@ -83,17 +92,25 @@ vi.mock(
     () => ({
         default: ({
             integrationInstanceConfiguration,
+            onSuccess,
             triggerNode,
         }: {
             integrationInstanceConfiguration: IntegrationInstanceConfiguration;
+            onSuccess?: (id: number) => void;
             triggerNode: React.ReactNode;
-        }) => (
-            <>
-                {triggerNode}
+        }) => {
+            if (!triggerNode) {
+                hoisted.configurationDialogOnSuccess.current = onSuccess;
+            }
 
-                <span>{`Configuration dialog for integration ${integrationInstanceConfiguration.integrationId} in environment ${integrationInstanceConfiguration.environmentId}`}</span>
-            </>
-        ),
+            return (
+                <>
+                    {triggerNode}
+
+                    <span>{`Configuration dialog for integration ${integrationInstanceConfiguration.integrationId} in environment ${integrationInstanceConfiguration.environmentId}`}</span>
+                </>
+            );
+        },
     })
 );
 
@@ -143,6 +160,8 @@ describe('IntegrationListItem', () => {
     afterEach(() => {
         resetAll();
         vi.clearAllMocks();
+
+        hoisted.configurationDialogOnSuccess.current = undefined;
     });
 
     describe('actions menu', () => {
@@ -247,6 +266,53 @@ describe('IntegrationListItem', () => {
             expect(await screen.findByRole('tooltip')).toHaveTextContent(
                 'Publish the integration before configuring it.'
             );
+        });
+
+        it('should offer configuring instead of publishing an unpublished integration without workflows', async () => {
+            renderItem({integrationWorkflowIds: [], lastPublishedDate: undefined});
+
+            const menuTrigger = screen
+                .getAllByRole('button')
+                .filter((button) => button.getAttribute('aria-haspopup') === 'menu')
+                .pop();
+
+            await userEvent.click(menuTrigger!);
+
+            const publishMenuItem = screen.getByRole('menuitem', {name: 'Publish'});
+
+            expect(publishMenuItem).toHaveAttribute('data-disabled');
+            expect(screen.getByRole('menuitem', {name: 'New Configuration'})).not.toHaveAttribute('data-disabled');
+
+            await userEvent.hover(publishMenuItem.parentElement!);
+
+            expect(await screen.findByRole('tooltip')).toHaveTextContent(
+                'Add a workflow before publishing the integration.'
+            );
+        });
+
+        it('should disable Publish for a published integration whose draft has no workflows', async () => {
+            renderItem({integrationWorkflowIds: []});
+
+            const menuTrigger = screen
+                .getAllByRole('button')
+                .filter((button) => button.getAttribute('aria-haspopup') === 'menu')
+                .pop();
+
+            await userEvent.click(menuTrigger!);
+
+            expect(screen.getByRole('menuitem', {name: 'Publish'})).toHaveAttribute('data-disabled');
+        });
+
+        it('should switch to the Configurations tab once New Configuration creates a configuration', async () => {
+            await openMenu();
+
+            await userEvent.click(screen.getByRole('menuitem', {name: 'New Configuration'}));
+
+            expect(hoisted.onTabChange).not.toHaveBeenCalled();
+
+            act(() => hoisted.configurationDialogOnSuccess.current?.(42));
+
+            expect(hoisted.onTabChange).toHaveBeenCalledWith('configurations');
         });
 
         it('should ask for confirmation when Delete is clicked', async () => {
@@ -413,6 +479,21 @@ describe('IntegrationListItem', () => {
 
             expect(screen.queryByLabelText('Create Configuration')).not.toBeInTheDocument();
             expect(screen.queryByText(/Configuration dialog/)).not.toBeInTheDocument();
+        });
+    });
+
+    describe('status badge', () => {
+        it('should show the published version when the draft matches it', () => {
+            renderItem({lastIntegrationVersion: 3, lastStatus: IntegrationStatus.Draft, unpublishedChanges: false});
+
+            expect(screen.getByText('PUBLISHED').parentElement).toHaveTextContent('V2PUBLISHED');
+        });
+
+        it('should show the draft version when the draft has unpublished changes', () => {
+            renderItem({lastIntegrationVersion: 3, lastStatus: IntegrationStatus.Draft, unpublishedChanges: true});
+
+            expect(screen.getByText('DRAFT').parentElement).toHaveTextContent('V3DRAFT');
+            expect(screen.queryByText('PUBLISHED')).not.toBeInTheDocument();
         });
     });
 });

@@ -15,9 +15,13 @@ import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip';
 import IntegrationInstanceConfigurationDialog from '@/ee/pages/embedded/integration-instance-configurations/components/integration-instance-configuration-dialog/IntegrationInstanceConfigurationDialog';
 import IntegrationDialog from '@/ee/pages/embedded/integrations/components/IntegrationDialog';
 import IntegrationPublishDialog from '@/ee/pages/embedded/integrations/components/IntegrationPublishDialog';
+import IntegrationComponentElementList from '@/ee/pages/embedded/integrations/components/integration-list/IntegrationComponentElementList';
+import IntegrationListItemPublishMenuItem from '@/ee/pages/embedded/integrations/components/integration-list/IntegrationListItemPublishMenuItem';
 import IntegrationListItemTabs, {
     IntegrationListItemTabType,
 } from '@/ee/pages/embedded/integrations/components/integration-list/IntegrationListItemTabs';
+import useIntegrationComponentElements from '@/ee/pages/embedded/integrations/components/integration-list/useIntegrationComponentElements';
+import {isIntegrationConfigurable} from '@/ee/pages/embedded/shared/integrationPublication';
 import {Integration, IntegrationInstanceConfiguration, Tag} from '@/ee/shared/middleware/embedded/configuration';
 import {
     useDeleteIntegrationMutation,
@@ -33,6 +37,7 @@ import WorkflowDialog from '@/shared/components/workflow/WorkflowDialog';
 import {DEVELOPMENT_ENVIRONMENT} from '@/shared/constants';
 import {useAnalytics} from '@/shared/hooks/useAnalytics';
 import {useGetWorkflowQuery} from '@/shared/queries/automation/workflows.queries';
+import getCodeWorkflowLanguageLabel, {isJavaCodeWorkflow} from '@/shared/util/codeWorkflowLanguage-utils';
 import {useQueryClient} from '@tanstack/react-query';
 import {
     ChevronDownIcon,
@@ -40,11 +45,12 @@ import {
     EditIcon,
     EllipsisVerticalIcon,
     PlusIcon,
-    SendIcon,
-    SettingsIcon,
+    Settings2Icon,
     Trash2Icon,
     UploadIcon,
     WorkflowIcon,
+    WrenchIcon,
+    ZapIcon,
 } from 'lucide-react';
 import {ChangeEvent, ReactNode, useCallback, useRef, useState} from 'react';
 import InlineSVG from 'react-inlinesvg';
@@ -53,6 +59,7 @@ import {toast} from 'sonner';
 
 interface IntegrationItemProps {
     activeTab?: IntegrationListItemTabType;
+    componentVersion?: number;
     configurationsContent: ReactNode;
     integration: Integration;
     onTabChange: (tab?: IntegrationListItemTabType) => void;
@@ -62,12 +69,15 @@ interface IntegrationItemProps {
 
 const IntegrationListItem = ({
     activeTab,
+    componentVersion,
     configurationsContent,
     integration,
     onTabChange,
     remainingTags,
     workflowsContent,
 }: IntegrationItemProps) => {
+    const javaCodeWorkflow = isJavaCodeWorkflow(integration.codeWorkflow, integration.codeWorkflowLanguage);
+
     const [showEditDialog, setShowEditDialog] = useState(false);
     const [showIntegrationInstanceConfigurationDialog, setShowIntegrationInstanceConfigurationDialog] = useState(false);
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -78,6 +88,14 @@ const IntegrationListItem = ({
 
     const {captureIntegrationWorkflowCreated, captureIntegrationWorkflowImported} = useAnalytics();
 
+    const {
+        actions: componentActions,
+        isError: isComponentElementsError,
+        isLoading: isComponentElementsLoading,
+        refetch: refetchComponentElements,
+        tools: componentTools,
+    } = useIntegrationComponentElements(integration.componentName, componentVersion, !!activeTab);
+
     const navigate = useNavigate();
 
     const [searchParams] = useSearchParams();
@@ -87,7 +105,7 @@ const IntegrationListItem = ({
     const configurationCount = integration.developmentConfigurationCount;
     const workflowCount = integration.integrationWorkflowIds?.length ?? 0;
     const hasWorkflows = workflowCount > 0;
-    const isPublished = !!(integration.lastPublishedDate && integration.lastIntegrationVersion);
+    const isConfigurable = isIntegrationConfigurable(integration);
 
     const createIntegrationWorkflowMutation = useCreateIntegrationWorkflowMutation({
         onSuccess: (integrationWorkflowId) => {
@@ -198,11 +216,11 @@ const IntegrationListItem = ({
             >
                 <ListItemExpandButton label="Toggle integration" />
 
-                <div className="flex flex-1 items-center py-3 group-data-[state='open']/integration:border-none">
-                    <div className="flex-1">
-                        <div className="flex min-h-8 items-center justify-between">
+                <div className="flex min-w-0 flex-1 flex-col items-stretch gap-y-2 py-3 group-data-[state='open']/integration:border-none sm:flex-row sm:items-center sm:gap-y-0">
+                    <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between">
                             <div className="relative flex items-center gap-2">
-                                {hasWorkflows ? (
+                                {hasWorkflows && !javaCodeWorkflow ? (
                                     <Link
                                         aria-label="Integration title link"
                                         className="group/title flex items-center gap-2"
@@ -249,7 +267,7 @@ const IntegrationListItem = ({
                             </div>
                         </div>
 
-                        <div className="relative mt-2 min-h-7 sm:flex sm:items-center sm:justify-between">
+                        <div className="relative mt-2 sm:flex sm:items-center sm:justify-between">
                             <div className="flex items-center gap-2">
                                 <CollapsibleTrigger className="group mr-2 flex items-center text-xs font-semibold text-muted-foreground">
                                     <span className="mr-1">
@@ -287,11 +305,24 @@ const IntegrationListItem = ({
                         </div>
                     </div>
 
-                    <div className="flex items-center justify-end gap-x-6 [&>:last-child]:-ml-3">
+                    <div className="flex items-center justify-between gap-x-6 sm:justify-end [&>:last-child]:-ml-3">
+                        <div className="flex w-24 shrink-0 justify-end">
+                            {integration.codeWorkflow && (
+                                <Badge
+                                    className="uppercase"
+                                    label={getCodeWorkflowLanguageLabel(integration.codeWorkflowLanguage) ?? 'Code'}
+                                    styleType="secondary-filled"
+                                    weight="semibold"
+                                />
+                            )}
+                        </div>
+
                         {integration.lastIntegrationVersion && (
-                            <div className="flex flex-col items-end gap-y-2">
-                                <div className="flex min-h-8 items-center">
-                                    {integration.lastPublishedDate && integration.lastIntegrationVersion ? (
+                            <div className="flex items-center gap-x-3 sm:w-60 sm:shrink-0 sm:flex-col sm:items-end sm:gap-x-0 sm:gap-y-4">
+                                <div className="flex items-center">
+                                    {integration.lastPublishedDate &&
+                                    integration.lastIntegrationVersion &&
+                                    !integration.unpublishedChanges ? (
                                         <Badge
                                             className="flex space-x-1 border-transparent"
                                             styleType="success-outline"
@@ -316,7 +347,7 @@ const IntegrationListItem = ({
 
                                 <Tooltip>
                                     <TooltipTrigger>
-                                        <div className="flex min-h-7 items-center text-sm text-content-neutral-secondary sm:mt-0">
+                                        <div className="flex items-center text-sm text-content-neutral-secondary sm:mt-0">
                                             {integration.lastPublishedDate ? (
                                                 <span className="text-xs">
                                                     {`Published at ${integration.lastPublishedDate?.toLocaleDateString()} ${integration.lastPublishedDate?.toLocaleTimeString()}`}
@@ -345,9 +376,8 @@ const IntegrationListItem = ({
                                         onClick={() => setShowEditDialog(true)}
                                     />
 
-                                    <DropdownMenuItem
-                                        icon={<SendIcon />}
-                                        label="Publish"
+                                    <IntegrationListItemPublishMenuItem
+                                        canPublish={hasWorkflows}
                                         onClick={() => setShowPublishIntegrationDialog(true)}
                                     />
                                 </DropdownMenuGroup>
@@ -387,15 +417,15 @@ const IntegrationListItem = ({
                                         <TooltipTrigger asChild>
                                             <span className="block">
                                                 <DropdownMenuItem
-                                                    disabled={!isPublished}
-                                                    icon={<SettingsIcon />}
+                                                    disabled={!isConfigurable}
+                                                    icon={<Settings2Icon />}
                                                     label="New Configuration"
                                                     onSelect={() => setShowIntegrationInstanceConfigurationDialog(true)}
                                                 />
                                             </span>
                                         </TooltipTrigger>
 
-                                        {!isPublished && (
+                                        {!isConfigurable && (
                                             <TooltipContent>
                                                 Publish the integration before configuring it.
                                             </TooltipContent>
@@ -419,6 +449,7 @@ const IntegrationListItem = ({
 
             <CollapsibleContent className="mt-1 mr-3 mb-3 ml-11">
                 <IntegrationListItemTabs
+                    actionCount={componentActions?.length}
                     actions={
                         activeTab === 'workflows' && workflowCount > 0 ? (
                             <ButtonGroup aria-label="Workflow Creation Actions">
@@ -464,7 +495,7 @@ const IntegrationListItem = ({
                                     </DropdownMenuContent>
                                 </DropdownMenu>
                             </ButtonGroup>
-                        ) : activeTab === 'configurations' && isPublished && configurationCount !== 0 ? (
+                        ) : activeTab === 'configurations' && isConfigurable && configurationCount !== 0 ? (
                             <IntegrationInstanceConfigurationDialog
                                 integrationInstanceConfiguration={
                                     {
@@ -481,9 +512,32 @@ const IntegrationListItem = ({
                             />
                         ) : undefined
                     }
+                    actionsContent={
+                        <IntegrationComponentElementList
+                            elements={componentActions || []}
+                            emptyIcon={<ZapIcon />}
+                            idLabel="Action ID"
+                            isError={isComponentElementsError}
+                            isLoading={isComponentElementsLoading}
+                            noun="actions"
+                            onRetry={() => void refetchComponentElements()}
+                        />
+                    }
                     activeTab={activeTab ?? 'workflows'}
                     configurationsContent={configurationsContent}
                     onTabChange={(tab) => onTabChange(tab)}
+                    toolCount={componentTools?.length}
+                    toolsContent={
+                        <IntegrationComponentElementList
+                            elements={componentTools || []}
+                            emptyIcon={<WrenchIcon />}
+                            idLabel="Tool ID"
+                            isError={isComponentElementsError}
+                            isLoading={isComponentElementsLoading}
+                            noun="tools"
+                            onRetry={() => void refetchComponentElements()}
+                        />
+                    }
                     workflowsContent={workflowsContent}
                 />
             </CollapsibleContent>
@@ -511,6 +565,7 @@ const IntegrationListItem = ({
                         } as IntegrationInstanceConfiguration
                     }
                     onClose={() => setShowIntegrationInstanceConfigurationDialog(false)}
+                    onSuccess={() => onTabChange('configurations')}
                 />
             )}
 

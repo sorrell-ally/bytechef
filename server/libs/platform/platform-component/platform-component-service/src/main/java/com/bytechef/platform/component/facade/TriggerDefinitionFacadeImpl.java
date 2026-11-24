@@ -16,6 +16,7 @@
 
 package com.bytechef.platform.component.facade;
 
+import com.bytechef.component.definition.ActionDefinition.WebhookResponse;
 import com.bytechef.component.definition.TriggerDefinition.WebhookEnableOutput;
 import com.bytechef.component.definition.TriggerDefinition.WebhookValidateResponse;
 import com.bytechef.platform.component.ComponentConnection;
@@ -31,6 +32,7 @@ import com.bytechef.platform.domain.OutputResponse;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.List;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 
 /**
@@ -53,13 +55,13 @@ public class TriggerDefinitionFacadeImpl implements TriggerDefinitionFacade {
     @Override
     public List<Property> executeDynamicProperties(
         String componentName, int componentVersion, String triggerName, String propertyName,
-        Map<String, ?> inputParameters, List<String> lookupDependsOnPaths, Long connectionId) {
+        Map<String, ?> inputParameters, List<String> lookupDependsOnPaths, Long connectionId, String workflowId) {
 
         ComponentConnection componentConnection = getComponentConnection(connectionId);
 
         return triggerDefinitionService.executeDynamicProperties(
             componentName, componentVersion, triggerName, inputParameters, propertyName, lookupDependsOnPaths,
-            componentConnection);
+            componentConnection, workflowId);
     }
 
     @Override
@@ -98,24 +100,25 @@ public class TriggerDefinitionFacadeImpl implements TriggerDefinitionFacade {
     @Override
     public List<Option> executeOptions(
         String componentName, int componentVersion, String triggerName, String propertyName,
-        Map<String, ?> inputParameters, List<String> lookupDependsOnPaths, String searchText, Long connectionId) {
+        Map<String, ?> inputParameters, List<String> lookupDependsOnPaths, String searchText, Long connectionId,
+        String workflowId) {
 
         ComponentConnection componentConnection = getComponentConnection(connectionId);
 
         return triggerDefinitionService.executeOptions(
             componentName, componentVersion, triggerName, propertyName, inputParameters,
-            lookupDependsOnPaths, searchText, componentConnection);
+            lookupDependsOnPaths, searchText, componentConnection, workflowId);
     }
 
     @Override
     public OutputResponse executeOutput(
         String componentName, int componentVersion, String triggerName, Map<String, ?> inputParameters,
-        Long connectionId) {
+        Long connectionId, String workflowId) {
 
         ComponentConnection componentConnection = getComponentConnection(connectionId);
 
         return triggerDefinitionService.executeOutput(
-            componentName, componentVersion, triggerName, inputParameters, componentConnection);
+            componentName, componentVersion, triggerName, inputParameters, componentConnection, workflowId);
     }
 
     @Override
@@ -154,6 +157,14 @@ public class TriggerDefinitionFacadeImpl implements TriggerDefinitionFacade {
         return triggerDefinitionService.executeWebhookEnable(
             componentName, componentVersion, triggerName, inputParameters, workflowExecutionId, webhookUrl,
             componentConnection, environmentId);
+    }
+
+    @Override
+    public @Nullable WebhookResponse executeWebhookResponse(
+        String componentName, int componentVersion, String triggerName, Map<String, ?> inputParameters) {
+
+        return triggerDefinitionService.executeWebhookResponse(
+            componentName, componentVersion, triggerName, inputParameters);
     }
 
     @Override

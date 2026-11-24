@@ -7,29 +7,66 @@
 
 package com.bytechef.ee.automation.configuration.facade;
 
+import com.bytechef.atlas.configuration.domain.Workflow;
+import com.bytechef.atlas.configuration.service.WorkflowService;
+import com.bytechef.automation.configuration.audit.ProjectAuditEvents;
 import com.bytechef.automation.configuration.domain.Project;
+import com.bytechef.automation.configuration.domain.ProjectDeployment;
+import com.bytechef.automation.configuration.domain.ProjectDeploymentWorkflow;
+import com.bytechef.automation.configuration.domain.ProjectDeploymentWorkflowConnection;
+import com.bytechef.automation.configuration.domain.ProjectWorkflow;
+import com.bytechef.automation.configuration.facade.ProjectDeploymentFacade;
+import com.bytechef.automation.configuration.facade.ProjectFacade;
+import com.bytechef.automation.configuration.ownership.ProjectOwner;
+import com.bytechef.automation.configuration.service.PermissionService;
+import com.bytechef.automation.configuration.service.ProjectDeploymentService;
+import com.bytechef.automation.configuration.service.ProjectDeploymentWorkflowService;
+import com.bytechef.automation.configuration.service.ProjectOwnershipService;
 import com.bytechef.automation.configuration.service.ProjectService;
 import com.bytechef.automation.configuration.service.ProjectWorkflowService;
 import com.bytechef.automation.project.ProjectHandler;
 import com.bytechef.automation.project.definition.ProjectDefinition;
+import com.bytechef.commons.util.CollectionUtils;
+import com.bytechef.config.ApplicationProperties;
+import com.bytechef.ee.automation.configuration.domain.ProjectCodeWorkflow;
 import com.bytechef.ee.automation.configuration.exception.CodeWorkflowErrorType;
 import com.bytechef.ee.automation.configuration.service.ProjectCodeWorkflowService;
 import com.bytechef.ee.platform.codeworkflow.configuration.domain.CodeWorkflowContainer;
 import com.bytechef.ee.platform.codeworkflow.configuration.domain.CodeWorkflowContainer.Language;
-import com.bytechef.ee.platform.codeworkflow.configuration.facade.CodeWorkflowContainerFacade;
+import com.bytechef.ee.platform.codeworkflow.configuration.service.CodeWorkflowContainerService;
+import com.bytechef.ee.platform.codeworkflow.file.storage.CodeWorkflowFileStorage;
 import com.bytechef.exception.ConfigurationException;
 import com.bytechef.platform.annotation.ConditionalOnEEVersion;
+import com.bytechef.platform.audit.AuditData;
+import com.bytechef.platform.audit.Audited;
+import com.bytechef.platform.category.domain.Category;
 import com.bytechef.platform.codeworkflow.loader.automation.ProjectHandlerLoader;
-import com.bytechef.platform.constant.PlatformType;
+import com.bytechef.platform.configuration.domain.ComponentConnection;
+import com.bytechef.platform.configuration.domain.Environment;
+import com.bytechef.platform.configuration.domain.WorkflowTrigger;
+import com.bytechef.platform.configuration.facade.ComponentConnectionFacade;
 import com.bytechef.platform.security.constant.AuthorityConstants;
+import com.bytechef.platform.tag.domain.Tag;
+import com.bytechef.platform.tag.service.TagService;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import org.jspecify.annotations.Nullable;
 import org.springframework.cache.CacheManager;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,33 +81,105 @@ import org.springframework.transaction.annotation.Transactional;
 @ConditionalOnEEVersion
 public class ProjectCodeWorkflowFacadeImpl implements ProjectCodeWorkflowFacade {
 
+    private static final Set<ProjectOwner> EMBEDDED_PROJECT_OWNERS =
+        Set.of(ProjectOwner.EMBEDDED_AUTOMATION_PROJECT);
+
     private final CacheManager cacheManager;
+    private final PermissionService permissionService;
+    private final ProjectOwnershipService projectOwnershipService;
     private final ProjectService projectService;
     private final ProjectWorkflowService projectWorkflowService;
-    private final CodeWorkflowContainerFacade codeWorkflowContainerFacade;
+    private final ProjectFacade projectFacade;
     private final ProjectCodeWorkflowService projectCodeWorkflowService;
+    private final CodeWorkflowContainerService codeWorkflowContainerService;
+    private final CodeWorkflowFileStorage codeWorkflowFileStorage;
+    private final ComponentConnectionFacade componentConnectionFacade;
+    private final TagService tagService;
+    private final ProjectCodeWorkflowDraftFacade projectCodeWorkflowDraftFacade;
+    private final ProjectDeploymentFacade projectDeploymentFacade;
+    private final ProjectDeploymentService projectDeploymentService;
+    private final ProjectDeploymentWorkflowService projectDeploymentWorkflowService;
+    private final WorkflowService workflowService;
+    private final boolean javaEnabled;
 
     @SuppressFBWarnings("EI")
     public ProjectCodeWorkflowFacadeImpl(
-        CacheManager cacheManager, ProjectService projectService, ProjectWorkflowService projectWorkflowService,
-        CodeWorkflowContainerFacade codeWorkflowContainerFacade,
-        ProjectCodeWorkflowService projectCodeWorkflowService) {
+        ApplicationProperties applicationProperties, CacheManager cacheManager, ProjectService projectService,
+        ProjectWorkflowService projectWorkflowService, ProjectFacade projectFacade,
+        ProjectCodeWorkflowService projectCodeWorkflowService,
+        CodeWorkflowContainerService codeWorkflowContainerService,
+        CodeWorkflowFileStorage codeWorkflowFileStorage,
+        ProjectCodeWorkflowDraftFacade projectCodeWorkflowDraftFacade, TagService tagService,
+        ProjectDeploymentFacade projectDeploymentFacade, ProjectDeploymentService projectDeploymentService,
+        ProjectDeploymentWorkflowService projectDeploymentWorkflowService,
+        ComponentConnectionFacade componentConnectionFacade, WorkflowService workflowService,
+        ProjectOwnershipService projectOwnershipService, PermissionService permissionService) {
 
         this.cacheManager = cacheManager;
+        this.permissionService = permissionService;
+        this.projectOwnershipService = projectOwnershipService;
         this.projectService = projectService;
         this.projectWorkflowService = projectWorkflowService;
-        this.codeWorkflowContainerFacade = codeWorkflowContainerFacade;
+        this.projectFacade = projectFacade;
         this.projectCodeWorkflowService = projectCodeWorkflowService;
+        this.codeWorkflowContainerService = codeWorkflowContainerService;
+        this.codeWorkflowFileStorage = codeWorkflowFileStorage;
+        this.componentConnectionFacade = componentConnectionFacade;
+        this.projectCodeWorkflowDraftFacade = projectCodeWorkflowDraftFacade;
+        this.tagService = tagService;
+        this.projectDeploymentFacade = projectDeploymentFacade;
+        this.projectDeploymentService = projectDeploymentService;
+        this.projectDeploymentWorkflowService = projectDeploymentWorkflowService;
+        this.workflowService = workflowService;
+        ApplicationProperties.Workflow workflow = applicationProperties.getWorkflow();
+
+        ApplicationProperties.Workflow.CodeWorkflow codeWorkflow = workflow.getCodeWorkflow();
+
+        ApplicationProperties.Workflow.CodeWorkflow.Java java = codeWorkflow.getJava();
+
+        this.javaEnabled = java.isEnabled();
     }
 
     @Override
+    @Audited(event = ProjectAuditEvents.PROJECT_CREATED, data = {
+        @AuditData(key = "projectId", value = "#result.id"),
+        @AuditData(key = "name", value = "#name"),
+        @AuditData(key = "workspaceId", value = "#workspaceId")
+    })
     @PreAuthorize("hasAuthority(\"" + AuthorityConstants.ADMIN + "\")")
-    public void save(long workspaceId, byte[] bytes, Language language) {
-        if (language == Language.RUBY) {
+    public Project createEmptyCodeWorkflow(long workspaceId, String name, Language language) {
+        return createEmptyCodeWorkflow(workspaceId, name, language, null, null, null);
+    }
+
+    @Override
+    @Audited(event = ProjectAuditEvents.PROJECT_CREATED, data = {
+        @AuditData(key = "projectId", value = "#result.id"),
+        @AuditData(key = "name", value = "#name"),
+        @AuditData(key = "workspaceId", value = "#workspaceId")
+    })
+    @PreAuthorize("hasAuthority(\"" + AuthorityConstants.ADMIN + "\")")
+    public Project createEmptyCodeWorkflow(
+        long workspaceId, String name, Language language, @Nullable String description, @Nullable Long categoryId,
+        @Nullable List<String> tags) {
+        validateName(name);
+
+        if (language != Language.JAVASCRIPT && language != Language.PYTHON) {
             throw new ConfigurationException(
-                "Uploading of Ruby code workflows is temporarily disabled",
+                "Create-empty supports JavaScript and Python only",
                 CodeWorkflowErrorType.LANGUAGE_NOT_SUPPORTED);
         }
+
+        if (projectService.fetchProject(name, workspaceId)
+            .isPresent()) {
+
+            throw new ConfigurationException(
+                "A project named '" + name + "' already exists",
+                CodeWorkflowErrorType.CODE_WORKFLOW_ALREADY_EXISTS);
+        }
+
+        String template = readTemplate(language).replace("__NAME__", name);
+
+        byte[] bytes = template.getBytes(StandardCharsets.UTF_8);
 
         ProjectDefinition projectDefinition;
 
@@ -80,33 +189,552 @@ public class ProjectCodeWorkflowFacadeImpl implements ProjectCodeWorkflowFacade 
             throw new RuntimeException(e);
         }
 
-        Project project = projectService.fetchProject(projectDefinition.getName(), workspaceId)
-            .map(curProject -> updateProject(curProject, projectDefinition))
-            .orElseGet(() -> createProject(workspaceId, projectDefinition));
+        Project project = createProject(workspaceId, projectDefinition, description, categoryId, tags);
 
-        CodeWorkflowContainer codeWorkflowContainer = codeWorkflowContainerFacade.create(
-            projectDefinition.getName(), projectDefinition.getVersion(), projectDefinition.getWorkflows(),
-            language, bytes, PlatformType.AUTOMATION);
+        projectCodeWorkflowDraftFacade.saveDraft(project, projectDefinition, bytes, language);
 
-        projectCodeWorkflowService.create(codeWorkflowContainer, project);
+        return project;
+    }
 
-        Map<String, String> workflowNameIds = codeWorkflowContainer.getWorkflowNameIds();
+    @Transactional(readOnly = true)
+    @Override
+    @PreAuthorize("hasAuthority(\"" + AuthorityConstants.ADMIN + "\")")
+    public List<Project> getCodeWorkflowProjects() {
+        List<Long> projectIds = projectCodeWorkflowService.getCodeWorkflowProjectIds();
 
-        for (Map.Entry<String, String> entry : workflowNameIds.entrySet()) {
-            projectWorkflowService.addWorkflow(project.getId(), project.getLastProjectVersion(), entry.getValue());
+        if (projectIds.isEmpty()) {
+            return List.of();
         }
 
-        projectService.publishProject(project.getId(), null, false);
+        Set<Long> embeddedProjectIds = projectOwnershipService.getOwnedProjectIds(
+            projectIds, EMBEDDED_PROJECT_OWNERS);
+
+        return projectService.getProjects(projectIds)
+            .stream()
+            .filter(project -> !embeddedProjectIds.contains(project.getId()))
+            .toList();
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    @PreAuthorize("hasAuthority(\"" + AuthorityConstants.ADMIN + "\")")
+    public String getCodeWorkflowSource(long projectId) {
+        CodeWorkflowContainer codeWorkflowContainer = getCodeWorkflowContainer(projectId);
+
+        if (codeWorkflowContainer.getLanguage() == Language.JAVA) {
+            throw new ConfigurationException(
+                "Java code workflows have no editable source", CodeWorkflowErrorType.LANGUAGE_NOT_SUPPORTED);
+        }
+
+        return codeWorkflowFileStorage.readCodeWorkflowFileContent(codeWorkflowContainer.getWorkflows());
+    }
+
+    @Override
+    @PreAuthorize("hasAuthority(\"" + AuthorityConstants.ADMIN + "\")")
+    public void save(long workspaceId, byte[] bytes, Language language) {
+        publish(workspaceId, bytes, language);
+    }
+
+    @Override
+    @PreAuthorize("hasAuthority(\"" + AuthorityConstants.ADMIN + "\")")
+    public void save(long workspaceId, byte[] bytes, Language language, Environment environment, boolean enable) {
+        PublishedProject publishedProject = publish(workspaceId, bytes, language);
+
+        if (enable) {
+            enableProjectVersion(publishedProject.project(), publishedProject.projectVersion(), environment);
+        }
+    }
+
+    @Override
+    @PreAuthorize("hasAuthority(\"" + AuthorityConstants.ADMIN + "\")")
+    public void updateCodeWorkflowSource(long projectId, String content) {
+        CodeWorkflowContainer codeWorkflowContainer = getCodeWorkflowContainer(projectId);
+
+        Language language = codeWorkflowContainer.getLanguage();
+
+        if (language == Language.JAVA) {
+            throw new ConfigurationException(
+                "Java code workflows have no editable source", CodeWorkflowErrorType.LANGUAGE_NOT_SUPPORTED);
+        }
+
+        Project project = projectService.getProject(projectId);
+
+        if (isEmbeddedBridgeProject(project)) {
+            throw new ConfigurationException(
+                "Embedded-bridge catalog projects cannot be edited in the code editor; redeploy them through the " +
+                    "embedded deploy endpoint instead",
+                CodeWorkflowErrorType.EMBEDDED_BRIDGE_PROJECT_NOT_EDITABLE);
+        }
+
+        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+
+        ProjectDefinition projectDefinition;
+
+        try {
+            projectDefinition = loadProjectDefinition(language, bytes);
+        } catch (Exception e) {
+            throw new ConfigurationException(
+                "Failed to load code workflow source: " + e.getMessage(), CodeWorkflowErrorType.SOURCE_LOAD_FAILED);
+        }
+
+        if (!Objects.equals(projectDefinition.getName(), project.getName())) {
+            project = renameProject(project, projectDefinition.getName());
+        }
+
+        projectCodeWorkflowDraftFacade.saveDraft(project, projectDefinition, bytes, language);
+    }
+
+    @Override
+    @PreAuthorize("hasAuthority(\"" + AuthorityConstants.ADMIN + "\")")
+    public void deployCodeWorkflowSource(long projectId, Language language, String content) {
+        if (language == Language.JAVA) {
+            throw new ConfigurationException(
+                "Java code workflows have no editable source", CodeWorkflowErrorType.LANGUAGE_NOT_SUPPORTED);
+        }
+
+        Project project = projectService.getProject(projectId);
+
+        saveDraftWithProjectName(project, language, content);
+    }
+
+    @Override
+    @PreAuthorize("hasAuthority(\"" + AuthorityConstants.ADMIN + "\")")
+    public void renameCodeWorkflowSource(long projectId) {
+        Project project = projectService.getProject(projectId);
+
+        CodeWorkflowContainer codeWorkflowContainer = getCodeWorkflowContainer(projectId);
+
+        Language language = codeWorkflowContainer.getLanguage();
+
+        if (language == Language.JAVA) {
+            throw new ConfigurationException(
+                "A Java code workflow takes its name from its JAR; change the name in the project definition and " +
+                    "upload the JAR again",
+                CodeWorkflowErrorType.CODE_WORKFLOW_NAME_MISMATCH);
+        }
+
+        String content = codeWorkflowFileStorage.readCodeWorkflowFileContent(codeWorkflowContainer.getWorkflows());
+
+        saveDraftWithProjectName(project, language, content);
+    }
+
+    @Override
+    @PreAuthorize("hasAuthority(\"" + AuthorityConstants.ADMIN + "\")")
+    public void restoreCodeWorkflowSource(long projectId, int projectVersion) {
+        Project project = projectService.getProject(projectId);
+
+        Optional<ProjectCodeWorkflow> projectCodeWorkflowOptional =
+            projectCodeWorkflowService.fetchPublishedProjectCodeWorkflow(projectId, projectVersion + 1);
+
+        if (projectCodeWorkflowOptional.isEmpty()) {
+            throw new ConfigurationException(
+                "Project version " + projectVersion + " has no code workflow source to restore",
+                CodeWorkflowErrorType.SOURCE_LOAD_FAILED);
+        }
+
+        ProjectCodeWorkflow projectCodeWorkflow = projectCodeWorkflowOptional.get();
+
+        CodeWorkflowContainer codeWorkflowContainer = codeWorkflowContainerService.getCodeWorkflowContainer(
+            projectCodeWorkflow.getCodeWorkflowContainerId());
+
+        Language language = codeWorkflowContainer.getLanguage();
+
+        if (language == Language.JAVA) {
+            byte[] bytes = readCodeWorkflowFileBytes(codeWorkflowContainer);
+
+            projectCodeWorkflowDraftFacade.saveDraft(
+                project, readProjectDefinition(language, bytes), bytes, language);
+
+            return;
+        }
+
+        String content = codeWorkflowFileStorage.readCodeWorkflowFileContent(codeWorkflowContainer.getWorkflows());
+
+        saveDraftWithProjectName(project, language, content);
+    }
+
+    private void saveDraftWithProjectName(Project project, Language language, String content) {
+        String projectName = project.getName();
+
+        validateName(projectName);
+
+        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+
+        ProjectDefinition projectDefinition = readProjectDefinition(language, bytes);
+
+        if (!Objects.equals(projectDefinition.getName(), projectName)) {
+            String renamedContent = rewriteDeclaredName(content, projectDefinition.getName(), projectName);
+
+            bytes = renamedContent.getBytes(StandardCharsets.UTF_8);
+
+            projectDefinition = readProjectDefinition(language, bytes);
+
+            if (!Objects.equals(projectDefinition.getName(), projectName)) {
+                throw new ConfigurationException(
+                    "Could not rename the code workflow to '" + projectName +
+                        "'; declare the project name as a plain string literal",
+                    CodeWorkflowErrorType.CODE_WORKFLOW_NAME_MISMATCH);
+            }
+        }
+
+        projectCodeWorkflowDraftFacade.saveDraft(project, projectDefinition, bytes, language);
+    }
+
+    private byte[] readCodeWorkflowFileBytes(CodeWorkflowContainer codeWorkflowContainer) {
+        return codeWorkflowFileStorage.readCodeWorkflowFileBytes(codeWorkflowContainer.getWorkflows());
+    }
+
+    private PublishedProject publish(long workspaceId, byte[] bytes, Language language) {
+        if (language == Language.RUBY) {
+            throw new ConfigurationException(
+                "Uploading of Ruby code workflows is temporarily disabled",
+                CodeWorkflowErrorType.LANGUAGE_NOT_SUPPORTED);
+        }
+
+        if (!javaEnabled && language == Language.JAVA) {
+            throw new ConfigurationException(
+                "Uploading of Java code workflows is disabled",
+                CodeWorkflowErrorType.JAVA_CODE_WORKFLOW_UPLOAD_DISABLED);
+        }
+
+        ProjectDefinition projectDefinition;
+
+        try {
+            projectDefinition = loadProjectDefinition(language, bytes);
+        } catch (Exception e) {
+            throw new ConfigurationException(
+                "Failed to load code workflow source: " + e.getMessage(), CodeWorkflowErrorType.SOURCE_LOAD_FAILED);
+        }
+
+        Optional<Project> sameNamedProjectOptional = projectService.fetchProject(
+            projectDefinition.getName(), workspaceId);
+
+        Project project;
+
+        if (sameNamedProjectOptional.isPresent()) {
+            Project sameNamedProject = sameNamedProjectOptional.get();
+
+            validateDeployTarget(sameNamedProject);
+
+            project = updateProject(sameNamedProject, projectDefinition);
+        } else {
+            project = createProject(workspaceId, projectDefinition);
+        }
+
+        int projectVersion = deployInto(project, projectDefinition, bytes, language);
+
+        return new PublishedProject(project, projectVersion);
+    }
+
+    private void validateDeployTarget(Project project) {
+        long projectId = Objects.requireNonNull(project.getId());
+
+        if (!permissionService.hasResourceScope(projectId, "Project", "WORKFLOW_EDIT") ||
+            !permissionService.hasResourceScope(projectId, "Project", "DEPLOYMENT_PUSH")) {
+
+            throw new AccessDeniedException(
+                "Not allowed to edit and publish the project named '" + project.getName() + "'");
+        }
+
+        Optional<ProjectCodeWorkflow> projectCodeWorkflowOptional =
+            projectCodeWorkflowService.fetchProjectCodeWorkflow(projectId);
+
+        if (projectCodeWorkflowOptional.isEmpty()) {
+            throw new ConfigurationException(
+                "A project named '" + project.getName() + "' already exists and is not a code workflow project",
+                CodeWorkflowErrorType.CODE_WORKFLOW_ALREADY_EXISTS);
+        }
+    }
+
+    private Project renameProject(Project project, String name) {
+        validateName(name);
+
+        Long projectId = project.getId();
+
+        boolean nameTaken = projectService.fetchProject(name, project.getWorkspaceId())
+            .filter(existingProject -> !Objects.equals(existingProject.getId(), projectId))
+            .isPresent();
+
+        if (nameTaken) {
+            throw new ConfigurationException(
+                "A project named '" + name + "' already exists", CodeWorkflowErrorType.CODE_WORKFLOW_ALREADY_EXISTS);
+        }
+
+        project.setName(name);
+
+        return projectService.update(project);
+    }
+
+    private static void validateName(String name) {
+        if (name == null || name.isBlank() || name.indexOf('"') >= 0 || name.indexOf('\\') >= 0
+            || name.indexOf('\n') >= 0 || name.indexOf('\r') >= 0) {
+
+            throw new ConfigurationException(
+                "Invalid code workflow name: must not be blank or contain quotes, backslashes, or newlines",
+                CodeWorkflowErrorType.INVALID_CODE_WORKFLOW_NAME);
+        }
+    }
+
+    private ProjectDefinition readProjectDefinition(Language language, byte[] bytes) {
+        try {
+            return loadProjectDefinition(language, bytes);
+        } catch (Exception e) {
+            throw new ConfigurationException(
+                "Failed to load code workflow source: " + e.getMessage(), CodeWorkflowErrorType.SOURCE_LOAD_FAILED);
+        }
+    }
+
+    private static String rewriteDeclaredName(String content, String declaredName, String newName) {
+        for (String quote : List.of("\"", "'")) {
+            String literal = quote + declaredName + quote;
+
+            int index = content.indexOf(literal);
+
+            if (index >= 0) {
+                return content.substring(0, index) + quote + newName + quote +
+                    content.substring(index + literal.length());
+            }
+        }
+
+        return content;
+    }
+
+    private int deployInto(Project project, ProjectDefinition projectDefinition, byte[] bytes, Language language) {
+        int projectVersion = project.getLastProjectVersion();
+
+        projectCodeWorkflowDraftFacade.saveDraft(project, projectDefinition, bytes, language);
+
+        projectFacade.publishProject(Objects.requireNonNull(project.getId()), null, false);
+
+        return projectVersion;
+    }
+
+    private void enableProjectVersion(Project project, int projectVersion, Environment environment) {
+        long projectId = Objects.requireNonNull(project.getId());
+
+        Optional<ProjectDeployment> projectDeployment = projectDeploymentService.fetchProjectDeployment(
+            projectId, environment);
+
+        if (projectDeployment.isPresent()) {
+            moveProjectDeployment(projectDeployment.get(), projectVersion);
+        } else {
+            createEnabledProjectDeployment(project, projectVersion, environment);
+        }
+    }
+
+    private void createEnabledProjectDeployment(Project project, int projectVersion, Environment environment) {
+        long projectId = Objects.requireNonNull(project.getId());
+
+        ProjectDeployment projectDeployment = new ProjectDeployment();
+
+        projectDeployment.setEnvironment(environment);
+        projectDeployment.setName(project.getName());
+        projectDeployment.setProjectId(projectId);
+        projectDeployment.setProjectVersion(projectVersion);
+
+        List<String> workflowIds = projectWorkflowService.getProjectWorkflows(projectId, projectVersion)
+            .stream()
+            .map(ProjectWorkflow::getWorkflowId)
+            .toList();
+
+        List<ProjectDeploymentWorkflow> projectDeploymentWorkflows = workflowIds.stream()
+            .map(ProjectCodeWorkflowFacadeImpl::toProjectDeploymentWorkflow)
+            .toList();
+
+        long projectDeploymentId = projectDeploymentFacade.createProjectDeployment(
+            projectDeployment, projectDeploymentWorkflows, List.of());
+
+        for (String workflowId : workflowIds) {
+            if (!requiresConfiguration(workflowId, Map.of(), List.of())) {
+                projectDeploymentFacade.enableProjectDeploymentWorkflow(projectDeploymentId, workflowId, true);
+            }
+        }
+
+        projectDeploymentFacade.enableProjectDeployment(projectDeploymentId, true);
+    }
+
+    private void moveProjectDeployment(ProjectDeployment projectDeployment, int projectVersion) {
+        long projectDeploymentId = Objects.requireNonNull(projectDeployment.getId());
+        long projectId = Objects.requireNonNull(projectDeployment.getProjectId());
+
+        List<ProjectWorkflow> allProjectWorkflows = projectWorkflowService.getProjectWorkflows(projectId);
+
+        Map<String, String> workflowIdUuids = allProjectWorkflows.stream()
+            .collect(
+                Collectors.toMap(
+                    ProjectWorkflow::getWorkflowId, ProjectWorkflow::getUuidAsString,
+                    (firstUuid, secondUuid) -> firstUuid));
+
+        Map<String, ProjectDeploymentWorkflow> deployedWorkflowUuidProjectDeploymentWorkflows =
+            projectDeploymentWorkflowService.getProjectDeploymentWorkflows(projectDeploymentId)
+                .stream()
+                .filter(projectDeploymentWorkflow -> workflowIdUuids.containsKey(
+                    projectDeploymentWorkflow.getWorkflowId()))
+                .collect(
+                    Collectors.toMap(
+                        projectDeploymentWorkflow -> workflowIdUuids.get(projectDeploymentWorkflow.getWorkflowId()),
+                        Function.identity(), (firstWorkflow, secondWorkflow) -> firstWorkflow));
+
+        List<ProjectWorkflow> versionProjectWorkflows = allProjectWorkflows.stream()
+            .filter(projectWorkflow -> projectWorkflow.getProjectVersion() == projectVersion)
+            .toList();
+
+        List<String> newWorkflowIds = new ArrayList<>();
+        List<ProjectDeploymentWorkflow> projectDeploymentWorkflows = new ArrayList<>();
+
+        for (ProjectWorkflow projectWorkflow : versionProjectWorkflows) {
+            String workflowId = projectWorkflow.getWorkflowId();
+            ProjectDeploymentWorkflow deployedProjectDeploymentWorkflow =
+                deployedWorkflowUuidProjectDeploymentWorkflows.get(projectWorkflow.getUuidAsString());
+
+            if (deployedProjectDeploymentWorkflow == null) {
+                newWorkflowIds.add(workflowId);
+
+                projectDeploymentWorkflows.add(toProjectDeploymentWorkflow(workflowId));
+
+                continue;
+            }
+
+            projectDeploymentWorkflows.add(
+                toCarriedProjectDeploymentWorkflow(workflowId, deployedProjectDeploymentWorkflow));
+        }
+
+        projectDeployment.setProjectVersion(projectVersion);
+
+        projectDeploymentFacade.updateProjectDeployment(projectDeployment, projectDeploymentWorkflows, List.of());
+
+        for (String newWorkflowId : newWorkflowIds) {
+            if (!requiresConfiguration(newWorkflowId, Map.of(), List.of())) {
+                projectDeploymentFacade.enableProjectDeploymentWorkflow(projectDeploymentId, newWorkflowId, true);
+            }
+        }
+
+        if (!projectDeployment.isEnabled()) {
+            projectDeploymentFacade.enableProjectDeployment(projectDeploymentId, true);
+        }
+    }
+
+    private ProjectDeploymentWorkflow toCarriedProjectDeploymentWorkflow(
+        String workflowId, ProjectDeploymentWorkflow deployedProjectDeploymentWorkflow) {
+
+        ProjectDeploymentWorkflow projectDeploymentWorkflow = new ProjectDeploymentWorkflow();
+
+        Map<String, ?> inputs = deployedProjectDeploymentWorkflow.getInputs();
+        List<ProjectDeploymentWorkflowConnection> connections = deployedProjectDeploymentWorkflow.getConnections();
+
+        projectDeploymentWorkflow.setConnections(connections);
+        projectDeploymentWorkflow.setEnabled(
+            deployedProjectDeploymentWorkflow.isEnabled() && !requiresConfiguration(workflowId, inputs, connections));
+        projectDeploymentWorkflow.setInputs(inputs);
+        projectDeploymentWorkflow.setWorkflowId(workflowId);
+
+        return projectDeploymentWorkflow;
+    }
+
+    private boolean requiresConfiguration(
+        String workflowId, Map<String, ?> inputs, List<ProjectDeploymentWorkflowConnection> connections) {
+
+        Workflow workflow = workflowService.getWorkflow(workflowId);
+
+        boolean requiresInput = workflow.getInputs()
+            .stream()
+            .filter(Workflow.Input::required)
+            .anyMatch(input -> isBlank(inputs.get(input.name())));
+
+        if (requiresInput) {
+            return true;
+        }
+
+        boolean triggerRequiresConnection = WorkflowTrigger.of(workflow)
+            .stream()
+            .flatMap(workflowTrigger -> CollectionUtils.stream(
+                componentConnectionFacade.getComponentConnections(workflowTrigger)))
+            .anyMatch(componentConnection -> isUnsetRequiredConnection(componentConnection, connections));
+
+        if (triggerRequiresConnection) {
+            return true;
+        }
+
+        return workflow.getTasks(true)
+            .stream()
+            .flatMap(
+                workflowTask -> CollectionUtils.stream(componentConnectionFacade.getComponentConnections(workflowTask)))
+            .anyMatch(componentConnection -> isUnsetRequiredConnection(componentConnection, connections));
+    }
+
+    private static boolean isBlank(Object value) {
+        if (value instanceof String string) {
+            return string.isBlank();
+        }
+
+        return value == null;
+    }
+
+    private static boolean isUnsetRequiredConnection(
+        ComponentConnection componentConnection, List<ProjectDeploymentWorkflowConnection> connections) {
+
+        if (!componentConnection.required()) {
+            return false;
+        }
+
+        return connections.stream()
+            .noneMatch(connection -> Objects.equals(
+                connection.getWorkflowNodeName(), componentConnection.workflowNodeName()) &&
+                Objects.equals(connection.getWorkflowConnectionKey(), componentConnection.key()));
+    }
+
+    private static ProjectDeploymentWorkflow toProjectDeploymentWorkflow(String workflowId) {
+        ProjectDeploymentWorkflow projectDeploymentWorkflow = new ProjectDeploymentWorkflow();
+
+        projectDeploymentWorkflow.setConnections(List.of());
+        projectDeploymentWorkflow.setInputs(Map.of());
+        projectDeploymentWorkflow.setWorkflowId(workflowId);
+
+        return projectDeploymentWorkflow;
+    }
+
+    private CodeWorkflowContainer getCodeWorkflowContainer(long projectId) {
+        ProjectCodeWorkflow projectCodeWorkflow = projectCodeWorkflowService.getProjectCodeWorkflow(projectId);
+
+        return codeWorkflowContainerService.getCodeWorkflowContainer(projectCodeWorkflow.getCodeWorkflowContainerId());
+    }
+
+    private boolean isEmbeddedBridgeProject(Project project) {
+        Set<Long> embeddedProjectIds = projectOwnershipService.getOwnedProjectIds(
+            List.of(project.getId()), EMBEDDED_PROJECT_OWNERS);
+
+        return !embeddedProjectIds.isEmpty();
     }
 
     private Project createProject(long workspaceId, ProjectDefinition projectDefinition) {
+        return createProject(workspaceId, projectDefinition, null, null, null);
+    }
+
+    private Project createProject(
+        long workspaceId, ProjectDefinition projectDefinition, @Nullable String description,
+        @Nullable Long categoryId, @Nullable List<String> tags) {
+
         Project project = new Project();
 
         project.setDescription(
-            projectDefinition.getDescription()
-                .orElse(null));
+            description == null || description.isBlank()
+                ? projectDefinition.getDescription()
+                    .orElse(null)
+                : description);
         project.setName(projectDefinition.getName());
         project.setWorkspaceId(workspaceId);
+
+        if (categoryId != null) {
+            project.setCategory(new Category(categoryId));
+        }
+
+        if (tags != null && !tags.isEmpty()) {
+            project.setTags(
+                tagService.save(
+                    tags.stream()
+                        .map(Tag::new)
+                        .toList()));
+        }
 
         return projectService.create(project);
     }
@@ -139,5 +767,24 @@ public class ProjectCodeWorkflowFacadeImpl implements ProjectCodeWorkflowFacade 
                 .orElse(null));
 
         return projectService.update(project);
+    }
+
+    private static String readTemplate(Language language) {
+        String resource = "code-workflow-templates/starter." + language.getExtension();
+
+        try (InputStream inputStream = ProjectCodeWorkflowFacadeImpl.class.getClassLoader()
+            .getResourceAsStream(resource)) {
+
+            if (inputStream == null) {
+                throw new IllegalStateException("Missing starter template: " + resource);
+            }
+
+            return new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private record PublishedProject(Project project, int projectVersion) {
     }
 }

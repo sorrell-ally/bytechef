@@ -20,6 +20,8 @@ import {useGetIntegrationsQuery} from '@/ee/shared/queries/embedded/integrations
 import {useGetWorkflowQuery} from '@/ee/shared/queries/embedded/workflows.queries';
 import WorkflowDialog from '@/shared/components/workflow/WorkflowDialog';
 import WorkflowsListFilter from '@/shared/components/workflow/WorkflowsListFilter';
+import {CODE_WORKFLOW_SORT_OPTIONS, SORT_OPTIONS, SOURCE_ORDER_SORT_OPTION} from '@/shared/constants';
+import {useIntegrationCodeWorkflowSourceQuery} from '@/shared/middleware/graphql';
 import {useQueries} from '@tanstack/react-query';
 import {ChevronDownIcon, PlusIcon, UploadIcon} from 'lucide-react';
 import {RefObject, useEffect, useMemo, useRef, useState} from 'react';
@@ -41,7 +43,7 @@ const IntegrationsLeftSidebar = ({
     onIntegrationClick,
 }: IntegrationsLeftSidebarProps) => {
     const [selectedIntegrationId, setSelectedIntegrationId] = useState(!isNaN(integrationId) ? integrationId : 0);
-    const [sortBy, setSortBy] = useState('last-edited');
+    const [sortBy, setSortBy] = useState<string>();
     const [searchValue, setSearchValue] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [showWorkflowDialog, setShowWorkflowDialog] = useState(false);
@@ -93,9 +95,24 @@ const IntegrationsLeftSidebar = ({
 
     const selectedIntegration = integrations?.find((integration) => integration.id === selectedIntegrationId);
 
+    const targetIntegration = integrations?.find((integration) => integration.id === targetIntegrationId);
+
+    const codeWorkflowSortShown = selectedIntegrationId !== 0 && !!selectedIntegration?.codeWorkflow;
+
+    const {data: codeWorkflowSourceData} = useIntegrationCodeWorkflowSourceQuery(
+        {integrationId: selectedIntegrationId},
+        {enabled: codeWorkflowSortShown}
+    );
+
+    const codeWorkflowSource = codeWorkflowSortShown
+        ? (codeWorkflowSourceData?.integrationCodeWorkflowSource ?? '')
+        : undefined;
+
+    const effectiveSortBy = sortBy || (codeWorkflowSortShown ? SOURCE_ORDER_SORT_OPTION.value : 'last-edited');
+
     const filteredWorkflowsList = useMemo(
-        () => getFilteredWorkflows(workflows, sortBy, searchValue),
-        [workflows, sortBy, searchValue, getFilteredWorkflows]
+        () => getFilteredWorkflows(workflows, effectiveSortBy, searchValue, codeWorkflowSource),
+        [workflows, effectiveSortBy, searchValue, getFilteredWorkflows, codeWorkflowSource]
     );
 
     useEffect(() => {
@@ -164,39 +181,42 @@ const IntegrationsLeftSidebar = ({
                     searchValue={searchValue}
                     setSearchValue={setSearchValue}
                     setSortBy={setSortBy}
-                    sortBy={sortBy}
+                    sortBy={effectiveSortBy}
+                    sortOptions={codeWorkflowSortShown ? CODE_WORKFLOW_SORT_OPTIONS : SORT_OPTIONS}
                 />
 
-                <ButtonGroup className="w-full">
-                    <Button
-                        className="flex-1 [&_svg]:size-5"
-                        icon={<PlusIcon />}
-                        label="New Workflow"
-                        onClick={() => setShowWorkflowDialog(true)}
-                        variant="secondary"
-                    />
+                {!targetIntegration?.codeWorkflow && (
+                    <ButtonGroup className="w-full">
+                        <Button
+                            className="flex-1 [&_svg]:size-5"
+                            icon={<PlusIcon />}
+                            label="New Workflow"
+                            onClick={() => setShowWorkflowDialog(true)}
+                            variant="secondary"
+                        />
 
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button
-                                aria-label="More workflow options"
-                                className="data-[state=open]:border-stroke-brand-secondary data-[state=open]:bg-surface-brand-secondary data-[state=open]:text-content-brand-primary [&_svg]:size-5"
-                                icon={<ChevronDownIcon />}
-                                size="icon"
-                                variant="secondary"
-                            />
-                        </DropdownMenuTrigger>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    aria-label="More workflow options"
+                                    className="data-[state=open]:border-stroke-brand-secondary data-[state=open]:bg-surface-brand-secondary data-[state=open]:text-content-brand-primary [&_svg]:size-5"
+                                    icon={<ChevronDownIcon />}
+                                    size="icon"
+                                    variant="secondary"
+                                />
+                            </DropdownMenuTrigger>
 
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                                className="cursor-pointer"
-                                onClick={() => workflowFileInputRef.current?.click()}
-                            >
-                                <UploadIcon /> Import Workflow
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                </ButtonGroup>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                    className="cursor-pointer"
+                                    onClick={() => workflowFileInputRef.current?.click()}
+                                >
+                                    <UploadIcon /> Import Workflow
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </ButtonGroup>
+                )}
             </div>
 
             <ScrollArea className="mb-3 min-h-0 w-full flex-1 [&_[data-radix-scroll-area-viewport]>div]:block!">

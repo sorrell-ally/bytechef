@@ -10,14 +10,20 @@ package com.bytechef.ee.embedded.configuration.facade;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.bytechef.atlas.configuration.domain.Workflow;
@@ -30,15 +36,22 @@ import com.bytechef.automation.configuration.facade.WorkspaceConnectionFacade;
 import com.bytechef.automation.configuration.facade.WorkspaceFacade;
 import com.bytechef.automation.configuration.security.AutomationMethodSecurityExpressionHandler;
 import com.bytechef.automation.configuration.service.PermissionService;
+import com.bytechef.component.definition.TriggerDefinition.TriggerType;
+import com.bytechef.ee.embedded.ai.mcp.facade.McpAutomationRowFacade;
+import com.bytechef.ee.embedded.ai.mcp.facade.McpIntegrationInstanceRowFacade;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationComponentService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceConfigurationService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceConfigurationWorkflowService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceToolService;
+import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceWorkflowService;
 import com.bytechef.ee.embedded.configuration.domain.Integration;
 import com.bytechef.ee.embedded.configuration.domain.IntegrationInstance;
 import com.bytechef.ee.embedded.configuration.domain.IntegrationInstanceConfiguration;
 import com.bytechef.ee.embedded.configuration.domain.IntegrationInstanceConfigurationWorkflow;
 import com.bytechef.ee.embedded.configuration.domain.IntegrationInstanceWorkflow;
+import com.bytechef.ee.embedded.configuration.domain.IntegrationWorkflow;
+import com.bytechef.ee.embedded.configuration.dto.IntegrationInstanceDTO;
+import com.bytechef.ee.embedded.configuration.dto.IntegrationInstanceWorkflowDTO;
 import com.bytechef.ee.embedded.configuration.exception.EmbeddedIntegrationNotVisibleException;
 import com.bytechef.ee.embedded.configuration.service.ConnectedUserConnectionService;
 import com.bytechef.ee.embedded.configuration.service.IntegrationInstanceConfigurationService;
@@ -50,6 +63,7 @@ import com.bytechef.ee.embedded.configuration.service.IntegrationWorkflowService
 import com.bytechef.ee.embedded.connected.user.domain.ConnectedUser;
 import com.bytechef.ee.embedded.connected.user.service.ConnectedUserService;
 import com.bytechef.ee.embedded.security.web.authentication.EmbeddedApiKeyAuthenticationToken;
+import com.bytechef.platform.component.domain.TriggerDefinition;
 import com.bytechef.platform.component.facade.ActionDefinitionFacade;
 import com.bytechef.platform.component.facade.ComponentDefinitionFacade;
 import com.bytechef.platform.component.facade.TriggerDefinitionFacade;
@@ -66,6 +80,7 @@ import com.bytechef.platform.configuration.facade.WorkflowTestConfigurationFacad
 import com.bytechef.platform.configuration.service.EnvironmentService;
 import com.bytechef.platform.configuration.service.WorkflowNodeTestOutputService;
 import com.bytechef.platform.configuration.service.WorkflowTestConfigurationService;
+import com.bytechef.platform.connection.dto.ConnectionDTO;
 import com.bytechef.platform.connection.facade.ConnectionFacade;
 import com.bytechef.platform.connection.service.ConnectionService;
 import com.bytechef.platform.constant.PlatformType;
@@ -81,6 +96,7 @@ import com.bytechef.platform.security.service.ApiKeyService;
 import com.bytechef.platform.security.web.expression.MethodSecurityExpressionContributor;
 import com.bytechef.platform.user.service.AuthorityService;
 import com.bytechef.platform.user.service.UserService;
+import com.bytechef.platform.workflow.WorkflowExecutionId;
 import com.bytechef.platform.workflow.execution.facade.ConnectionLifecycleFacade;
 import com.bytechef.platform.workflow.execution.facade.PrincipalJobFacade;
 import com.bytechef.platform.workflow.execution.facade.TriggerLifecycleFacade;
@@ -88,12 +104,16 @@ import com.bytechef.platform.workflow.execution.service.PrincipalJobService;
 import com.bytechef.platform.workflow.execution.service.TriggerExecutionService;
 import com.bytechef.platform.workflow.task.dispatcher.service.TaskDispatcherDefinitionService;
 import com.bytechef.test.config.testcontainers.PostgreSQLContainerConfiguration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -112,6 +132,8 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * @version ee
@@ -141,6 +163,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
     JobFacade.class, JobService.class, McpComponentService.class, McpIntegrationComponentService.class,
     McpIntegrationInstanceConfigurationService.class,
     McpIntegrationInstanceConfigurationWorkflowService.class, McpIntegrationInstanceToolService.class,
+    McpIntegrationInstanceWorkflowService.class, McpAutomationRowFacade.class, McpIntegrationInstanceRowFacade.class,
     McpServerService.class, McpToolService.class, OAuth2ParametersFacade.class, OAuth2Service.class,
     PermissionService.class, PrincipalJobFacade.class, PrincipalJobService.class, ProjectFacade.class,
     TaskDispatcherDefinitionService.class, TaskExecutionService.class,
@@ -158,9 +181,22 @@ class IntegrationInstanceFacadeIntTest {
         "tasks":[]}
         """;
 
+    private static final String INTERNAL_ONLY_INPUT_WORKFLOW_DEFINITION = """
+        {"label":"Internal only input","inputs":[\
+        {"name":"accountId","type":"string","internalOnly":true},{"name":"region","type":"string"}],\
+        "triggers":[{"name":"trigger_1","type":"slack/v1/newMessage","parameters":{"account":"=accountId"}}],\
+        "tasks":[]}
+        """;
+
     private static final String TWO_TRIGGER_WORKFLOW_DEFINITION = """
         {"label":"Two triggers","inputs":[],"triggers":[\
         {"name":"trigger_1","type":"slack/v1/newMessage"},{"name":"trigger_2","type":"slack/v1/newMessage"}],\
+        "tasks":[]}
+        """;
+
+    private static final String STATIC_WEBHOOK_WORKFLOW_DEFINITION = """
+        {"label":"Static webhook","inputs":[],"triggers":[\
+        {"name":"trigger_1","type":"webhook/v1/awaitWorkflowAndRespond"}],\
         "tasks":[]}
         """;
 
@@ -189,7 +225,7 @@ class IntegrationInstanceFacadeIntTest {
     @Autowired
     private IntegrationInstanceFacade integrationInstanceFacade;
 
-    @Autowired
+    @MockitoSpyBean
     private IntegrationInstanceService integrationInstanceService;
 
     @Autowired
@@ -206,6 +242,9 @@ class IntegrationInstanceFacadeIntTest {
 
     @Autowired
     private RecordingDataStorage recordingDataStorage;
+
+    @Autowired
+    private TriggerDefinitionService triggerDefinitionService;
 
     @Autowired
     private TriggerLifecycleFacade triggerLifecycleFacade;
@@ -484,6 +523,68 @@ class IntegrationInstanceFacadeIntTest {
     }
 
     @Test
+    void testUpdateIntegrationInstanceWorkflowDiscardsAStoredInternalOnlyInput() {
+        String internalOnlyInputWorkflowId = createInternalOnlyInputWorkflow(Map.of());
+
+        storeIntegrationInstanceWorkflowInputs(
+            internalOnlyInputWorkflowId, Map.of("accountId", "legacy-account", "region", "eu"));
+
+        authenticate(createConnectedUserAuthentication(Environment.PRODUCTION, connectedUserA));
+
+        integrationInstanceFacade.updateIntegrationInstanceWorkflow(
+            integrationInstanceAId, internalOnlyInputWorkflowId,
+            Map.of("accountId", "user-account", "region", "us"));
+
+        assertThat(
+            integrationInstanceWorkflowService.getIntegrationInstanceWorkflow(
+                integrationInstanceAId, internalOnlyInputWorkflowId)
+                .getInputs()).isEqualTo(Map.of("region", "us"));
+    }
+
+    @Test
+    void testUpdateIntegrationInstanceWorkflowIgnoresAnInternalOnlyInputFromAnyCaller() {
+        String internalOnlyInputWorkflowId = createInternalOnlyInputWorkflow(Map.of());
+
+        authenticate(createConnectedUserAuthentication(Environment.PRODUCTION, connectedUserA));
+
+        integrationInstanceFacade.updateIntegrationInstanceWorkflow(
+            integrationInstanceAId, internalOnlyInputWorkflowId,
+            Map.of("accountId", "x", "channel", "c"));
+
+        assertThat(
+            integrationInstanceWorkflowService.getIntegrationInstanceWorkflow(
+                integrationInstanceAId, internalOnlyInputWorkflowId)
+                .getInputs()).isEqualTo(Map.of("channel", "c"));
+
+        authenticate(createTenantAdminAuthentication());
+
+        integrationInstanceFacade.updateIntegrationInstanceWorkflow(
+            integrationInstanceAId, internalOnlyInputWorkflowId,
+            Map.of("accountId", "x", "channel", "c"));
+
+        assertThat(
+            integrationInstanceWorkflowService.getIntegrationInstanceWorkflow(
+                integrationInstanceAId, internalOnlyInputWorkflowId)
+                .getInputs()).isEqualTo(Map.of("channel", "c"));
+    }
+
+    @Test
+    void testEnableIntegrationInstanceWorkflowPassesTheConfigurationValueOfAnInternalOnlyInputToTheTrigger() {
+        String internalOnlyInputWorkflowId = createInternalOnlyInputWorkflow(Map.of("accountId", "vendor-account"));
+
+        storeIntegrationInstanceWorkflowInputs(internalOnlyInputWorkflowId, Map.of("accountId", "user-account"));
+
+        authenticate(createTenantAdminAuthentication());
+
+        integrationInstanceFacade.enableIntegrationInstanceWorkflow(
+            integrationInstanceAId, internalOnlyInputWorkflowId, true);
+
+        verify(triggerLifecycleFacade).executeTriggerEnable(
+            eq(internalOnlyInputWorkflowId), any(), any(), eq(Map.of("account", "vendor-account")), any(),
+            anyString(), anyLong());
+    }
+
+    @Test
     void testUpdateIntegrationInstanceWorkflowAllowsTenantAdminOnAnyInstance() {
         authenticate(createTenantAdminAuthentication());
 
@@ -563,6 +664,135 @@ class IntegrationInstanceFacadeIntTest {
         assertThat(integrationInstanceService.getIntegrationInstances(List.of(integrationInstanceAId))).isEmpty();
     }
 
+    @Test
+    void testGetIntegrationInstanceReturnsTheStaticWebhookUrlOfAWorkflowWithAStaticWebhookTrigger() {
+        TriggerDefinition triggerDefinition = mock(TriggerDefinition.class);
+
+        when(triggerDefinition.getType()).thenReturn(TriggerType.STATIC_WEBHOOK);
+        when(triggerDefinitionService.getTriggerDefinition("webhook", 1, "awaitWorkflowAndRespond"))
+            .thenReturn(triggerDefinition);
+
+        Workflow staticWebhookWorkflow = workflowService.create(
+            STATIC_WEBHOOK_WORKFLOW_DEFINITION, Workflow.Format.JSON, Workflow.SourceType.JDBC);
+
+        String staticWebhookWorkflowId = staticWebhookWorkflow.getId();
+
+        IntegrationWorkflow staticWebhookIntegrationWorkflow = integrationWorkflowService.addWorkflow(
+            integrationId, 1, staticWebhookWorkflowId);
+
+        configureIntegrationInstanceAWorkflow(staticWebhookWorkflowId);
+
+        authenticate(createTenantAdminAuthentication());
+
+        IntegrationInstanceWorkflowDTO integrationInstanceWorkflowDTO = getIntegrationInstanceAWorkflowDTO(
+            staticWebhookWorkflowId);
+
+        WorkflowExecutionId workflowExecutionId = WorkflowExecutionId.of(
+            PlatformType.EMBEDDED, integrationInstanceAId, staticWebhookIntegrationWorkflow.getUuidAsString(),
+            "trigger_1");
+
+        assertThat(integrationInstanceWorkflowDTO.staticWebhookUrl()).isEqualTo("/webhooks/" + workflowExecutionId);
+    }
+
+    @Test
+    void testGetIntegrationInstanceReturnsNoStaticWebhookUrlForAWorkflowWithoutAStaticWebhookTrigger() {
+        createIntegrationInstanceAWorkflow(workflowId);
+
+        authenticate(createTenantAdminAuthentication());
+
+        IntegrationInstanceWorkflowDTO integrationInstanceWorkflowDTO = getIntegrationInstanceAWorkflowDTO(workflowId);
+
+        assertThat(integrationInstanceWorkflowDTO.staticWebhookUrl()).isNull();
+    }
+
+    @Test
+    void testGetIntegrationInstanceReturnsNoStaticWebhookUrlWhenTheIntegrationWorkflowIsMissing() {
+        Workflow danglingWorkflow = workflowService.create(
+            STATIC_WEBHOOK_WORKFLOW_DEFINITION, Workflow.Format.JSON, Workflow.SourceType.JDBC);
+
+        String danglingWorkflowId = danglingWorkflow.getId();
+
+        configureIntegrationInstanceAWorkflow(danglingWorkflowId);
+
+        authenticate(createTenantAdminAuthentication());
+
+        IntegrationInstanceWorkflowDTO integrationInstanceWorkflowDTO = getIntegrationInstanceAWorkflowDTO(
+            danglingWorkflowId);
+
+        assertThat(integrationInstanceWorkflowDTO.staticWebhookUrl()).isNull();
+    }
+
+    private void configureIntegrationInstanceAWorkflow(String configuredWorkflowId) {
+        IntegrationInstanceConfigurationWorkflow integrationInstanceConfigurationWorkflow =
+            new IntegrationInstanceConfigurationWorkflow();
+
+        integrationInstanceConfigurationWorkflow.setEnabled(true);
+        integrationInstanceConfigurationWorkflow.setIntegrationInstanceConfigurationId(
+            integrationInstanceConfigurationId);
+        integrationInstanceConfigurationWorkflow.setWorkflowId(configuredWorkflowId);
+
+        integrationInstanceConfigurationWorkflowService.create(integrationInstanceConfigurationWorkflow);
+
+        createIntegrationInstanceAWorkflow(configuredWorkflowId);
+    }
+
+    private void createIntegrationInstanceAWorkflow(String configuredWorkflowId) {
+        IntegrationInstanceConfigurationWorkflow integrationInstanceConfigurationWorkflow =
+            integrationInstanceConfigurationWorkflowService.getIntegrationInstanceConfigurationWorkflow(
+                integrationInstanceConfigurationId, configuredWorkflowId);
+
+        integrationInstanceWorkflowService.createIntegrationInstanceWorkflow(
+            integrationInstanceAId, integrationInstanceConfigurationWorkflow.getId());
+    }
+
+    private IntegrationInstanceWorkflowDTO getIntegrationInstanceAWorkflowDTO(String integrationInstanceWorkflowId) {
+        IntegrationInstanceDTO integrationInstanceDTO = integrationInstanceFacade.getIntegrationInstance(
+            integrationInstanceAId);
+
+        return integrationInstanceDTO.integrationInstanceWorkflows()
+            .stream()
+            .filter(integrationInstanceWorkflowDTO -> integrationInstanceWorkflowId.equals(
+                integrationInstanceWorkflowDTO.workflowId()))
+            .findFirst()
+            .orElseThrow();
+    }
+
+    private String createInternalOnlyInputWorkflow(Map<String, ?> configurationInputs) {
+        Workflow internalOnlyInputWorkflow = workflowService.create(
+            INTERNAL_ONLY_INPUT_WORKFLOW_DEFINITION, Workflow.Format.JSON, Workflow.SourceType.JDBC);
+
+        String internalOnlyInputWorkflowId = internalOnlyInputWorkflow.getId();
+
+        integrationWorkflowService.addWorkflow(integrationId, 1, internalOnlyInputWorkflowId);
+
+        IntegrationInstanceConfigurationWorkflow integrationInstanceConfigurationWorkflow =
+            new IntegrationInstanceConfigurationWorkflow();
+
+        integrationInstanceConfigurationWorkflow.setEnabled(true);
+        integrationInstanceConfigurationWorkflow.setInputs(configurationInputs);
+        integrationInstanceConfigurationWorkflow.setIntegrationInstanceConfigurationId(
+            integrationInstanceConfigurationId);
+        integrationInstanceConfigurationWorkflow.setWorkflowId(internalOnlyInputWorkflowId);
+
+        integrationInstanceConfigurationWorkflowService.create(integrationInstanceConfigurationWorkflow);
+
+        return internalOnlyInputWorkflowId;
+    }
+
+    private void storeIntegrationInstanceWorkflowInputs(String workflowId, Map<String, ?> inputs) {
+        IntegrationInstanceConfigurationWorkflow integrationInstanceConfigurationWorkflow =
+            integrationInstanceConfigurationWorkflowService.getIntegrationInstanceConfigurationWorkflow(
+                integrationInstanceConfigurationId, workflowId);
+
+        IntegrationInstanceWorkflow integrationInstanceWorkflow =
+            integrationInstanceWorkflowService.createIntegrationInstanceWorkflow(
+                integrationInstanceAId, integrationInstanceConfigurationWorkflow.getId());
+
+        integrationInstanceWorkflow.setInputs(inputs);
+
+        integrationInstanceWorkflowService.update(integrationInstanceWorkflow);
+    }
+
     private static void authenticate(Authentication authentication) {
         SecurityContextHolder.getContext()
             .setAuthentication(authentication);
@@ -584,6 +814,468 @@ class IntegrationInstanceFacadeIntTest {
 
     private Optional<IntegrationInstanceWorkflow> fetchIntegrationInstanceWorkflow(long integrationInstanceId) {
         return integrationInstanceWorkflowService.fetchIntegrationInstanceWorkflow(integrationInstanceId, workflowId);
+    }
+
+    @Nested
+    class Provisioning {
+
+        private static final long PROVISIONED_CONNECTED_USER_ID = 5L;
+        private static final long PROVISIONED_CONNECTION_ID = 9L;
+        private static final long PROVISIONED_INTEGRATION_INSTANCE_ID = 9_000_001L;
+        private static final long NEW_CONNECTION_ID = 202L;
+
+        private long previousConnectionId;
+        private String triggerWorkflowId;
+
+        @MockitoBean
+        private ConnectedUserConnectionFacade connectedUserConnectionFacade;
+
+        @MockitoBean
+        private ConnectedUserIntegrationFacade connectedUserIntegrationFacade;
+
+        @Test
+        void testProvisionIntegrationInstanceIsDeniedForConnectedUsersAndNonAdmins() {
+            authenticate(createConnectedUserAuthentication(Environment.PRODUCTION, connectedUserA));
+
+            assertThatThrownBy(
+                () -> integrationInstanceFacade.provisionIntegrationInstance(1L, 2L, Map.of("key", "v"), List.of()))
+                    .isInstanceOf(AccessDeniedException.class);
+
+            authenticate(createNonAdminAuthentication());
+
+            assertThatThrownBy(
+                () -> integrationInstanceFacade.provisionIntegrationInstance(1L, 2L, Map.of("key", "v"), List.of()))
+                    .isInstanceOf(AccessDeniedException.class);
+
+            verifyNoInteractions(connectedUserIntegrationFacade);
+        }
+
+        @Test
+        void testProvisionIntegrationInstanceDelegatesForTenantAdmin() {
+            authenticate(createTenantAdminAuthentication());
+
+            integrationInstanceFacade.provisionIntegrationInstance(1L, 2L, Map.of("key", "v"), List.of());
+
+            verify(connectedUserIntegrationFacade).provisionIntegrationInstance(
+                1L, 2L, Map.of("key", "v"), List.of(), "admin@localhost.com");
+        }
+
+        @Test
+        void testGetProvisionableIntegrationsIsDeniedForConnectedUsersAndNonAdmins() {
+            authenticate(createConnectedUserAuthentication(Environment.PRODUCTION, connectedUserA));
+
+            assertThatThrownBy(() -> integrationInstanceFacade.getProvisionableIntegrations(1L))
+                .isInstanceOf(AccessDeniedException.class);
+
+            authenticate(createNonAdminAuthentication());
+
+            assertThatThrownBy(() -> integrationInstanceFacade.getProvisionableIntegrations(1L))
+                .isInstanceOf(AccessDeniedException.class);
+
+            verifyNoInteractions(connectedUserIntegrationFacade);
+        }
+
+        @Test
+        void testGetProvisionableIntegrationsDelegatesForTenantAdmin() {
+            authenticate(createTenantAdminAuthentication());
+
+            integrationInstanceFacade.getProvisionableIntegrations(1L);
+
+            verify(connectedUserIntegrationFacade).getProvisionableIntegrations(1L);
+        }
+
+        @Test
+        void testGetIntegrationInstanceConnectionReturnsProvisionedConnection() {
+            authenticate(createTenantAdminAuthentication());
+
+            givenProvisionedIntegrationInstance();
+
+            ConnectionDTO connectionDTO = ConnectionDTO.builder()
+                .id(PROVISIONED_CONNECTION_ID)
+                .build();
+
+            when(connectedUserConnectionFacade.getConnectedUserConnectionsForAdmin(
+                PROVISIONED_CONNECTED_USER_ID, null, List.of(PROVISIONED_CONNECTION_ID)))
+                    .thenReturn(List.of(connectionDTO));
+
+            assertThat(integrationInstanceFacade.getIntegrationInstanceConnection(PROVISIONED_INTEGRATION_INSTANCE_ID))
+                .isEqualTo(connectionDTO);
+        }
+
+        @Test
+        void testGetIntegrationInstanceConnectionThrowsForSelfActivatedInstance() {
+            authenticate(createTenantAdminAuthentication());
+
+            assertThatThrownBy(() -> integrationInstanceFacade.getIntegrationInstanceConnection(integrationInstanceAId))
+                .isInstanceOf(NoSuchElementException.class)
+                .hasMessage("Integration instance id=%s not found".formatted(integrationInstanceAId));
+
+            verifyNoInteractions(connectedUserConnectionFacade);
+        }
+
+        @Test
+        void testGetIntegrationInstanceConnectionThrowsForUnknownInstance() {
+            authenticate(createTenantAdminAuthentication());
+
+            assertThatThrownBy(
+                () -> integrationInstanceFacade.getIntegrationInstanceConnection(PROVISIONED_INTEGRATION_INSTANCE_ID))
+                    .isInstanceOf(NoSuchElementException.class);
+        }
+
+        @Test
+        void testUpdateIntegrationInstanceCredentialsDelegatesForProvisionedInstance() {
+            authenticate(createTenantAdminAuthentication());
+
+            givenProvisionedIntegrationInstance();
+
+            integrationInstanceFacade.updateIntegrationInstanceCredentials(
+                PROVISIONED_INTEGRATION_INSTANCE_ID, Map.of("token", "new"), 4);
+
+            verify(connectedUserConnectionFacade).updateIntegrationInstanceConnectionCredentials(
+                PROVISIONED_CONNECTED_USER_ID, PROVISIONED_CONNECTION_ID, Map.of("token", "new"), 4);
+        }
+
+        @Test
+        void testUpdateIntegrationInstanceCredentialsThrowsForSelfActivatedInstance() {
+            authenticate(createTenantAdminAuthentication());
+
+            Map<String, String> parameters = Map.of("token", "new");
+
+            assertThatThrownBy(
+                () -> integrationInstanceFacade.updateIntegrationInstanceCredentials(
+                    integrationInstanceAId, parameters, 4))
+                        .isInstanceOf(NoSuchElementException.class)
+                        .hasMessage("Integration instance id=%s not found".formatted(integrationInstanceAId));
+
+            verify(connectedUserConnectionFacade, never())
+                .updateIntegrationInstanceConnectionCredentials(anyLong(), anyLong(), any(), anyInt());
+        }
+
+        @Test
+        void testIntegrationInstanceCredentialsAreDeniedForConnectedUsersAndNonAdmins() {
+            authenticate(createConnectedUserAuthentication(Environment.PRODUCTION, connectedUserA));
+
+            assertThatThrownBy(() -> integrationInstanceFacade.getIntegrationInstanceConnection(1L))
+                .isInstanceOf(AccessDeniedException.class);
+            assertThatThrownBy(
+                () -> integrationInstanceFacade.updateIntegrationInstanceCredentials(1L, Map.of("token", "new"), 0))
+                    .isInstanceOf(AccessDeniedException.class);
+
+            authenticate(createNonAdminAuthentication());
+
+            assertThatThrownBy(() -> integrationInstanceFacade.getIntegrationInstanceConnection(1L))
+                .isInstanceOf(AccessDeniedException.class);
+            assertThatThrownBy(
+                () -> integrationInstanceFacade.updateIntegrationInstanceCredentials(1L, Map.of("token", "new"), 0))
+                    .isInstanceOf(AccessDeniedException.class);
+
+            verifyNoInteractions(connectedUserConnectionFacade);
+        }
+
+        @Test
+        void testUpdateIntegrationInstanceConnectionSwitchesTheConnectionAndRestartsTheTriggers() {
+            authenticate(createTenantAdminAuthentication());
+
+            long integrationInstanceId = createProvisionedIntegrationInstanceWithTriggers();
+
+            givenConnectedUserConnection(NEW_CONNECTION_ID, Environment.PRODUCTION);
+
+            integrationInstanceFacade.updateIntegrationInstanceConnection(integrationInstanceId, NEW_CONNECTION_ID);
+
+            IntegrationInstance integrationInstance = integrationInstanceService.getIntegrationInstance(
+                integrationInstanceId);
+
+            assertThat(integrationInstance.getConnectionId()).isEqualTo(NEW_CONNECTION_ID);
+
+            verify(triggerLifecycleFacade, times(2)).executeTriggerDisable(
+                eq(triggerWorkflowId), any(), any(), anyMap(), eq(previousConnectionId));
+            verify(triggerLifecycleFacade, times(2)).executeTriggerEnable(
+                eq(triggerWorkflowId), any(), any(), anyMap(), eq(NEW_CONNECTION_ID), anyString(), anyLong());
+            verify(triggerLifecycleFacade, never()).executeTriggerEnable(
+                any(), any(), any(), anyMap(), eq(previousConnectionId), anyString(), anyLong());
+        }
+
+        @Test
+        void testUpdateIntegrationInstanceConnectionRestoresThePreviousConnectionWhenATriggerFailsToRestart() {
+            authenticate(createTenantAdminAuthentication());
+
+            long integrationInstanceId = createProvisionedIntegrationInstanceWithTriggers();
+
+            givenConnectedUserConnection(NEW_CONNECTION_ID, Environment.PRODUCTION);
+
+            IllegalStateException restartFailure = new IllegalStateException("trigger_2 failed to enable");
+
+            doThrow(restartFailure)
+                .when(triggerLifecycleFacade)
+                .executeTriggerEnable(
+                    eq(triggerWorkflowId),
+                    argThat(workflowExecutionId -> "trigger_2".equals(workflowExecutionId.getTriggerName())),
+                    any(), anyMap(), eq(NEW_CONNECTION_ID), anyString(), anyLong());
+
+            assertThatThrownBy(() -> integrationInstanceFacade.updateIntegrationInstanceConnection(
+                integrationInstanceId, NEW_CONNECTION_ID))
+                    .isSameAs(restartFailure);
+
+            IntegrationInstance integrationInstance = integrationInstanceService.getIntegrationInstance(
+                integrationInstanceId);
+
+            assertThat(integrationInstance.getConnectionId()).isEqualTo(previousConnectionId);
+            assertThat(connectedUserConnectionService.getConnectionIds(connectedUserA.getId())).isEmpty();
+
+            verify(triggerLifecycleFacade).executeTriggerDisable(
+                eq(triggerWorkflowId),
+                argThat(workflowExecutionId -> "trigger_1".equals(workflowExecutionId.getTriggerName())),
+                any(), anyMap(), eq(NEW_CONNECTION_ID));
+            verify(triggerLifecycleFacade, times(2)).executeTriggerEnable(
+                eq(triggerWorkflowId), any(), any(), anyMap(), eq(previousConnectionId), anyString(), anyLong());
+        }
+
+        @Test
+        void testUpdateIntegrationInstanceConnectionOfADisabledInstanceLeavesTheTriggersAlone() {
+            authenticate(createTenantAdminAuthentication());
+
+            long integrationInstanceId = createProvisionedIntegrationInstanceWithTriggers();
+
+            integrationInstanceService.updateEnabled(integrationInstanceId, false);
+
+            givenConnectedUserConnection(NEW_CONNECTION_ID, Environment.PRODUCTION);
+
+            integrationInstanceFacade.updateIntegrationInstanceConnection(integrationInstanceId, NEW_CONNECTION_ID);
+
+            IntegrationInstance integrationInstance = integrationInstanceService.getIntegrationInstance(
+                integrationInstanceId);
+
+            assertThat(integrationInstance.getConnectionId()).isEqualTo(NEW_CONNECTION_ID);
+
+            verifyNoInteractions(triggerLifecycleFacade);
+        }
+
+        @Test
+        void testUpdateIntegrationInstanceConnectionRejectsAConnectionTheConnectedUserDoesNotHave() {
+            authenticate(createTenantAdminAuthentication());
+
+            long integrationInstanceId = createProvisionedIntegrationInstanceWithTriggers();
+
+            assertThatThrownBy(() -> integrationInstanceFacade.updateIntegrationInstanceConnection(
+                integrationInstanceId, NEW_CONNECTION_ID))
+                    .isInstanceOf(IllegalArgumentException.class);
+
+            IntegrationInstance integrationInstance = integrationInstanceService.getIntegrationInstance(
+                integrationInstanceId);
+
+            assertThat(integrationInstance.getConnectionId()).isEqualTo(previousConnectionId);
+
+            verifyNoInteractions(triggerLifecycleFacade);
+        }
+
+        @Test
+        void testUpdateIntegrationInstanceConnectionRejectsAConnectionFromAnotherEnvironment() {
+            authenticate(createTenantAdminAuthentication());
+
+            long integrationInstanceId = createProvisionedIntegrationInstanceWithTriggers();
+
+            givenConnectedUserConnection(NEW_CONNECTION_ID, Environment.DEVELOPMENT);
+
+            assertThatThrownBy(() -> integrationInstanceFacade.updateIntegrationInstanceConnection(
+                integrationInstanceId, NEW_CONNECTION_ID))
+                    .isInstanceOf(IllegalArgumentException.class);
+
+            verifyNoInteractions(triggerLifecycleFacade);
+        }
+
+        @Test
+        void testUpdateIntegrationInstanceConnectionRejectsASharedConnection() {
+            authenticate(createTenantAdminAuthentication());
+
+            long integrationInstanceId = createProvisionedIntegrationInstanceWithTriggers();
+
+            givenSharedConnection(NEW_CONNECTION_ID);
+
+            assertThatThrownBy(() -> integrationInstanceFacade.updateIntegrationInstanceConnection(
+                integrationInstanceId, NEW_CONNECTION_ID))
+                    .isInstanceOf(IllegalArgumentException.class);
+
+            IntegrationInstance integrationInstance = integrationInstanceService.getIntegrationInstance(
+                integrationInstanceId);
+
+            assertThat(integrationInstance.getConnectionId()).isEqualTo(previousConnectionId);
+
+            verifyNoInteractions(triggerLifecycleFacade);
+        }
+
+        @Test
+        void testUpdateIntegrationInstanceConnectionKeepsThePreviousConnectionForTheConnectedUser() {
+            authenticate(createTenantAdminAuthentication());
+
+            long integrationInstanceId = createProvisionedIntegrationInstanceWithTriggers();
+
+            givenConnectedUserConnection(NEW_CONNECTION_ID, Environment.PRODUCTION);
+
+            integrationInstanceFacade.updateIntegrationInstanceConnection(integrationInstanceId, NEW_CONNECTION_ID);
+
+            assertThat(connectedUserConnectionService.getConnectionIds(connectedUserA.getId()))
+                .containsExactly(previousConnectionId);
+        }
+
+        @Test
+        void testUpdateIntegrationInstanceConnectionOfADisabledInstanceKeepsThePreviousConnectionForTheConnectedUser() {
+            authenticate(createTenantAdminAuthentication());
+
+            long integrationInstanceId = createProvisionedIntegrationInstanceWithTriggers();
+
+            integrationInstanceService.updateEnabled(integrationInstanceId, false);
+
+            givenConnectedUserConnection(NEW_CONNECTION_ID, Environment.PRODUCTION);
+
+            integrationInstanceFacade.updateIntegrationInstanceConnection(integrationInstanceId, NEW_CONNECTION_ID);
+
+            assertThat(connectedUserConnectionService.getConnectionIds(connectedUserA.getId()))
+                .containsExactly(previousConnectionId);
+        }
+
+        @Test
+        void testUpdateIntegrationInstanceConnectionRestartsTheTriggersOutsideATransaction() {
+            authenticate(createTenantAdminAuthentication());
+
+            long integrationInstanceId = createProvisionedIntegrationInstanceWithTriggers();
+
+            givenConnectedUserConnection(NEW_CONNECTION_ID, Environment.PRODUCTION);
+
+            List<Boolean> transactionActiveDuringEnable = new ArrayList<>();
+
+            doAnswer(invocation -> {
+                transactionActiveDuringEnable.add(TransactionSynchronizationManager.isActualTransactionActive());
+
+                return null;
+            })
+                .when(triggerLifecycleFacade)
+                .executeTriggerEnable(
+                    eq(triggerWorkflowId), any(), any(), anyMap(), eq(NEW_CONNECTION_ID), anyString(), anyLong());
+
+            integrationInstanceFacade.updateIntegrationInstanceConnection(integrationInstanceId, NEW_CONNECTION_ID);
+
+            assertThat(transactionActiveDuringEnable).containsExactly(false, false);
+        }
+
+        @Test
+        void testUpdateIntegrationInstanceConnectionToTheCurrentConnectionDoesNothing() {
+            authenticate(createTenantAdminAuthentication());
+
+            long integrationInstanceId = createProvisionedIntegrationInstanceWithTriggers();
+
+            integrationInstanceFacade.updateIntegrationInstanceConnection(
+                integrationInstanceId, previousConnectionId);
+
+            verifyNoInteractions(connectedUserConnectionFacade, triggerLifecycleFacade);
+
+            assertThat(connectedUserConnectionService.getConnectionIds(connectedUserA.getId())).isEmpty();
+        }
+
+        @Test
+        void testUpdateIntegrationInstanceConnectionThrowsForSelfActivatedInstance() {
+            authenticate(createTenantAdminAuthentication());
+
+            assertThatThrownBy(() -> integrationInstanceFacade.updateIntegrationInstanceConnection(
+                integrationInstanceAId, NEW_CONNECTION_ID))
+                    .isInstanceOf(NoSuchElementException.class)
+                    .hasMessage("Integration instance id=%s not found".formatted(integrationInstanceAId));
+
+            verifyNoInteractions(connectedUserConnectionFacade);
+        }
+
+        @Test
+        void testUpdateIntegrationInstanceConnectionIsDeniedForConnectedUsersAndNonAdmins() {
+            authenticate(createConnectedUserAuthentication(Environment.PRODUCTION, connectedUserA));
+
+            assertThatThrownBy(() -> integrationInstanceFacade.updateIntegrationInstanceConnection(1L, 2L))
+                .isInstanceOf(AccessDeniedException.class);
+
+            authenticate(createNonAdminAuthentication());
+
+            assertThatThrownBy(() -> integrationInstanceFacade.updateIntegrationInstanceConnection(1L, 2L))
+                .isInstanceOf(AccessDeniedException.class);
+
+            verifyNoInteractions(connectedUserConnectionFacade);
+        }
+
+        private long createProvisionedIntegrationInstanceWithTriggers() {
+            previousConnectionId = UUID.randomUUID()
+                .getMostSignificantBits() & Long.MAX_VALUE;
+
+            Workflow triggerWorkflow = workflowService.create(
+                TWO_TRIGGER_WORKFLOW_DEFINITION, Workflow.Format.JSON, Workflow.SourceType.JDBC);
+
+            triggerWorkflowId = triggerWorkflow.getId();
+
+            integrationWorkflowService.addWorkflow(integrationId, 1, triggerWorkflowId);
+
+            IntegrationInstanceConfigurationWorkflow integrationInstanceConfigurationWorkflow =
+                new IntegrationInstanceConfigurationWorkflow();
+
+            integrationInstanceConfigurationWorkflow.setEnabled(true);
+            integrationInstanceConfigurationWorkflow.setIntegrationInstanceConfigurationId(
+                integrationInstanceConfigurationId);
+            integrationInstanceConfigurationWorkflow.setWorkflowId(triggerWorkflowId);
+
+            integrationInstanceConfigurationWorkflow = integrationInstanceConfigurationWorkflowService.create(
+                integrationInstanceConfigurationWorkflow);
+
+            IntegrationInstance integrationInstance = integrationInstanceService.create(
+                connectedUserA.getId(), previousConnectionId, integrationInstanceConfigurationId,
+                "admin@localhost.com");
+
+            IntegrationInstanceWorkflow integrationInstanceWorkflow =
+                integrationInstanceWorkflowService.createIntegrationInstanceWorkflow(
+                    integrationInstance.getId(), integrationInstanceConfigurationWorkflow.getId());
+
+            integrationInstanceWorkflowService.updateEnabled(integrationInstanceWorkflow.getId(), true);
+
+            return integrationInstance.getId();
+        }
+
+        private void givenConnectedUserConnection(long connectionId, Environment environment) {
+            ConnectionDTO connectionDTO = ConnectionDTO.builder()
+                .environmentId(environment.ordinal())
+                .id(connectionId)
+                .build();
+
+            when(connectedUserConnectionFacade.getConnectedUserConnectionsForAdmin(
+                connectedUserA.getId(), "slack", List.of(connectionId)))
+                    .thenReturn(List.of(connectionDTO));
+            when(connectedUserConnectionFacade.getOwnedConnectionIds(connectedUserA.getId()))
+                .thenReturn(Set.of(connectionId));
+        }
+
+        private void givenSharedConnection(long connectionId) {
+            ConnectionDTO connectionDTO = ConnectionDTO.builder()
+                .environmentId(Environment.PRODUCTION.ordinal())
+                .id(connectionId)
+                .build();
+
+            when(connectedUserConnectionFacade.getConnectedUserConnectionsForAdmin(
+                connectedUserA.getId(), "slack", List.of(connectionId)))
+                    .thenReturn(List.of(connectionDTO));
+        }
+
+        private Authentication createNonAdminAuthentication() {
+            when(permissionService.isTenantAdmin()).thenReturn(false);
+
+            return new UsernamePasswordAuthenticationToken(
+                "user", "n/a", List.of(new SimpleGrantedAuthority("ROLE_USER")));
+        }
+
+        private void givenProvisionedIntegrationInstance() {
+            IntegrationInstance integrationInstance = new IntegrationInstance();
+
+            integrationInstance.setConnectedUserId(PROVISIONED_CONNECTED_USER_ID);
+            integrationInstance.setConnectionId(PROVISIONED_CONNECTION_ID);
+            integrationInstance.setId(PROVISIONED_INTEGRATION_INSTANCE_ID);
+            integrationInstance.setProvisionedBy("admin");
+
+            doReturn(Optional.of(integrationInstance))
+                .when(integrationInstanceService)
+                .fetchIntegrationInstance(PROVISIONED_INTEGRATION_INSTANCE_ID);
+        }
     }
 
     @Configuration

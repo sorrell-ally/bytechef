@@ -1,7 +1,7 @@
 import {TooltipProvider} from '@/components/ui/tooltip';
 import useAutomationExecutionsSheetStore from '@/ee/pages/embedded/automations/stores/useAutomationExecutionsSheetStore';
 import {AutomationProjectConfigurationsQuery} from '@/shared/middleware/graphql';
-import {resetAll, screen, userEvent, waitFor, windowResizeObserver, within} from '@/shared/util/test-utils';
+import {act, resetAll, screen, userEvent, waitFor, windowResizeObserver, within} from '@/shared/util/test-utils';
 import {render} from '@testing-library/react';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
@@ -11,6 +11,9 @@ const mocks = vi.hoisted(() => ({
     deleteImpact: {connectedUserCount: 3, referenceWorkflowCount: 2} as
         {connectedUserCount: number; referenceWorkflowCount: number} | undefined,
     deleteImpactError: false,
+    deleteMutate: vi.fn(),
+    deleteMutationOptions: undefined as {onSuccess?: () => void} | undefined,
+    deletePending: false,
     enableConfigurationMutate: vi.fn(),
     enableWorkflowMutate: vi.fn(),
     invalidateQueries: vi.fn(),
@@ -26,6 +29,11 @@ vi.mock('@/shared/middleware/graphql', async (importOriginal) => ({
                 : undefined,
         isError: mocks.deleteImpactError,
     }),
+    useDeleteAutomationProjectConfigurationMutation: (options?: {onSuccess?: () => void}) => {
+        mocks.deleteMutationOptions = options;
+
+        return {isPending: mocks.deletePending, mutate: mocks.deleteMutate};
+    },
     useEnableAutomationProjectConfigurationMutation: () => ({
         isPending: false,
         mutate: mocks.enableConfigurationMutate,
@@ -75,6 +83,9 @@ const configuration: AutomationProjectConfigurationType = {
 
 const project = {
     categoryId: null,
+    codeWorkflowDraftPublishable: null,
+    codeWorkflowLanguage: null,
+    codeWorkflowProject: false,
     configurationCount: 0,
     description: null,
     id: 'project-1',
@@ -84,6 +95,7 @@ const project = {
     permissionExpression: null,
     published: true,
     tagIds: [],
+    unpublishedChanges: false,
     version: 3,
     workflowTemplates: [
         {
@@ -103,7 +115,6 @@ const project = {
 const renderItem = (
     overrides: {
         configuration?: typeof configuration;
-        onDelete?: () => void;
         onEdit?: () => void;
         configurations?: (typeof configuration)[];
         onUpdateVersion?: () => void;
@@ -116,7 +127,6 @@ const renderItem = (
             <AutomationProjectConfigurationListItem
                 configuration={overrides.configuration ?? configuration}
                 configurations={overrides.configurations}
-                onDelete={overrides.onDelete ?? vi.fn()}
                 onEdit={overrides.onEdit ?? vi.fn()}
                 onUpdateVersion={overrides.onUpdateVersion ?? vi.fn()}
                 project={overrides.project ?? project}
@@ -131,6 +141,8 @@ describe('AutomationProjectConfigurationListItem', () => {
 
         mocks.deleteImpact = {connectedUserCount: 3, referenceWorkflowCount: 2};
         mocks.deleteImpactError = false;
+        mocks.deleteMutationOptions = undefined;
+        mocks.deletePending = false;
 
         useAutomationExecutionsSheetStore.setState({
             automationExecutionsSheetOpen: false,
@@ -194,6 +206,7 @@ describe('AutomationProjectConfigurationListItem', () => {
 
         expect(screen.getByText('V2')).toBeInTheDocument();
         expect(screen.getByText('Newer version available')).toBeInTheDocument();
+        expect(screen.getByText('Newer version available')).not.toHaveClass('border-stroke-warning-primary');
     });
 
     it('does not show the newer version hint when the configuration is current', () => {
@@ -227,7 +240,7 @@ describe('AutomationProjectConfigurationListItem', () => {
         renderItem({onEdit, onUpdateVersion});
 
         await user.click(screen.getByRole('button', {name: 'Configuration Actions'}));
-        await user.click(await screen.findByRole('menuitem', {name: 'Update Project Version'}));
+        await user.click(await screen.findByRole('menuitem', {name: 'Change Project Version'}));
 
         expect(onUpdateVersion).toHaveBeenCalledWith(configuration);
         expect(onEdit).not.toHaveBeenCalled();
@@ -280,7 +293,7 @@ describe('AutomationProjectConfigurationListItem', () => {
         expect(screen.queryByText('3 users')).not.toBeInTheDocument();
     });
 
-    it('orders the menu as Edit, Update Project Version, Move Users, separator, Delete', async () => {
+    it('orders the menu as Edit, Change Project Version, Move Users, separator, Delete', async () => {
         const user = userEvent.setup();
 
         renderItem();
@@ -293,7 +306,7 @@ describe('AutomationProjectConfigurationListItem', () => {
 
         expect(entries.map((entry) => entry.getAttribute('aria-label') || entry.getAttribute('role'))).toEqual([
             'Edit Configuration',
-            'Update Project Version',
+            'Change Project Version',
             'Move Users',
             'separator',
             'Delete Configuration',
@@ -403,24 +416,47 @@ describe('AutomationProjectConfigurationListItem', () => {
         expect(screen.queryByText('Hidden from hub')).not.toBeInTheDocument();
     });
 
-    it('deletes the configuration after confirming', async () => {
+    it('keeps the delete confirmation open until the configuration is deleted', async () => {
         const user = userEvent.setup();
 
-        const onDelete = vi.fn();
-
-        renderItem({onDelete});
+        renderItem();
 
         await user.click(screen.getByRole('button', {name: 'Configuration Actions'}));
         await user.click(await screen.findByRole('menuitem', {name: 'Delete Configuration'}));
 
-        expect(onDelete).not.toHaveBeenCalled();
+        expect(mocks.deleteMutate).not.toHaveBeenCalled();
 
         const alertDialog = await screen.findByRole('alertdialog');
 
         await user.click(within(alertDialog).getByRole('button', {name: 'Delete'}));
 
-        await waitFor(() => expect(onDelete).toHaveBeenCalledWith(configuration));
+        expect(mocks.deleteMutate).toHaveBeenCalledWith({id: 'configuration-1'});
+        expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+
+        act(() => {
+            mocks.deleteMutationOptions?.onSuccess?.();
+        });
+
         await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+
+        expect(mocks.invalidateQueries).toHaveBeenCalledWith({queryKey: ['automationProjectConfigurations']});
+        expect(mocks.invalidateQueries).toHaveBeenCalledWith({queryKey: ['automationProjects']});
+    });
+
+    it('disables the delete confirmation while the configuration is being deleted', async () => {
+        const user = userEvent.setup();
+
+        mocks.deletePending = true;
+
+        renderItem();
+
+        await user.click(screen.getByRole('button', {name: 'Configuration Actions'}));
+        await user.click(await screen.findByRole('menuitem', {name: 'Delete Configuration'}));
+
+        const alertDialog = await screen.findByRole('alertdialog');
+
+        expect(within(alertDialog).getByRole('button', {name: 'Delete'})).toBeDisabled();
+        expect(within(alertDialog).getByRole('button', {name: 'Cancel'})).toBeDisabled();
     });
 
     it('shows when the configuration last executed', () => {

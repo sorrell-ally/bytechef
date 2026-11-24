@@ -14,6 +14,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -111,6 +112,9 @@ class EmbeddedMcpServerFacadeIntTest {
 
     @MockitoBean
     private McpIntegrationComponentService mcpIntegrationComponentService;
+
+    @MockitoBean
+    private McpIntegrationInstanceRowFacade mcpIntegrationInstanceRowFacade;
 
     @MockitoBean
     private McpIntegrationInstanceToolService mcpIntegrationInstanceToolService;
@@ -217,8 +221,8 @@ class EmbeddedMcpServerFacadeIntTest {
         private void verifyNoServiceInteractions() {
             verifyNoInteractions(
                 componentDefinitionService, integrationInstanceConfigurationService, integrationService,
-                mcpComponentService, mcpIntegrationComponentService, mcpIntegrationInstanceToolService,
-                mcpServerService, mcpToolService, tagService);
+                mcpComponentService, mcpIntegrationComponentService, mcpIntegrationInstanceRowFacade,
+                mcpIntegrationInstanceToolService, mcpServerService, mcpToolService, tagService);
         }
     }
 
@@ -242,6 +246,56 @@ class EmbeddedMcpServerFacadeIntTest {
                 .isSameAs(createdMcpComponent);
 
             verify(mcpIntegrationComponentService).create(EMBEDDED_MCP_COMPONENT_ID, INTEGRATION_ID);
+        }
+
+        @Test
+        void testCreateEmbeddedMcpComponentDoesNotBindAComponentTheServerRejects() {
+            McpComponent mcpComponent = createMcpComponent(null, EMBEDDED_MCP_SERVER_ID);
+            List<McpTool> mcpTools = List.of(new McpTool("tool", Map.of()));
+
+            when(mcpComponentService.create(mcpComponent, mcpTools))
+                .thenThrow(new IllegalArgumentException("already added"));
+
+            assertThatThrownBy(
+                () -> embeddedMcpServerFacade.createEmbeddedMcpComponent(mcpComponent, INTEGRATION_ID, mcpTools))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("already added");
+
+            verify(mcpIntegrationComponentService, never()).create(anyLong(), anyLong());
+        }
+
+        @Test
+        void testAddedToolReachesConnectedUserWithTheServer() {
+            McpComponent mcpComponent = createMcpComponent(null, EMBEDDED_MCP_SERVER_ID);
+            McpComponent createdMcpComponent = createMcpComponent(EMBEDDED_MCP_COMPONENT_ID, EMBEDDED_MCP_SERVER_ID);
+            List<McpTool> mcpTools = List.of(new McpTool("tool", Map.of()));
+
+            when(mcpComponentService.create(mcpComponent, mcpTools)).thenReturn(createdMcpComponent);
+
+            embeddedMcpServerFacade.createEmbeddedMcpComponent(mcpComponent, INTEGRATION_ID, mcpTools);
+
+            verify(mcpIntegrationInstanceRowFacade).addMissingRowsForConnectedUsers(EMBEDDED_MCP_SERVER_ID);
+
+            McpComponent updatedMcpComponent = createMcpComponent(EMBEDDED_MCP_COMPONENT_ID, EMBEDDED_MCP_SERVER_ID);
+
+            when(mcpIntegrationComponentService.fetchMcpIntegrationComponent(EMBEDDED_MCP_COMPONENT_ID))
+                .thenReturn(Optional.of(new McpIntegrationComponent(EMBEDDED_MCP_COMPONENT_ID, INTEGRATION_ID)));
+            when(mcpComponentService.update(updatedMcpComponent, null, mcpTools)).thenReturn(updatedMcpComponent);
+
+            embeddedMcpServerFacade.updateEmbeddedMcpComponent(updatedMcpComponent, null, null, mcpTools);
+
+            verify(mcpIntegrationInstanceRowFacade, times(2)).addMissingRowsForConnectedUsers(EMBEDDED_MCP_SERVER_ID);
+        }
+
+        @Test
+        void testToolSwitchedBackOnReachesConnectedUsers() {
+            embeddedMcpServerFacade.updateEmbeddedMcpToolEnabled(EMBEDDED_MCP_TOOL_ID, false);
+
+            verify(mcpIntegrationInstanceRowFacade, never()).addMissingRowsForConnectedUsers(anyLong());
+
+            embeddedMcpServerFacade.updateEmbeddedMcpToolEnabled(EMBEDDED_MCP_TOOL_ID, true);
+
+            verify(mcpIntegrationInstanceRowFacade).addMissingRowsForConnectedUsers(EMBEDDED_MCP_SERVER_ID);
         }
 
         @Test

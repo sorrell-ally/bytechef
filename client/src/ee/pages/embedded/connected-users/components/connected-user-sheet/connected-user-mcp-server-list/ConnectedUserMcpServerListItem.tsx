@@ -5,17 +5,23 @@ import {Collapsible, CollapsibleContent, CollapsibleTrigger} from '@/components/
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip';
 import ConnectedUserSheetDeleteDropdownMenu from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserSheetDeleteDropdownMenu';
 import ConnectedUserMcpServerComponentGroup from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/connected-user-mcp-server-list/ConnectedUserMcpServerComponentGroup';
+import ConnectedUserMcpServerListItemAutomationRow from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/connected-user-mcp-server-list/ConnectedUserMcpServerListItemAutomationRow';
 import ConnectedUserMcpServerListItemToolRow from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/connected-user-mcp-server-list/ConnectedUserMcpServerListItemToolRow';
 import ConnectedUserMcpServerListItemWorkflowRow from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/connected-user-mcp-server-list/ConnectedUserMcpServerListItemWorkflowRow';
+import ConnectedUserMcpServerProjectGroup from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/connected-user-mcp-server-list/ConnectedUserMcpServerProjectGroup';
 import {ConnectedUserIntegrationInstance} from '@/ee/shared/middleware/embedded/connected-user';
 import {ConnectedUserKeys} from '@/ee/shared/queries/embedded/connectedUsers.queries';
+import ListItemExpandButton from '@/shared/components/ListItemExpandButton';
+import isCollapsibleRowClick from '@/shared/components/mcp-server/utils/isCollapsibleRowClick';
 import {
     ConnectedUserMcpServer,
+    ConnectedUserMcpServerAutomation,
+    useAutomationProjectsQuery,
     useDeleteConnectedUserMcpServerMutation,
     useEnableConnectedUserMcpServerMutation,
 } from '@/shared/middleware/graphql';
 import {useQueryClient} from '@tanstack/react-query';
-import {useMemo, useState} from 'react';
+import {type MouseEvent, useMemo, useState} from 'react';
 import {twMerge} from 'tailwind-merge';
 
 const ConnectedUserMcpServerListItem = ({
@@ -28,12 +34,14 @@ const ConnectedUserMcpServerListItem = ({
     mcpServer: ConnectedUserMcpServer;
 }) => {
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+    const [open, setOpen] = useState(false);
 
     const queryClient = useQueryClient();
 
     const deleteConnectedUserMcpServerMutation = useDeleteConnectedUserMcpServerMutation({
         onSuccess: () => {
             void queryClient.invalidateQueries({queryKey: ['connectedUserMcpServers']});
+            void queryClient.invalidateQueries({queryKey: ['provisionableConnectedUserMcpServers']});
 
             setShowDeleteDialog(false);
         },
@@ -48,6 +56,8 @@ const ConnectedUserMcpServerListItem = ({
 
     const toolCount = mcpServer.tools.length;
     const workflowCount = mcpServer.workflows.length;
+    const automationCount = mcpServer.automations.length;
+    const hasItems = toolCount > 0 || workflowCount > 0 || automationCount > 0;
 
     const toolsByComponentName = useMemo(
         () => groupByComponent(mcpServer.tools, (tool) => tool.componentVersion),
@@ -59,29 +69,67 @@ const ConnectedUserMcpServerListItem = ({
         [mcpServer.workflows]
     );
 
+    const automationsByProjectName = useMemo(() => groupByProjectName(mcpServer.automations), [mcpServer.automations]);
+
+    const {data: automationProjectsData} = useAutomationProjectsQuery(undefined, {enabled: automationCount > 0});
+
+    const workflowTemplatesByWorkflowUuid = useMemo(
+        () =>
+            new Map(
+                (automationProjectsData?.automationProjects ?? []).flatMap((automationProject) =>
+                    automationProject.workflowTemplates.map(
+                        (workflowTemplate) => [workflowTemplate.workflowUuid, workflowTemplate] as const
+                    )
+                )
+            ),
+        [automationProjectsData]
+    );
+
     const getCredentialStatus = (integrationInstanceId: string) =>
         connectedUserIntegrationInstances.find(
             (integrationInstance) => String(integrationInstance.id) === integrationInstanceId
         )?.credentialStatus;
 
+    const findIntegrationInstance = (integrationInstanceId: string) =>
+        connectedUserIntegrationInstances.find(
+            (integrationInstance) => String(integrationInstance.id) === integrationInstanceId
+        );
+
     const lastExecutionDate = useMemo(() => getLastExecutionDate(mcpServer.workflows), [mcpServer.workflows]);
+
+    const handleRowClick = (event: MouseEvent<HTMLDivElement>) => {
+        if (hasItems && isCollapsibleRowClick(event)) {
+            setOpen((previousOpen) => !previousOpen);
+        }
+    };
 
     return (
         <>
-            <Collapsible className="mb-2 rounded border border-border/50" key={mcpServer.id}>
-                <div className="flex items-center justify-between rounded-md px-3 hover:bg-surface-neutral-primary-hover">
-                    <CollapsibleTrigger className="flex-1 py-3">
-                        <div className="flex flex-col items-start justify-center gap-y-2">
+            <Collapsible
+                className="mb-2 rounded border border-border/50"
+                key={mcpServer.id}
+                onOpenChange={setOpen}
+                open={open}
+            >
+                <div
+                    className="flex cursor-pointer items-center justify-between rounded-md px-3 hover:bg-surface-neutral-primary-hover"
+                    onClick={handleRowClick}
+                    role="presentation"
+                >
+                    <ListItemExpandButton disabled={!hasItems} label="Toggle MCP server" />
+
+                    <CollapsibleTrigger className="flex-1 py-3" disabled={!hasItems}>
+                        <div className="flex flex-col items-start justify-center gap-y-1">
                             <div
                                 className={twMerge(
-                                    'flex min-h-8 items-center text-base font-semibold',
+                                    'flex min-h-6 items-center text-base font-semibold',
                                     !mcpServer.enabled && 'text-muted-foreground'
                                 )}
                             >
                                 {mcpServer.name}
                             </div>
 
-                            <div className="flex min-h-7 items-center text-xs font-semibold text-muted-foreground">
+                            <div className="flex min-h-6 items-center text-xs font-semibold text-muted-foreground">
                                 {toolCount > 0 && (
                                     <span>{toolCount === 1 ? '1 component tool' : `${toolCount} component tools`}</span>
                                 )}
@@ -97,13 +145,27 @@ const ConnectedUserMcpServerListItem = ({
                                         {workflowCount === 1 ? '1 workflow tool' : `${workflowCount} workflow tools`}
                                     </span>
                                 )}
+
+                                {(toolCount > 0 || workflowCount > 0) && automationCount > 0 && (
+                                    <span aria-hidden="true" className="mx-2">
+                                        -
+                                    </span>
+                                )}
+
+                                {automationCount > 0 && (
+                                    <span>
+                                        {automationCount === 1
+                                            ? '1 automation tool'
+                                            : `${automationCount} automation tools`}
+                                    </span>
+                                )}
                             </div>
                         </div>
                     </CollapsibleTrigger>
 
                     <div className="flex items-center gap-x-2">
-                        <div className="flex min-w-52 flex-col items-end gap-y-2">
-                            <div className="relative flex min-h-8 items-center">
+                        <div className="flex w-72 flex-col items-end gap-y-1">
+                            <div className="relative flex min-h-6 items-center">
                                 {enableConnectedUserMcpServerMutation.isPending && (
                                     <LoadingIcon className="absolute top-[3px] left-[-15px]" />
                                 )}
@@ -121,7 +183,7 @@ const ConnectedUserMcpServerListItem = ({
                             </div>
 
                             <Tooltip>
-                                <TooltipTrigger className="flex min-h-7 items-center text-xs text-content-neutral-secondary">
+                                <TooltipTrigger className="flex min-h-6 items-center text-xs text-content-neutral-secondary">
                                     {lastExecutionDate
                                         ? `Executed at ${lastExecutionDate.toLocaleDateString()} ${lastExecutionDate.toLocaleTimeString()}`
                                         : 'No executions'}
@@ -131,17 +193,13 @@ const ConnectedUserMcpServerListItem = ({
                             </Tooltip>
                         </div>
 
-                        {workflowCount > 0 ? (
-                            <div aria-hidden="true" className="size-9 shrink-0" />
-                        ) : (
-                            <ConnectedUserSheetDeleteDropdownMenu onDeleteClick={() => setShowDeleteDialog(true)} />
-                        )}
+                        <ConnectedUserSheetDeleteDropdownMenu onDeleteClick={() => setShowDeleteDialog(true)} />
                     </div>
                 </div>
 
-                <CollapsibleContent>
+                <CollapsibleContent className="ml-8">
                     {toolCount > 0 && (
-                        <div className="flex w-full flex-col gap-y-2 py-3">
+                        <div className="flex w-full flex-col gap-y-2 py-3 first:pt-1">
                             <h3 className="flex justify-start px-3 text-sm font-semibold text-muted-foreground uppercase">
                                 Component Tools
                             </h3>
@@ -152,6 +210,12 @@ const ConnectedUserMcpServerListItem = ({
                                         componentName={group.componentName}
                                         credentialStatus={getCredentialStatus(group.items[0].integrationInstanceId)}
                                         key={`${group.componentName}_${group.version}`}
+                                        provisioned={
+                                            findIntegrationInstance(group.items[0].integrationInstanceId)?.provisioned
+                                        }
+                                        provisionedBy={
+                                            findIntegrationInstance(group.items[0].integrationInstanceId)?.provisionedBy
+                                        }
                                         version={group.version}
                                         versionKind="component"
                                     >
@@ -165,7 +229,7 @@ const ConnectedUserMcpServerListItem = ({
                     )}
 
                     {workflowCount > 0 && (
-                        <div className="flex w-full flex-col gap-y-2 py-3">
+                        <div className="flex w-full flex-col gap-y-2 py-3 first:pt-1">
                             <h3 className="flex justify-start px-3 text-sm font-semibold text-muted-foreground uppercase">
                                 Workflow Tools
                             </h3>
@@ -175,8 +239,17 @@ const ConnectedUserMcpServerListItem = ({
                                     <ConnectedUserMcpServerComponentGroup
                                         componentName={group.componentName}
                                         credentialStatus={getCredentialStatus(group.items[0].integrationInstanceId)}
+                                        integrationId={
+                                            findIntegrationInstance(group.items[0].integrationInstanceId)?.integrationId
+                                        }
                                         key={`${group.componentName}_${group.version}`}
                                         lastExecutionDate={getLastExecutionDate(group.items)}
+                                        provisioned={
+                                            findIntegrationInstance(group.items[0].integrationInstanceId)?.provisioned
+                                        }
+                                        provisionedBy={
+                                            findIntegrationInstance(group.items[0].integrationInstanceId)?.provisionedBy
+                                        }
                                         version={group.version}
                                         versionKind="integration"
                                     >
@@ -193,7 +266,36 @@ const ConnectedUserMcpServerListItem = ({
                         </div>
                     )}
 
-                    {toolCount === 0 && workflowCount === 0 && (
+                    {automationCount > 0 && (
+                        <div className="flex w-full flex-col gap-y-2 py-3 first:pt-1">
+                            <h3 className="flex justify-start px-3 text-sm font-semibold text-muted-foreground uppercase">
+                                Automation Tools
+                            </h3>
+
+                            <div className="flex flex-col gap-2 px-3">
+                                {automationsByProjectName.map((group) => (
+                                    <ConnectedUserMcpServerProjectGroup
+                                        key={group.projectName}
+                                        lastExecutionDate={getLastExecutionDate(group.items)}
+                                        projectName={group.projectName}
+                                    >
+                                        {group.items.map((automation) => (
+                                            <ConnectedUserMcpServerListItemAutomationRow
+                                                automation={automation}
+                                                connectedUserId={connectedUserId}
+                                                key={automation.id}
+                                                workflowTemplate={workflowTemplatesByWorkflowUuid.get(
+                                                    automation.workflowUuid
+                                                )}
+                                            />
+                                        ))}
+                                    </ConnectedUserMcpServerProjectGroup>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {!hasItems && (
                         <div className="px-3 py-3 text-sm text-muted-foreground">No tools enabled for this user.</div>
                     )}
                 </CollapsibleContent>
@@ -247,6 +349,28 @@ function groupByComponent<T extends {componentName: string}>(
     }
 
     return [...groupsByKey.values()];
+}
+
+interface ProjectGroupI {
+    items: ConnectedUserMcpServerAutomation[];
+    projectName: string;
+}
+
+function groupByProjectName(automations: ConnectedUserMcpServerAutomation[]): ProjectGroupI[] {
+    const groupsByProjectName = new Map<string, ProjectGroupI>();
+
+    for (const automation of automations) {
+        const group = groupsByProjectName.get(automation.automationName) ?? {
+            items: [],
+            projectName: automation.automationName,
+        };
+
+        group.items.push(automation);
+
+        groupsByProjectName.set(automation.automationName, group);
+    }
+
+    return [...groupsByProjectName.values()];
 }
 
 export default ConnectedUserMcpServerListItem;

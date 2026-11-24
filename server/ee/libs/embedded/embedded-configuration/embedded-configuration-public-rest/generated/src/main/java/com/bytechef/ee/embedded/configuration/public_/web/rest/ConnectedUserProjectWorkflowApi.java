@@ -5,6 +5,8 @@
  */
 package com.bytechef.ee.embedded.configuration.public_.web.rest;
 
+import com.bytechef.ee.embedded.configuration.public_.web.rest.model.AutomationComponentInputOptionsRequestModel;
+import com.bytechef.ee.embedded.configuration.public_.web.rest.model.CodeWorkflowNotCopyableErrorModel;
 import com.bytechef.ee.embedded.configuration.public_.web.rest.model.ConnectedUserProjectWorkflowModel;
 import com.bytechef.ee.embedded.configuration.public_.web.rest.model.CreateFrontendProjectWorkflowFromPromptRequestModel;
 import com.bytechef.ee.embedded.configuration.public_.web.rest.model.CreateFrontendProjectWorkflowRequestModel;
@@ -12,11 +14,12 @@ import com.bytechef.ee.embedded.configuration.public_.web.rest.model.DisableFron
 import com.bytechef.ee.embedded.configuration.public_.web.rest.model.EnableConnectedUserWorkflowResponseModel;
 import com.bytechef.ee.embedded.configuration.public_.web.rest.model.EnableFrontendProjectWorkflow409ResponseModel;
 import com.bytechef.ee.embedded.configuration.public_.web.rest.model.EnvironmentModel;
+import com.bytechef.ee.embedded.configuration.public_.web.rest.model.MissingInputErrorModel;
 import org.springframework.lang.Nullable;
+import com.bytechef.ee.embedded.configuration.public_.web.rest.model.OptionModel;
 import com.bytechef.ee.embedded.configuration.public_.web.rest.model.ProvisionFrontendWorkflowReference409ResponseModel;
 import com.bytechef.ee.embedded.configuration.public_.web.rest.model.ProvisionWorkflowReferenceRequestModel;
 import com.bytechef.ee.embedded.configuration.public_.web.rest.model.PublishFrontendProjectWorkflowRequestModel;
-import com.bytechef.ee.embedded.configuration.public_.web.rest.model.UpdateFrontendProjectWorkflowInputs409ResponseModel;
 import com.bytechef.ee.embedded.configuration.public_.web.rest.model.UpdateFrontendWorkflowConfigurationConnectionRequestModel;
 import com.bytechef.ee.embedded.configuration.public_.web.rest.model.UpdateWorkflowInputsRequestModel;
 import io.swagger.v3.oas.annotations.ExternalDocumentation;
@@ -46,7 +49,7 @@ import java.util.Map;
 import java.util.Optional;
 import jakarta.annotation.Generated;
 
-@Generated(value = "org.openapitools.codegen.languages.SpringCodegen", date = "2026-11-10T16:12:12.795950+01:00[Europe/Zagreb]", comments = "Generator version: 7.27.0")
+@Generated(value = "org.openapitools.codegen.languages.SpringCodegen", date = "2026-11-20T21:37:42.770599+01:00[Europe/Zagreb]", comments = "Generator version: 7.27.0")
 @Validated
 @Tag(name = "connected-user-project-workflow", description = "The Embedded Connected User Project Workflow Public API")
 public interface ConnectedUserProjectWorkflowApi {
@@ -63,6 +66,7 @@ public interface ConnectedUserProjectWorkflowApi {
      * @param workflowUuid The workflow template uuid. (required)
      * @param xEnvironment The environment. (optional)
      * @return The new workflow uuid. (status code 200)
+     *         or The catalog workflow template is a code workflow template; it can only be referenced. (status code 409)
      */
     @Operation(
         operationId = "copyFrontendWorkflowTemplate",
@@ -72,6 +76,9 @@ public interface ConnectedUserProjectWorkflowApi {
         responses = {
             @ApiResponse(responseCode = "200", description = "The new workflow uuid.", content = {
                 @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))
+            }),
+            @ApiResponse(responseCode = "409", description = "The catalog workflow template is a code workflow template; it can only be referenced.", content = {
+                @Content(mediaType = "application/json", schema = @Schema(implementation = CodeWorkflowNotCopyableErrorModel.class))
             })
         },
         security = {
@@ -87,6 +94,15 @@ public interface ConnectedUserProjectWorkflowApi {
         @Parameter(name = "workflowUuid", description = "The workflow template uuid.", required = true, in = ParameterIn.PATH) @PathVariable("workflowUuid") String workflowUuid,
         @Parameter(name = "X-Environment", description = "The environment.", in = ParameterIn.HEADER) @RequestHeader(value = "X-Environment", required = false) @Nullable EnvironmentModel xEnvironment
     ) {
+        getRequest().ifPresent(request -> {
+            for (MediaType mediaType: MediaType.parseMediaTypes(request.getHeader("Accept"))) {
+                if (mediaType.isCompatibleWith(MediaType.valueOf("application/json"))) {
+                    String exampleString = "{ \"reason\" : \"CODE_WORKFLOW_NOT_COPYABLE\" }";
+                    ApiUtil.setExampleResponse(request, "application/json", exampleString);
+                    break;
+                }
+            }
+        });
         return new ResponseEntity<>(HttpStatus.NOT_IMPLEMENTED);
 
     }
@@ -101,6 +117,7 @@ public interface ConnectedUserProjectWorkflowApi {
      * @param workflowUuid The workflow template uuid. (required)
      * @param xEnvironment The environment. (optional)
      * @return The new workflow uuid. (status code 200)
+     *         or The catalog workflow template is a code workflow template; it can only be referenced. (status code 409)
      */
     @Operation(
         operationId = "copyWorkflowTemplate",
@@ -110,6 +127,9 @@ public interface ConnectedUserProjectWorkflowApi {
         responses = {
             @ApiResponse(responseCode = "200", description = "The new workflow uuid.", content = {
                 @Content(mediaType = "application/json", schema = @Schema(implementation = String.class))
+            }),
+            @ApiResponse(responseCode = "409", description = "The catalog workflow template is a code workflow template; it can only be referenced.", content = {
+                @Content(mediaType = "application/json", schema = @Schema(implementation = CodeWorkflowNotCopyableErrorModel.class))
             })
         },
         security = {
@@ -126,6 +146,15 @@ public interface ConnectedUserProjectWorkflowApi {
         @Parameter(name = "workflowUuid", description = "The workflow template uuid.", required = true, in = ParameterIn.PATH) @PathVariable("workflowUuid") String workflowUuid,
         @Parameter(name = "X-Environment", description = "The environment.", in = ParameterIn.HEADER) @RequestHeader(value = "X-Environment", required = false) @Nullable EnvironmentModel xEnvironment
     ) {
+        getRequest().ifPresent(request -> {
+            for (MediaType mediaType: MediaType.parseMediaTypes(request.getHeader("Accept"))) {
+                if (mediaType.isCompatibleWith(MediaType.valueOf("application/json"))) {
+                    String exampleString = "{ \"reason\" : \"CODE_WORKFLOW_NOT_COPYABLE\" }";
+                    ApiUtil.setExampleResponse(request, "application/json", exampleString);
+                    break;
+                }
+            }
+        });
         return new ResponseEntity<>(HttpStatus.NOT_IMPLEMENTED);
 
     }
@@ -637,6 +666,55 @@ public interface ConnectedUserProjectWorkflowApi {
     }
 
 
+    String PATH_GET_FRONTEND_AUTOMATION_COMPONENT_INPUT_OPTIONS = "/automation/component-input-options";
+    /**
+     * POST /automation/component-input-options : Get component input options with a connection
+     * Resolve the dynamic option values of a component input group property with one of the authenticated connected user&#39;s own connections.
+     *
+     * @param automationComponentInputOptionsRequestModel  (required)
+     * @param xEnvironment The environment. (optional)
+     * @return The list of resolved options; empty when the connection is not one of the connected user&#39;s connections for the component. (status code 200)
+     *         or Access token is missing or invalid (status code 401)
+     */
+    @Operation(
+        operationId = "getFrontendAutomationComponentInputOptions",
+        summary = "Get component input options with a connection",
+        description = "Resolve the dynamic option values of a component input group property with one of the authenticated connected user's own connections.",
+        tags = { "connected-user-project-workflow" },
+        responses = {
+            @ApiResponse(responseCode = "200", description = "The list of resolved options; empty when the connection is not one of the connected user's connections for the component.", content = {
+                @Content(mediaType = "application/json", array = @ArraySchema(schema = @Schema(implementation = OptionModel.class)))
+            }),
+            @ApiResponse(responseCode = "401", description = "Access token is missing or invalid")
+        },
+        security = {
+            @SecurityRequirement(name = "jwtBearerAuth")
+        }
+    )
+    @RequestMapping(
+        method = RequestMethod.POST,
+        value = ConnectedUserProjectWorkflowApi.PATH_GET_FRONTEND_AUTOMATION_COMPONENT_INPUT_OPTIONS,
+        produces = { "application/json" },
+        consumes = { "application/json" }
+    )
+    default ResponseEntity<List<OptionModel>> getFrontendAutomationComponentInputOptions(
+        @Parameter(name = "AutomationComponentInputOptionsRequestModel", description = "", required = true) @Valid @RequestBody AutomationComponentInputOptionsRequestModel automationComponentInputOptionsRequestModel,
+        @Parameter(name = "X-Environment", description = "The environment.", in = ParameterIn.HEADER) @RequestHeader(value = "X-Environment", required = false) @Nullable EnvironmentModel xEnvironment
+    ) {
+        getRequest().ifPresent(request -> {
+            for (MediaType mediaType: MediaType.parseMediaTypes(request.getHeader("Accept"))) {
+                if (mediaType.isCompatibleWith(MediaType.valueOf("application/json"))) {
+                    String exampleString = "[ { \"label\" : \"label\", \"value\" : \"value\" }, { \"label\" : \"label\", \"value\" : \"value\" } ]";
+                    ApiUtil.setExampleResponse(request, "application/json", exampleString);
+                    break;
+                }
+            }
+        });
+        return new ResponseEntity<>(HttpStatus.NOT_IMPLEMENTED);
+
+    }
+
+
     String PATH_GET_FRONTEND_PROJECT_WORKFLOW = "/automation/workflows/{workflowUuid}";
     /**
      * GET /automation/workflows/{workflowUuid} : Get a workflow by workflow reference code
@@ -672,7 +750,7 @@ public interface ConnectedUserProjectWorkflowApi {
         getRequest().ifPresent(request -> {
             for (MediaType mediaType: MediaType.parseMediaTypes(request.getHeader("Accept"))) {
                 if (mediaType.isCompatibleWith(MediaType.valueOf("application/json"))) {
-                    String exampleString = "{ \"createdDate\" : \"2000-01-23T04:56:07.000+00:00\", \"description\" : \"description\", \"definition\" : \"definition\", \"lastModifiedDate\" : \"2000-01-23T04:56:07.000+00:00\", \"enabled\" : true, \"label\" : \"label\", \"workflowUuid\" : \"workflowUuid\", \"workflowVersion\" : 0, \"kind\" : \"COPY\", \"automationUuid\" : \"automationUuid\", \"copiedFromWorkflowUuid\" : \"copiedFromWorkflowUuid\", \"dangling\" : true, \"components\" : [ { \"name\" : \"name\", \"title\" : \"title\", \"icon\" : \"icon\", \"connectionRequired\" : true, \"integrationId\" : 6, \"provided\" : true }, { \"name\" : \"name\", \"title\" : \"title\", \"icon\" : \"icon\", \"connectionRequired\" : true, \"integrationId\" : 6, \"provided\" : true } ], \"inputs\" : [ { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"type\", \"required\" : true, \"provided\" : true }, { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"type\", \"required\" : true, \"provided\" : true } ], \"inputValues\" : { \"key\" : \"\" }, \"attentionReason\" : \"attentionReason\" }";
+                    String exampleString = "{ \"createdDate\" : \"2000-01-23T04:56:07.000+00:00\", \"description\" : \"description\", \"definition\" : \"definition\", \"lastModifiedDate\" : \"2000-01-23T04:56:07.000+00:00\", \"enabled\" : true, \"label\" : \"label\", \"workflowUuid\" : \"workflowUuid\", \"workflowVersion\" : 0, \"kind\" : \"COPY\", \"automationUuid\" : \"automationUuid\", \"copiedFromWorkflowUuid\" : \"copiedFromWorkflowUuid\", \"dangling\" : true, \"components\" : [ { \"name\" : \"name\", \"title\" : \"title\", \"icon\" : \"icon\", \"connectionRequired\" : true, \"integrationId\" : 6, \"provided\" : true }, { \"name\" : \"name\", \"title\" : \"title\", \"icon\" : \"icon\", \"connectionRequired\" : true, \"integrationId\" : 6, \"provided\" : true } ], \"inputs\" : [ { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"type\", \"required\" : true, \"componentReference\" : { \"componentName\" : \"componentName\", \"componentVersion\" : 1, \"groupName\" : \"groupName\", \"group\" : { \"name\" : \"name\", \"label\" : \"label\", \"properties\" : [ { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"STRING\", \"controlType\" : \"controlType\", \"required\" : true, \"options\" : [ { \"label\" : \"label\", \"value\" : \"value\" }, { \"label\" : \"label\", \"value\" : \"value\" } ], \"dynamicOptions\" : true, \"optionsLookupDependsOn\" : [ \"optionsLookupDependsOn\", \"optionsLookupDependsOn\" ] }, { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"STRING\", \"controlType\" : \"controlType\", \"required\" : true, \"options\" : [ { \"label\" : \"label\", \"value\" : \"value\" }, { \"label\" : \"label\", \"value\" : \"value\" } ], \"dynamicOptions\" : true, \"optionsLookupDependsOn\" : [ \"optionsLookupDependsOn\", \"optionsLookupDependsOn\" ] } ] } } }, { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"type\", \"required\" : true, \"componentReference\" : { \"componentName\" : \"componentName\", \"componentVersion\" : 1, \"groupName\" : \"groupName\", \"group\" : { \"name\" : \"name\", \"label\" : \"label\", \"properties\" : [ { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"STRING\", \"controlType\" : \"controlType\", \"required\" : true, \"options\" : [ { \"label\" : \"label\", \"value\" : \"value\" }, { \"label\" : \"label\", \"value\" : \"value\" } ], \"dynamicOptions\" : true, \"optionsLookupDependsOn\" : [ \"optionsLookupDependsOn\", \"optionsLookupDependsOn\" ] }, { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"STRING\", \"controlType\" : \"controlType\", \"required\" : true, \"options\" : [ { \"label\" : \"label\", \"value\" : \"value\" }, { \"label\" : \"label\", \"value\" : \"value\" } ], \"dynamicOptions\" : true, \"optionsLookupDependsOn\" : [ \"optionsLookupDependsOn\", \"optionsLookupDependsOn\" ] } ] } } } ], \"inputValues\" : { \"key\" : \"\" }, \"connections\" : { \"key\" : 6 }, \"attentionReason\" : \"attentionReason\", \"mcpEnabled\" : true, \"toolOnly\" : true, \"staticWebhookUrl\" : \"staticWebhookUrl\" }";
                     ApiUtil.setExampleResponse(request, "application/json", exampleString);
                     break;
                 }
@@ -716,7 +794,7 @@ public interface ConnectedUserProjectWorkflowApi {
         getRequest().ifPresent(request -> {
             for (MediaType mediaType: MediaType.parseMediaTypes(request.getHeader("Accept"))) {
                 if (mediaType.isCompatibleWith(MediaType.valueOf("application/json"))) {
-                    String exampleString = "[ { \"createdDate\" : \"2000-01-23T04:56:07.000+00:00\", \"description\" : \"description\", \"definition\" : \"definition\", \"lastModifiedDate\" : \"2000-01-23T04:56:07.000+00:00\", \"enabled\" : true, \"label\" : \"label\", \"workflowUuid\" : \"workflowUuid\", \"workflowVersion\" : 0, \"kind\" : \"COPY\", \"automationUuid\" : \"automationUuid\", \"copiedFromWorkflowUuid\" : \"copiedFromWorkflowUuid\", \"dangling\" : true, \"components\" : [ { \"name\" : \"name\", \"title\" : \"title\", \"icon\" : \"icon\", \"connectionRequired\" : true, \"integrationId\" : 6, \"provided\" : true }, { \"name\" : \"name\", \"title\" : \"title\", \"icon\" : \"icon\", \"connectionRequired\" : true, \"integrationId\" : 6, \"provided\" : true } ], \"inputs\" : [ { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"type\", \"required\" : true, \"provided\" : true }, { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"type\", \"required\" : true, \"provided\" : true } ], \"inputValues\" : { \"key\" : \"\" }, \"attentionReason\" : \"attentionReason\" }, { \"createdDate\" : \"2000-01-23T04:56:07.000+00:00\", \"description\" : \"description\", \"definition\" : \"definition\", \"lastModifiedDate\" : \"2000-01-23T04:56:07.000+00:00\", \"enabled\" : true, \"label\" : \"label\", \"workflowUuid\" : \"workflowUuid\", \"workflowVersion\" : 0, \"kind\" : \"COPY\", \"automationUuid\" : \"automationUuid\", \"copiedFromWorkflowUuid\" : \"copiedFromWorkflowUuid\", \"dangling\" : true, \"components\" : [ { \"name\" : \"name\", \"title\" : \"title\", \"icon\" : \"icon\", \"connectionRequired\" : true, \"integrationId\" : 6, \"provided\" : true }, { \"name\" : \"name\", \"title\" : \"title\", \"icon\" : \"icon\", \"connectionRequired\" : true, \"integrationId\" : 6, \"provided\" : true } ], \"inputs\" : [ { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"type\", \"required\" : true, \"provided\" : true }, { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"type\", \"required\" : true, \"provided\" : true } ], \"inputValues\" : { \"key\" : \"\" }, \"attentionReason\" : \"attentionReason\" } ]";
+                    String exampleString = "[ { \"createdDate\" : \"2000-01-23T04:56:07.000+00:00\", \"description\" : \"description\", \"definition\" : \"definition\", \"lastModifiedDate\" : \"2000-01-23T04:56:07.000+00:00\", \"enabled\" : true, \"label\" : \"label\", \"workflowUuid\" : \"workflowUuid\", \"workflowVersion\" : 0, \"kind\" : \"COPY\", \"automationUuid\" : \"automationUuid\", \"copiedFromWorkflowUuid\" : \"copiedFromWorkflowUuid\", \"dangling\" : true, \"components\" : [ { \"name\" : \"name\", \"title\" : \"title\", \"icon\" : \"icon\", \"connectionRequired\" : true, \"integrationId\" : 6, \"provided\" : true }, { \"name\" : \"name\", \"title\" : \"title\", \"icon\" : \"icon\", \"connectionRequired\" : true, \"integrationId\" : 6, \"provided\" : true } ], \"inputs\" : [ { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"type\", \"required\" : true, \"componentReference\" : { \"componentName\" : \"componentName\", \"componentVersion\" : 1, \"groupName\" : \"groupName\", \"group\" : { \"name\" : \"name\", \"label\" : \"label\", \"properties\" : [ { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"STRING\", \"controlType\" : \"controlType\", \"required\" : true, \"options\" : [ { \"label\" : \"label\", \"value\" : \"value\" }, { \"label\" : \"label\", \"value\" : \"value\" } ], \"dynamicOptions\" : true, \"optionsLookupDependsOn\" : [ \"optionsLookupDependsOn\", \"optionsLookupDependsOn\" ] }, { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"STRING\", \"controlType\" : \"controlType\", \"required\" : true, \"options\" : [ { \"label\" : \"label\", \"value\" : \"value\" }, { \"label\" : \"label\", \"value\" : \"value\" } ], \"dynamicOptions\" : true, \"optionsLookupDependsOn\" : [ \"optionsLookupDependsOn\", \"optionsLookupDependsOn\" ] } ] } } }, { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"type\", \"required\" : true, \"componentReference\" : { \"componentName\" : \"componentName\", \"componentVersion\" : 1, \"groupName\" : \"groupName\", \"group\" : { \"name\" : \"name\", \"label\" : \"label\", \"properties\" : [ { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"STRING\", \"controlType\" : \"controlType\", \"required\" : true, \"options\" : [ { \"label\" : \"label\", \"value\" : \"value\" }, { \"label\" : \"label\", \"value\" : \"value\" } ], \"dynamicOptions\" : true, \"optionsLookupDependsOn\" : [ \"optionsLookupDependsOn\", \"optionsLookupDependsOn\" ] }, { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"STRING\", \"controlType\" : \"controlType\", \"required\" : true, \"options\" : [ { \"label\" : \"label\", \"value\" : \"value\" }, { \"label\" : \"label\", \"value\" : \"value\" } ], \"dynamicOptions\" : true, \"optionsLookupDependsOn\" : [ \"optionsLookupDependsOn\", \"optionsLookupDependsOn\" ] } ] } } } ], \"inputValues\" : { \"key\" : \"\" }, \"connections\" : { \"key\" : 6 }, \"attentionReason\" : \"attentionReason\", \"mcpEnabled\" : true, \"toolOnly\" : true, \"staticWebhookUrl\" : \"staticWebhookUrl\" }, { \"createdDate\" : \"2000-01-23T04:56:07.000+00:00\", \"description\" : \"description\", \"definition\" : \"definition\", \"lastModifiedDate\" : \"2000-01-23T04:56:07.000+00:00\", \"enabled\" : true, \"label\" : \"label\", \"workflowUuid\" : \"workflowUuid\", \"workflowVersion\" : 0, \"kind\" : \"COPY\", \"automationUuid\" : \"automationUuid\", \"copiedFromWorkflowUuid\" : \"copiedFromWorkflowUuid\", \"dangling\" : true, \"components\" : [ { \"name\" : \"name\", \"title\" : \"title\", \"icon\" : \"icon\", \"connectionRequired\" : true, \"integrationId\" : 6, \"provided\" : true }, { \"name\" : \"name\", \"title\" : \"title\", \"icon\" : \"icon\", \"connectionRequired\" : true, \"integrationId\" : 6, \"provided\" : true } ], \"inputs\" : [ { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"type\", \"required\" : true, \"componentReference\" : { \"componentName\" : \"componentName\", \"componentVersion\" : 1, \"groupName\" : \"groupName\", \"group\" : { \"name\" : \"name\", \"label\" : \"label\", \"properties\" : [ { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"STRING\", \"controlType\" : \"controlType\", \"required\" : true, \"options\" : [ { \"label\" : \"label\", \"value\" : \"value\" }, { \"label\" : \"label\", \"value\" : \"value\" } ], \"dynamicOptions\" : true, \"optionsLookupDependsOn\" : [ \"optionsLookupDependsOn\", \"optionsLookupDependsOn\" ] }, { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"STRING\", \"controlType\" : \"controlType\", \"required\" : true, \"options\" : [ { \"label\" : \"label\", \"value\" : \"value\" }, { \"label\" : \"label\", \"value\" : \"value\" } ], \"dynamicOptions\" : true, \"optionsLookupDependsOn\" : [ \"optionsLookupDependsOn\", \"optionsLookupDependsOn\" ] } ] } } }, { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"type\", \"required\" : true, \"componentReference\" : { \"componentName\" : \"componentName\", \"componentVersion\" : 1, \"groupName\" : \"groupName\", \"group\" : { \"name\" : \"name\", \"label\" : \"label\", \"properties\" : [ { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"STRING\", \"controlType\" : \"controlType\", \"required\" : true, \"options\" : [ { \"label\" : \"label\", \"value\" : \"value\" }, { \"label\" : \"label\", \"value\" : \"value\" } ], \"dynamicOptions\" : true, \"optionsLookupDependsOn\" : [ \"optionsLookupDependsOn\", \"optionsLookupDependsOn\" ] }, { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"STRING\", \"controlType\" : \"controlType\", \"required\" : true, \"options\" : [ { \"label\" : \"label\", \"value\" : \"value\" }, { \"label\" : \"label\", \"value\" : \"value\" } ], \"dynamicOptions\" : true, \"optionsLookupDependsOn\" : [ \"optionsLookupDependsOn\", \"optionsLookupDependsOn\" ] } ] } } } ], \"inputValues\" : { \"key\" : \"\" }, \"connections\" : { \"key\" : 6 }, \"attentionReason\" : \"attentionReason\", \"mcpEnabled\" : true, \"toolOnly\" : true, \"staticWebhookUrl\" : \"staticWebhookUrl\" } ]";
                     ApiUtil.setExampleResponse(request, "application/json", exampleString);
                     break;
                 }
@@ -764,7 +842,7 @@ public interface ConnectedUserProjectWorkflowApi {
         getRequest().ifPresent(request -> {
             for (MediaType mediaType: MediaType.parseMediaTypes(request.getHeader("Accept"))) {
                 if (mediaType.isCompatibleWith(MediaType.valueOf("application/json"))) {
-                    String exampleString = "{ \"createdDate\" : \"2000-01-23T04:56:07.000+00:00\", \"description\" : \"description\", \"definition\" : \"definition\", \"lastModifiedDate\" : \"2000-01-23T04:56:07.000+00:00\", \"enabled\" : true, \"label\" : \"label\", \"workflowUuid\" : \"workflowUuid\", \"workflowVersion\" : 0, \"kind\" : \"COPY\", \"automationUuid\" : \"automationUuid\", \"copiedFromWorkflowUuid\" : \"copiedFromWorkflowUuid\", \"dangling\" : true, \"components\" : [ { \"name\" : \"name\", \"title\" : \"title\", \"icon\" : \"icon\", \"connectionRequired\" : true, \"integrationId\" : 6, \"provided\" : true }, { \"name\" : \"name\", \"title\" : \"title\", \"icon\" : \"icon\", \"connectionRequired\" : true, \"integrationId\" : 6, \"provided\" : true } ], \"inputs\" : [ { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"type\", \"required\" : true, \"provided\" : true }, { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"type\", \"required\" : true, \"provided\" : true } ], \"inputValues\" : { \"key\" : \"\" }, \"attentionReason\" : \"attentionReason\" }";
+                    String exampleString = "{ \"createdDate\" : \"2000-01-23T04:56:07.000+00:00\", \"description\" : \"description\", \"definition\" : \"definition\", \"lastModifiedDate\" : \"2000-01-23T04:56:07.000+00:00\", \"enabled\" : true, \"label\" : \"label\", \"workflowUuid\" : \"workflowUuid\", \"workflowVersion\" : 0, \"kind\" : \"COPY\", \"automationUuid\" : \"automationUuid\", \"copiedFromWorkflowUuid\" : \"copiedFromWorkflowUuid\", \"dangling\" : true, \"components\" : [ { \"name\" : \"name\", \"title\" : \"title\", \"icon\" : \"icon\", \"connectionRequired\" : true, \"integrationId\" : 6, \"provided\" : true }, { \"name\" : \"name\", \"title\" : \"title\", \"icon\" : \"icon\", \"connectionRequired\" : true, \"integrationId\" : 6, \"provided\" : true } ], \"inputs\" : [ { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"type\", \"required\" : true, \"componentReference\" : { \"componentName\" : \"componentName\", \"componentVersion\" : 1, \"groupName\" : \"groupName\", \"group\" : { \"name\" : \"name\", \"label\" : \"label\", \"properties\" : [ { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"STRING\", \"controlType\" : \"controlType\", \"required\" : true, \"options\" : [ { \"label\" : \"label\", \"value\" : \"value\" }, { \"label\" : \"label\", \"value\" : \"value\" } ], \"dynamicOptions\" : true, \"optionsLookupDependsOn\" : [ \"optionsLookupDependsOn\", \"optionsLookupDependsOn\" ] }, { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"STRING\", \"controlType\" : \"controlType\", \"required\" : true, \"options\" : [ { \"label\" : \"label\", \"value\" : \"value\" }, { \"label\" : \"label\", \"value\" : \"value\" } ], \"dynamicOptions\" : true, \"optionsLookupDependsOn\" : [ \"optionsLookupDependsOn\", \"optionsLookupDependsOn\" ] } ] } } }, { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"type\", \"required\" : true, \"componentReference\" : { \"componentName\" : \"componentName\", \"componentVersion\" : 1, \"groupName\" : \"groupName\", \"group\" : { \"name\" : \"name\", \"label\" : \"label\", \"properties\" : [ { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"STRING\", \"controlType\" : \"controlType\", \"required\" : true, \"options\" : [ { \"label\" : \"label\", \"value\" : \"value\" }, { \"label\" : \"label\", \"value\" : \"value\" } ], \"dynamicOptions\" : true, \"optionsLookupDependsOn\" : [ \"optionsLookupDependsOn\", \"optionsLookupDependsOn\" ] }, { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"STRING\", \"controlType\" : \"controlType\", \"required\" : true, \"options\" : [ { \"label\" : \"label\", \"value\" : \"value\" }, { \"label\" : \"label\", \"value\" : \"value\" } ], \"dynamicOptions\" : true, \"optionsLookupDependsOn\" : [ \"optionsLookupDependsOn\", \"optionsLookupDependsOn\" ] } ] } } } ], \"inputValues\" : { \"key\" : \"\" }, \"connections\" : { \"key\" : 6 }, \"attentionReason\" : \"attentionReason\", \"mcpEnabled\" : true, \"toolOnly\" : true, \"staticWebhookUrl\" : \"staticWebhookUrl\" }";
                     ApiUtil.setExampleResponse(request, "application/json", exampleString);
                     break;
                 }
@@ -810,7 +888,7 @@ public interface ConnectedUserProjectWorkflowApi {
         getRequest().ifPresent(request -> {
             for (MediaType mediaType: MediaType.parseMediaTypes(request.getHeader("Accept"))) {
                 if (mediaType.isCompatibleWith(MediaType.valueOf("application/json"))) {
-                    String exampleString = "[ { \"createdDate\" : \"2000-01-23T04:56:07.000+00:00\", \"description\" : \"description\", \"definition\" : \"definition\", \"lastModifiedDate\" : \"2000-01-23T04:56:07.000+00:00\", \"enabled\" : true, \"label\" : \"label\", \"workflowUuid\" : \"workflowUuid\", \"workflowVersion\" : 0, \"kind\" : \"COPY\", \"automationUuid\" : \"automationUuid\", \"copiedFromWorkflowUuid\" : \"copiedFromWorkflowUuid\", \"dangling\" : true, \"components\" : [ { \"name\" : \"name\", \"title\" : \"title\", \"icon\" : \"icon\", \"connectionRequired\" : true, \"integrationId\" : 6, \"provided\" : true }, { \"name\" : \"name\", \"title\" : \"title\", \"icon\" : \"icon\", \"connectionRequired\" : true, \"integrationId\" : 6, \"provided\" : true } ], \"inputs\" : [ { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"type\", \"required\" : true, \"provided\" : true }, { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"type\", \"required\" : true, \"provided\" : true } ], \"inputValues\" : { \"key\" : \"\" }, \"attentionReason\" : \"attentionReason\" }, { \"createdDate\" : \"2000-01-23T04:56:07.000+00:00\", \"description\" : \"description\", \"definition\" : \"definition\", \"lastModifiedDate\" : \"2000-01-23T04:56:07.000+00:00\", \"enabled\" : true, \"label\" : \"label\", \"workflowUuid\" : \"workflowUuid\", \"workflowVersion\" : 0, \"kind\" : \"COPY\", \"automationUuid\" : \"automationUuid\", \"copiedFromWorkflowUuid\" : \"copiedFromWorkflowUuid\", \"dangling\" : true, \"components\" : [ { \"name\" : \"name\", \"title\" : \"title\", \"icon\" : \"icon\", \"connectionRequired\" : true, \"integrationId\" : 6, \"provided\" : true }, { \"name\" : \"name\", \"title\" : \"title\", \"icon\" : \"icon\", \"connectionRequired\" : true, \"integrationId\" : 6, \"provided\" : true } ], \"inputs\" : [ { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"type\", \"required\" : true, \"provided\" : true }, { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"type\", \"required\" : true, \"provided\" : true } ], \"inputValues\" : { \"key\" : \"\" }, \"attentionReason\" : \"attentionReason\" } ]";
+                    String exampleString = "[ { \"createdDate\" : \"2000-01-23T04:56:07.000+00:00\", \"description\" : \"description\", \"definition\" : \"definition\", \"lastModifiedDate\" : \"2000-01-23T04:56:07.000+00:00\", \"enabled\" : true, \"label\" : \"label\", \"workflowUuid\" : \"workflowUuid\", \"workflowVersion\" : 0, \"kind\" : \"COPY\", \"automationUuid\" : \"automationUuid\", \"copiedFromWorkflowUuid\" : \"copiedFromWorkflowUuid\", \"dangling\" : true, \"components\" : [ { \"name\" : \"name\", \"title\" : \"title\", \"icon\" : \"icon\", \"connectionRequired\" : true, \"integrationId\" : 6, \"provided\" : true }, { \"name\" : \"name\", \"title\" : \"title\", \"icon\" : \"icon\", \"connectionRequired\" : true, \"integrationId\" : 6, \"provided\" : true } ], \"inputs\" : [ { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"type\", \"required\" : true, \"componentReference\" : { \"componentName\" : \"componentName\", \"componentVersion\" : 1, \"groupName\" : \"groupName\", \"group\" : { \"name\" : \"name\", \"label\" : \"label\", \"properties\" : [ { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"STRING\", \"controlType\" : \"controlType\", \"required\" : true, \"options\" : [ { \"label\" : \"label\", \"value\" : \"value\" }, { \"label\" : \"label\", \"value\" : \"value\" } ], \"dynamicOptions\" : true, \"optionsLookupDependsOn\" : [ \"optionsLookupDependsOn\", \"optionsLookupDependsOn\" ] }, { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"STRING\", \"controlType\" : \"controlType\", \"required\" : true, \"options\" : [ { \"label\" : \"label\", \"value\" : \"value\" }, { \"label\" : \"label\", \"value\" : \"value\" } ], \"dynamicOptions\" : true, \"optionsLookupDependsOn\" : [ \"optionsLookupDependsOn\", \"optionsLookupDependsOn\" ] } ] } } }, { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"type\", \"required\" : true, \"componentReference\" : { \"componentName\" : \"componentName\", \"componentVersion\" : 1, \"groupName\" : \"groupName\", \"group\" : { \"name\" : \"name\", \"label\" : \"label\", \"properties\" : [ { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"STRING\", \"controlType\" : \"controlType\", \"required\" : true, \"options\" : [ { \"label\" : \"label\", \"value\" : \"value\" }, { \"label\" : \"label\", \"value\" : \"value\" } ], \"dynamicOptions\" : true, \"optionsLookupDependsOn\" : [ \"optionsLookupDependsOn\", \"optionsLookupDependsOn\" ] }, { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"STRING\", \"controlType\" : \"controlType\", \"required\" : true, \"options\" : [ { \"label\" : \"label\", \"value\" : \"value\" }, { \"label\" : \"label\", \"value\" : \"value\" } ], \"dynamicOptions\" : true, \"optionsLookupDependsOn\" : [ \"optionsLookupDependsOn\", \"optionsLookupDependsOn\" ] } ] } } } ], \"inputValues\" : { \"key\" : \"\" }, \"connections\" : { \"key\" : 6 }, \"attentionReason\" : \"attentionReason\", \"mcpEnabled\" : true, \"toolOnly\" : true, \"staticWebhookUrl\" : \"staticWebhookUrl\" }, { \"createdDate\" : \"2000-01-23T04:56:07.000+00:00\", \"description\" : \"description\", \"definition\" : \"definition\", \"lastModifiedDate\" : \"2000-01-23T04:56:07.000+00:00\", \"enabled\" : true, \"label\" : \"label\", \"workflowUuid\" : \"workflowUuid\", \"workflowVersion\" : 0, \"kind\" : \"COPY\", \"automationUuid\" : \"automationUuid\", \"copiedFromWorkflowUuid\" : \"copiedFromWorkflowUuid\", \"dangling\" : true, \"components\" : [ { \"name\" : \"name\", \"title\" : \"title\", \"icon\" : \"icon\", \"connectionRequired\" : true, \"integrationId\" : 6, \"provided\" : true }, { \"name\" : \"name\", \"title\" : \"title\", \"icon\" : \"icon\", \"connectionRequired\" : true, \"integrationId\" : 6, \"provided\" : true } ], \"inputs\" : [ { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"type\", \"required\" : true, \"componentReference\" : { \"componentName\" : \"componentName\", \"componentVersion\" : 1, \"groupName\" : \"groupName\", \"group\" : { \"name\" : \"name\", \"label\" : \"label\", \"properties\" : [ { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"STRING\", \"controlType\" : \"controlType\", \"required\" : true, \"options\" : [ { \"label\" : \"label\", \"value\" : \"value\" }, { \"label\" : \"label\", \"value\" : \"value\" } ], \"dynamicOptions\" : true, \"optionsLookupDependsOn\" : [ \"optionsLookupDependsOn\", \"optionsLookupDependsOn\" ] }, { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"STRING\", \"controlType\" : \"controlType\", \"required\" : true, \"options\" : [ { \"label\" : \"label\", \"value\" : \"value\" }, { \"label\" : \"label\", \"value\" : \"value\" } ], \"dynamicOptions\" : true, \"optionsLookupDependsOn\" : [ \"optionsLookupDependsOn\", \"optionsLookupDependsOn\" ] } ] } } }, { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"type\", \"required\" : true, \"componentReference\" : { \"componentName\" : \"componentName\", \"componentVersion\" : 1, \"groupName\" : \"groupName\", \"group\" : { \"name\" : \"name\", \"label\" : \"label\", \"properties\" : [ { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"STRING\", \"controlType\" : \"controlType\", \"required\" : true, \"options\" : [ { \"label\" : \"label\", \"value\" : \"value\" }, { \"label\" : \"label\", \"value\" : \"value\" } ], \"dynamicOptions\" : true, \"optionsLookupDependsOn\" : [ \"optionsLookupDependsOn\", \"optionsLookupDependsOn\" ] }, { \"name\" : \"name\", \"label\" : \"label\", \"type\" : \"STRING\", \"controlType\" : \"controlType\", \"required\" : true, \"options\" : [ { \"label\" : \"label\", \"value\" : \"value\" }, { \"label\" : \"label\", \"value\" : \"value\" } ], \"dynamicOptions\" : true, \"optionsLookupDependsOn\" : [ \"optionsLookupDependsOn\", \"optionsLookupDependsOn\" ] } ] } } } ], \"inputValues\" : { \"key\" : \"\" }, \"connections\" : { \"key\" : 6 }, \"attentionReason\" : \"attentionReason\", \"mcpEnabled\" : true, \"toolOnly\" : true, \"staticWebhookUrl\" : \"staticWebhookUrl\" } ]";
                     ApiUtil.setExampleResponse(request, "application/json", exampleString);
                     break;
                 }
@@ -831,7 +909,7 @@ public interface ConnectedUserProjectWorkflowApi {
      * @param provisionWorkflowReferenceRequestModel  (optional)
      * @return Successful operation. (status code 204)
      *         or A requested connection is not one of the connected user&#39;s connections. (status code 400)
-     *         or A required connection could not be auto-wired, or the request sets a connection or an input value the configuration provides. (status code 409)
+     *         or A required connection could not be auto-wired, or the request sets a connection the configuration provides. (status code 409)
      */
     @Operation(
         operationId = "provisionFrontendWorkflowReference",
@@ -841,7 +919,7 @@ public interface ConnectedUserProjectWorkflowApi {
         responses = {
             @ApiResponse(responseCode = "204", description = "Successful operation."),
             @ApiResponse(responseCode = "400", description = "A requested connection is not one of the connected user's connections."),
-            @ApiResponse(responseCode = "409", description = "A required connection could not be auto-wired, or the request sets a connection or an input value the configuration provides.", content = {
+            @ApiResponse(responseCode = "409", description = "A required connection could not be auto-wired, or the request sets a connection the configuration provides.", content = {
                 @Content(mediaType = "application/json", schema = @Schema(implementation = ProvisionFrontendWorkflowReference409ResponseModel.class))
             })
         },
@@ -885,7 +963,7 @@ public interface ConnectedUserProjectWorkflowApi {
      * @param provisionWorkflowReferenceRequestModel  (optional)
      * @return Successful operation. (status code 204)
      *         or A requested connection is not one of the connected user&#39;s connections. (status code 400)
-     *         or A required connection could not be auto-wired, or the request sets a connection or an input value the configuration provides. (status code 409)
+     *         or A required connection could not be auto-wired, or the request sets a connection the configuration provides. (status code 409)
      */
     @Operation(
         operationId = "provisionWorkflowReference",
@@ -895,7 +973,7 @@ public interface ConnectedUserProjectWorkflowApi {
         responses = {
             @ApiResponse(responseCode = "204", description = "Successful operation."),
             @ApiResponse(responseCode = "400", description = "A requested connection is not one of the connected user's connections."),
-            @ApiResponse(responseCode = "409", description = "A required connection could not be auto-wired, or the request sets a connection or an input value the configuration provides.", content = {
+            @ApiResponse(responseCode = "409", description = "A required connection could not be auto-wired, or the request sets a connection the configuration provides.", content = {
                 @Content(mediaType = "application/json", schema = @Schema(implementation = ProvisionFrontendWorkflowReference409ResponseModel.class))
             })
         },
@@ -1091,7 +1169,7 @@ public interface ConnectedUserProjectWorkflowApi {
      * @param updateWorkflowInputsRequestModel  (required)
      * @param xEnvironment The environment. (optional)
      * @return Successful operation. (status code 204)
-     *         or A required workflow input has no value, so the reference stays disabled, or the request sets the value of an input the configuration provides. (status code 409)
+     *         or A required workflow input has no value, so the reference stays disabled. (status code 409)
      */
     @Operation(
         operationId = "updateFrontendProjectWorkflowInputs",
@@ -1100,8 +1178,8 @@ public interface ConnectedUserProjectWorkflowApi {
         tags = { "connected-user-project-workflow" },
         responses = {
             @ApiResponse(responseCode = "204", description = "Successful operation."),
-            @ApiResponse(responseCode = "409", description = "A required workflow input has no value, so the reference stays disabled, or the request sets the value of an input the configuration provides.", content = {
-                @Content(mediaType = "application/json", schema = @Schema(implementation = UpdateFrontendProjectWorkflowInputs409ResponseModel.class))
+            @ApiResponse(responseCode = "409", description = "A required workflow input has no value, so the reference stays disabled.", content = {
+                @Content(mediaType = "application/json", schema = @Schema(implementation = MissingInputErrorModel.class))
             })
         },
         security = {
@@ -1265,7 +1343,7 @@ public interface ConnectedUserProjectWorkflowApi {
      * @param updateWorkflowInputsRequestModel  (required)
      * @param xEnvironment The environment. (optional)
      * @return Successful operation. (status code 204)
-     *         or A required workflow input has no value, so the reference stays disabled, or the request sets the value of an input the configuration provides. (status code 409)
+     *         or A required workflow input has no value, so the reference stays disabled. (status code 409)
      */
     @Operation(
         operationId = "updateProjectWorkflowInputs",
@@ -1274,8 +1352,8 @@ public interface ConnectedUserProjectWorkflowApi {
         tags = { "connected-user-project-workflow" },
         responses = {
             @ApiResponse(responseCode = "204", description = "Successful operation."),
-            @ApiResponse(responseCode = "409", description = "A required workflow input has no value, so the reference stays disabled, or the request sets the value of an input the configuration provides.", content = {
-                @Content(mediaType = "application/json", schema = @Schema(implementation = UpdateFrontendProjectWorkflowInputs409ResponseModel.class))
+            @ApiResponse(responseCode = "409", description = "A required workflow input has no value, so the reference stays disabled.", content = {
+                @Content(mediaType = "application/json", schema = @Schema(implementation = MissingInputErrorModel.class))
             })
         },
         security = {

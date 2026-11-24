@@ -11,9 +11,26 @@ import {
 import {render, resetAll, screen, userEvent, windowResizeObserver} from '@/shared/util/test-utils';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
+const hoisted = vi.hoisted(() => ({
+    copyToClipboard: vi.fn(),
+}));
+
+vi.mock('@uidotdev/usehooks', () => ({
+    useCopyToClipboard: () => [null, hoisted.copyToClipboard],
+}));
+
 vi.mock('@/ee/shared/mutations/embedded/integrationInstanceWorkflows.mutations', () => ({
     useEnableIntegrationInstanceWorkflowMutation: () => ({isPending: false, mutate: vi.fn()}),
 }));
+
+vi.mock(
+    '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserIntegrationWorkflowEditDialog',
+    () => ({
+        default: ({provisioned}: {provisioned?: boolean}) => (
+            <div role="dialog">{provisioned ? 'provisioned edit dialog' : 'self-created edit dialog'}</div>
+        ),
+    })
+);
 
 vi.mock('@/shared/hooks/useWorkflowComponentDefinitions', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@/shared/hooks/useWorkflowComponentDefinitions')>()),
@@ -85,6 +102,28 @@ describe('ConnectedUserSheetPanelIntegrationWorkflowListItem', () => {
         expect(state.workflow).toBe(workflow);
     });
 
+    it("should open the workflow's executions when the row is clicked outside the workflow name", async () => {
+        render(
+            <TooltipProvider>
+                <ul>
+                    <ConnectedUserSheetPanelIntegrationWorkflowListItem
+                        integrationInstance={integrationInstance}
+                        integrationInstanceConfiguration={integrationInstanceConfiguration}
+                        integrationInstanceConfigurationWorkflow={integrationInstanceConfigurationWorkflow}
+                        workflow={workflow}
+                    />
+                </ul>
+            </TooltipProvider>
+        );
+
+        await userEvent.click(screen.getByRole('listitem').firstElementChild as HTMLElement);
+
+        expect(
+            useIntegrationInstanceConfigurationWorkflowSheetStore.getState()
+                .integrationInstanceConfigurationWorkflowSheetOpen
+        ).toBe(true);
+    });
+
     it('shows when the workflow last ran for this integration instance', () => {
         const lastExecutionDate = new Date('2026-10-28T12:00:00Z');
 
@@ -127,6 +166,44 @@ describe('ConnectedUserSheetPanelIntegrationWorkflowListItem', () => {
         expect(screen.getByText('MCP tool')).toBeInTheDocument();
     });
 
+    it('keeps the switch of a workflow that an MCP server also exposes', () => {
+        render(
+            <TooltipProvider>
+                <ul>
+                    <ConnectedUserSheetPanelIntegrationWorkflowListItem
+                        integrationInstance={integrationInstance}
+                        integrationInstanceConfiguration={integrationInstanceConfiguration}
+                        integrationInstanceConfigurationWorkflow={integrationInstanceConfigurationWorkflow}
+                        integrationInstanceWorkflow={{enabled: true} as IntegrationInstanceWorkflow}
+                        mcpTool
+                        workflow={workflow}
+                    />
+                </ul>
+            </TooltipProvider>
+        );
+
+        expect(screen.getByRole('switch')).toBeEnabled();
+        expect(screen.getByRole('switch')).toBeChecked();
+    });
+
+    it('keeps the switch of a workflow that no MCP server exposes', () => {
+        render(
+            <TooltipProvider>
+                <ul>
+                    <ConnectedUserSheetPanelIntegrationWorkflowListItem
+                        integrationInstance={integrationInstance}
+                        integrationInstanceConfiguration={integrationInstanceConfiguration}
+                        integrationInstanceConfigurationWorkflow={integrationInstanceConfigurationWorkflow}
+                        integrationInstanceWorkflow={{enabled: true} as IntegrationInstanceWorkflow}
+                        workflow={workflow}
+                    />
+                </ul>
+            </TooltipProvider>
+        );
+
+        expect(screen.getByRole('switch')).toBeEnabled();
+    });
+
     it('shows no executions for a workflow that never ran for this integration instance', () => {
         render(
             <TooltipProvider>
@@ -142,5 +219,90 @@ describe('ConnectedUserSheetPanelIntegrationWorkflowListItem', () => {
         );
 
         expect(screen.getByText('No executions')).toBeInTheDocument();
+    });
+
+    it('copies the workflow uuid that the request trigger runs the workflow by', async () => {
+        render(
+            <TooltipProvider>
+                <ul>
+                    <ConnectedUserSheetPanelIntegrationWorkflowListItem
+                        integrationInstance={integrationInstance}
+                        integrationInstanceConfiguration={integrationInstanceConfiguration}
+                        integrationInstanceConfigurationWorkflow={integrationInstanceConfigurationWorkflow}
+                        workflow={{...workflow, workflowUuid: 'workflow-uuid-1'} as Workflow}
+                    />
+                </ul>
+            </TooltipProvider>
+        );
+
+        await userEvent.click(screen.getByRole('button', {name: 'More actions'}));
+        await userEvent.click(screen.getByRole('menuitem', {name: 'Copy Workflow UUID'}));
+
+        expect(hoisted.copyToClipboard).toHaveBeenCalledWith('workflow-uuid-1');
+    });
+
+    const renderWithIntegrationInstanceWorkflow = (integrationInstanceWorkflow: IntegrationInstanceWorkflow) =>
+        render(
+            <TooltipProvider>
+                <ul>
+                    <ConnectedUserSheetPanelIntegrationWorkflowListItem
+                        integrationInstance={integrationInstance}
+                        integrationInstanceConfiguration={integrationInstanceConfiguration}
+                        integrationInstanceConfigurationWorkflow={integrationInstanceConfigurationWorkflow}
+                        integrationInstanceWorkflow={integrationInstanceWorkflow}
+                        workflow={workflow}
+                    />
+                </ul>
+            </TooltipProvider>
+        );
+
+    it('copies the static webhook url of a workflow that starts with a webhook trigger', async () => {
+        renderWithIntegrationInstanceWorkflow({
+            enabled: true,
+            staticWebhookUrl: 'https://example.com/webhooks/abc',
+        } as IntegrationInstanceWorkflow);
+
+        await userEvent.click(screen.getByRole('button', {name: 'Copy webhook URL'}));
+
+        expect(hoisted.copyToClipboard).toHaveBeenCalledWith('https://example.com/webhooks/abc');
+    });
+
+    it('disables copying the static webhook url of a disabled workflow', () => {
+        renderWithIntegrationInstanceWorkflow({
+            enabled: false,
+            staticWebhookUrl: 'https://example.com/webhooks/abc',
+        } as IntegrationInstanceWorkflow);
+
+        expect(screen.getByRole('button', {name: 'Copy webhook URL'})).toBeDisabled();
+    });
+
+    it('shows no webhook url for a workflow without a static webhook trigger', () => {
+        renderWithIntegrationInstanceWorkflow({enabled: true} as IntegrationInstanceWorkflow);
+
+        expect(screen.queryByRole('button', {name: 'Copy webhook URL'})).not.toBeInTheDocument();
+    });
+
+    it.each([
+        [true, 'provisioned edit dialog'],
+        [false, 'self-created edit dialog'],
+    ])('tells the edit dialog whether the integration is provisioned (%s)', async (provisioned, dialogText) => {
+        render(
+            <TooltipProvider>
+                <ul>
+                    <ConnectedUserSheetPanelIntegrationWorkflowListItem
+                        integrationInstance={integrationInstance}
+                        integrationInstanceConfiguration={integrationInstanceConfiguration}
+                        integrationInstanceConfigurationWorkflow={integrationInstanceConfigurationWorkflow}
+                        provisioned={provisioned}
+                        workflow={workflow}
+                    />
+                </ul>
+            </TooltipProvider>
+        );
+
+        await userEvent.click(screen.getByRole('button', {name: 'More actions'}));
+        await userEvent.click(screen.getByRole('menuitem', {name: 'Edit'}));
+
+        expect(screen.getByRole('dialog')).toHaveTextContent(dialogText);
     });
 });

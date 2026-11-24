@@ -3,6 +3,7 @@ import ConnectionConfigurationList from '@/shared/components/ConnectionConfigura
 import InputConfigurationList from '@/shared/components/InputConfigurationList';
 import WorkflowConfigurationCard from '@/shared/components/workflow-configuration/WorkflowConfigurationCard';
 import {Connection, ProjectDeployment, Workflow} from '@/shared/middleware/automation/configuration';
+import {ReactNode} from 'react';
 import {Control, FieldValues, FormState, UseFormSetValue, useWatch} from 'react-hook-form';
 import {useShallow} from 'zustand/react/shallow';
 
@@ -22,6 +23,7 @@ export interface ProjectDeploymentDialogWorkflowListItemProps {
     onEnabledChange?: (enabled: boolean) => void;
     setValue: UseFormSetValue<ProjectDeployment>;
     showWorkflowToggle?: boolean;
+    toolContent?: ReactNode;
     workflow: Workflow;
     workflowIndex: number;
     workflows: Workflow[];
@@ -37,6 +39,7 @@ const ProjectDeploymentDialogWorkflowsStepItem = ({
     onEnabledChange,
     setValue,
     showWorkflowToggle = false,
+    toolContent,
     workflow,
     workflowIndex,
     workflows,
@@ -61,6 +64,10 @@ const ProjectDeploymentDialogWorkflowsStepItem = ({
         control,
         name: `projectDeploymentWorkflows.${workflowIndex}.connections`,
     });
+
+    const configuredConnectionIds = componentConnections.map(
+        (_componentConnection, connectionIndex) => watchedConnections?.[connectionIndex]?.connectionId
+    );
 
     const workflowEnabled = enabled ?? workflowEnabledMap.get(workflow.id!);
 
@@ -102,18 +109,22 @@ const ProjectDeploymentDialogWorkflowsStepItem = ({
             inputCount={workflowInputs.length}
             inputsContent={
                 <InputConfigurationList
+                    componentConnections={componentConnections}
+                    configuredConnectionIds={configuredConnectionIds}
                     control={control as unknown as Control<FieldValues>}
                     controlPath={`projectDeploymentWorkflows.${workflowIndex}.inputs`}
                     duplicateSubflowStubs={duplicateSubflowInputStubs}
                     formState={formState as unknown as FormState<FieldValues>}
                     inputs={workflowInputs}
                     subflowLabelMap={subflowLabelMap}
+                    workflowId={workflow.id}
                 />
             }
             label={label}
             onEnabledChange={handleEnabledChange}
             showWorkflowToggle={showWorkflowToggle}
             switchId={`projectDeploymentWorkflows.${workflowIndex}`}
+            toolContent={toolContent}
         />
     );
 };

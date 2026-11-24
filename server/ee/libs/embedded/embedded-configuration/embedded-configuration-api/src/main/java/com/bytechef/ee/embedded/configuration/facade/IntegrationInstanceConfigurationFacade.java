@@ -26,6 +26,9 @@ import org.jspecify.annotations.Nullable;
  */
 public interface IntegrationInstanceConfigurationFacade {
 
+    ConfigurationMoveResultDTO changeConnectedUserVersion(
+        long sourceId, long connectedUserId, int integrationVersion, @Nullable Long targetId);
+
     long createIntegrationInstanceConfiguration(
         IntegrationInstanceConfigurationDTO integrationInstanceConfigurationDTO);
 
@@ -39,6 +42,8 @@ public interface IntegrationInstanceConfigurationFacade {
 
     void enableIntegrationInstanceConfigurationWorkflow(
         long integrationInstanceConfigurationId, String workflowId, boolean enable);
+
+    long enableIntegrationVersion(long integrationId, int integrationVersion, Environment environment);
 
     IntegrationInstanceConfigurationDTO getIntegrationInstanceConfigurationIntegration(
         long integrationId, boolean enabled, Environment environment, @Nullable ConnectedUser connectedUser);

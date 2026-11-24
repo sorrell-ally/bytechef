@@ -10,6 +10,8 @@
     "templates",
     "build-approaches",
     "code-workflows",
+    "task-runners",
+    "code-editor-autocomplete",
     "flow-controls",
     "subflows",
     "data-pills",

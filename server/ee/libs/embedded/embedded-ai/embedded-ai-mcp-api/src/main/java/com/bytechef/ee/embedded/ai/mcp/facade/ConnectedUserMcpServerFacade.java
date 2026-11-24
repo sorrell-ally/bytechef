@@ -7,6 +7,7 @@
 
 package com.bytechef.ee.embedded.ai.mcp.facade;
 
+import com.bytechef.ee.embedded.ai.mcp.dto.ConnectedUserMcpServerAutomationDTO;
 import com.bytechef.ee.embedded.ai.mcp.dto.ConnectedUserMcpServerDTO;
 import com.bytechef.ee.embedded.ai.mcp.dto.ProvisionableConnectedUserMcpServerDTO;
 import java.util.List;
@@ -22,7 +23,12 @@ public interface ConnectedUserMcpServerFacade {
 
     void enableConnectedUserMcpServer(long connectedUserId, long mcpServerId, boolean enable);
 
+    ConnectedUserMcpServerAutomationDTO enableMcpAutomation(
+        long connectedUserId, long mcpConnectedUserProjectWorkflowId, boolean enable);
+
     void enableMcpTool(long mcpIntegrationInstanceToolId, boolean enable);
+
+    void enableMcpWorkflow(long mcpIntegrationInstanceWorkflowId, boolean enable);
 
     List<ConnectedUserMcpServerDTO> getConnectedUserMcpServers(long connectedUserId);
 

@@ -1,7 +1,9 @@
-import Badge from '@/components/Badge/Badge';
 import {Collapsible, CollapsibleContent, CollapsibleTrigger} from '@/components/ui/collapsible';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip';
 import ConnectedUserCredentialStatus from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserCredentialStatus';
+import ConnectedUserOriginBadge from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserOriginBadge';
+import ConnectedUserVersionBadge from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserVersionBadge';
+import useNewerIntegrationVersionAvailable from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/hooks/useNewerIntegrationVersionAvailable';
 import {CredentialStatus} from '@/ee/shared/middleware/embedded/connected-user';
 import {useGetComponentDefinitionsQuery} from '@/ee/shared/queries/embedded/componentDefinitions.queries';
 import {ChevronDownIcon, ChevronRightIcon, ComponentIcon} from 'lucide-react';
@@ -12,20 +14,31 @@ const ConnectedUserMcpServerComponentGroup = ({
     children,
     componentName,
     credentialStatus,
+    integrationId,
     lastExecutionDate,
+    provisioned,
+    provisionedBy,
     version,
     versionKind,
 }: {
     children: ReactNode;
     componentName: string;
     credentialStatus?: CredentialStatus;
+    integrationId?: number;
     lastExecutionDate?: Date;
+    provisioned?: boolean;
+    provisionedBy?: string;
     version: number;
     versionKind: 'component' | 'integration';
 }) => {
     const [expanded, setExpanded] = useState(false);
 
     const {data: componentDefinitions} = useGetComponentDefinitionsQuery({connectionDefinitions: true});
+
+    const newerIntegrationVersionAvailable = useNewerIntegrationVersionAvailable(
+        versionKind === 'integration' ? integrationId : undefined,
+        version
+    );
 
     const componentDefinition = componentDefinitions?.find((definition) => definition.name === componentName);
 
@@ -35,53 +48,58 @@ const ConnectedUserMcpServerComponentGroup = ({
                 <CollapsibleTrigger asChild>
                     <button
                         aria-label={expanded ? 'Hide tools' : 'Show tools'}
-                        className="flex min-w-0 flex-1 flex-col items-start gap-y-1 py-2 text-left"
+                        className="flex min-w-0 flex-1 items-center gap-2.5 py-2 text-left"
                         type="button"
                     >
-                        <span className="flex min-w-0 items-center gap-2.5">
-                            {expanded ? (
-                                <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground" />
-                            ) : (
-                                <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" />
-                            )}
+                        {expanded ? (
+                            <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground" />
+                        ) : (
+                            <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" />
+                        )}
 
-                            {componentDefinition?.icon ? (
-                                <InlineSVG className="size-5 shrink-0" src={componentDefinition.icon} />
-                            ) : (
-                                <ComponentIcon className="size-5 shrink-0 text-content-neutral-secondary" />
-                            )}
+                        {componentDefinition?.icon ? (
+                            <InlineSVG className="size-5 shrink-0" src={componentDefinition.icon} />
+                        ) : (
+                            <ComponentIcon className="size-5 shrink-0 text-content-neutral-secondary" />
+                        )}
 
+                        <span className="flex min-w-0 flex-col items-start gap-y-1">
                             <span className="truncate text-sm font-semibold">
                                 {componentDefinition?.title || componentName}
                             </span>
-                        </span>
 
-                        <span className="flex items-center pl-6.5 text-xs">
-                            <ConnectedUserCredentialStatus
-                                componentTitle={componentDefinition?.title || componentName}
-                                credentialStatus={credentialStatus}
-                            />
+                            <span className="flex items-center text-xs">
+                                <ConnectedUserCredentialStatus
+                                    componentTitle={componentDefinition?.title || componentName}
+                                    credentialStatus={credentialStatus}
+                                />
+                            </span>
                         </span>
                     </button>
                 </CollapsibleTrigger>
 
                 <div className="flex items-center gap-x-2">
                     <div className="flex items-center gap-x-4">
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Badge
-                                    label={`v${version}`}
-                                    styleType={versionKind === 'component' ? 'outline-outline' : 'secondary-filled'}
-                                    weight="semibold"
+                        <div className="flex w-48 items-center justify-end gap-x-2">
+                            {provisioned !== undefined && (
+                                <ConnectedUserOriginBadge
+                                    provisioned={provisioned}
+                                    provisionedBy={provisionedBy}
+                                    resourceName="integration"
                                 />
-                            </TooltipTrigger>
+                            )}
 
-                            <TooltipContent>
-                                {versionKind === 'component' ? 'Component Version' : 'Integration Version'}
-                            </TooltipContent>
-                        </Tooltip>
+                            <ConnectedUserVersionBadge
+                                newerVersionAvailable={
+                                    versionKind === 'integration' && newerIntegrationVersionAvailable
+                                }
+                                styleType={versionKind === 'component' ? 'outline-outline' : 'secondary-filled'}
+                                tooltip={versionKind === 'component' ? 'Component Version' : 'Integration Version'}
+                                version={version}
+                            />
+                        </div>
 
-                        <div className="flex min-w-52 items-center justify-end">
+                        <div className="flex w-72 items-center justify-end">
                             {versionKind === 'integration' && (
                                 <Tooltip>
                                     <TooltipTrigger className="text-xs text-content-neutral-secondary">

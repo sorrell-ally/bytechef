@@ -8,7 +8,7 @@
 package com.bytechef.ee.embedded.ai.mcp.facade;
 
 import com.bytechef.ee.embedded.ai.mcp.domain.McpIntegrationInstanceConfiguration;
-import com.bytechef.platform.configuration.dto.WorkflowConfigurationDTO;
+import com.bytechef.platform.configuration.dto.WorkflowToolParametersDTO;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
 
@@ -21,9 +21,9 @@ import org.jspecify.annotations.Nullable;
  */
 public interface McpIntegrationInstanceConfigurationFacade {
     /**
-     * Creates a new MCP integration instance configuration linked to an existing IntegrationInstanceConfiguration. For
-     * each selected workflow, reuses an existing IntegrationInstanceConfigurationWorkflow if one already exists
-     * (enabling it if disabled), or creates a new one otherwise.
+     * Creates a new MCP integration instance configuration linked to an existing IntegrationInstanceConfiguration.
+     * Every selected workflow must already be enabled in the integration instance configuration; its connections and
+     * inputs are never changed here.
      *
      * @param mcpServerId                        the MCP server ID
      * @param integrationInstanceConfigurationId the existing integration instance configuration ID
@@ -35,7 +35,7 @@ public interface McpIntegrationInstanceConfigurationFacade {
 
     McpIntegrationInstanceConfiguration createMcpIntegrationInstanceConfiguration(
         long mcpServerId, long integrationInstanceConfigurationId, List<String> selectedWorkflowIds,
-        List<WorkflowConfigurationDTO> workflowConfigurations);
+        List<WorkflowToolParametersDTO> toolParameters);
 
     /**
      * Deletes an MCP integration instance configuration and its associated MCP workflow records. The underlying
@@ -59,19 +59,7 @@ public interface McpIntegrationInstanceConfigurationFacade {
 
     McpIntegrationInstanceConfiguration updateMcpIntegrationInstanceConfiguration(
         long mcpIntegrationInstanceConfigurationId, List<String> selectedWorkflowIds,
-        List<WorkflowConfigurationDTO> workflowConfigurations);
-
-    /**
-     * Updates the integration version of an MCP integration. Deletes MCP integration workflow records that reference
-     * old integration instance configuration workflows before delegating the version update to the configuration layer,
-     * then re-creates MCP integration workflow records for the new version's workflows.
-     *
-     * @param mcpIntegrationInstanceConfigurationId the unique identifier of the MCP integration to update
-     * @param integrationVersion                    the new integration version
-     * @param workflowUuids                         the workflow UUIDs to include in the new version
-     */
-    void updateMcpIntegrationInstanceConfigurationVersion(
-        long mcpIntegrationInstanceConfigurationId, int integrationVersion, List<String> workflowUuids);
+        List<WorkflowToolParametersDTO> toolParameters);
 
     @Nullable
     McpIntegrationInstanceConfiguration getMcpIntegrationInstanceConfiguration(long id);

@@ -17,6 +17,7 @@
 package com.bytechef.atlas.configuration.repository;
 
 import com.bytechef.atlas.configuration.domain.Workflow;
+import java.time.Instant;
 
 /**
  * @author Ivica Cardic
@@ -26,4 +27,7 @@ public interface WorkflowCrudRepository extends WorkflowRepository {
     void deleteById(String id);
 
     Workflow save(Workflow workflow);
+
+    void updateAuditFields(
+        String id, String createdBy, Instant createdDate, String lastModifiedBy, Instant lastModifiedDate);
 }

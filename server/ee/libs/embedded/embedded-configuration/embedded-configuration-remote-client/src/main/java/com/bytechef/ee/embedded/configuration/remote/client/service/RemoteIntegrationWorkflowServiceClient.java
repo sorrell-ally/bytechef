@@ -13,6 +13,7 @@ import com.bytechef.platform.annotation.ConditionalOnEEVersion;
 import com.bytechef.platform.configuration.domain.Environment;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 /**
@@ -30,6 +31,11 @@ public class RemoteIntegrationWorkflowServiceClient implements IntegrationWorkfl
     }
 
     @Override
+    public IntegrationWorkflow addWorkflow(long integrationId, int integrationVersion, String workflowId, UUID uuid) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public void delete(List<Long> ids) {
         throw new UnsupportedOperationException();
     }
@@ -41,6 +47,11 @@ public class RemoteIntegrationWorkflowServiceClient implements IntegrationWorkfl
 
     @Override
     public Optional<String> fetchLastWorkflowId(String workflowUuid, Environment environment) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Optional<IntegrationWorkflow> fetchWorkflowIntegrationWorkflow(String workflowId) {
         throw new UnsupportedOperationException();
     }
 

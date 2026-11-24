@@ -23,8 +23,8 @@ import com.bytechef.ee.platform.external.invocation.log.domain.ExternalInvocatio
 import com.bytechef.platform.configuration.domain.Environment;
 import com.bytechef.platform.configuration.service.EnvironmentService;
 import com.bytechef.platform.external.invocation.ExternalInvocationKind;
-import com.bytechef.platform.external.invocation.ExternalInvocationOutcome;
 import com.bytechef.platform.external.invocation.ExternalInvocationSource;
+import com.bytechef.platform.external.invocation.ExternalInvocationStatus;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
@@ -33,6 +33,7 @@ import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -48,6 +49,7 @@ import org.springframework.test.web.servlet.MockMvc;
  */
 @ContextConfiguration(classes = EmbeddedExecutionPublicRestTestConfiguration.class)
 @TestPropertySource(properties = "bytechef.edition=ee")
+@Import(ExternalInvocationApiController.class)
 @WebMvcTest(ExternalInvocationApiController.class)
 @WithMockUser(username = ExternalInvocationApiControllerIntTest.EXTERNAL_USER_ID)
 class ExternalInvocationApiControllerIntTest {
@@ -76,7 +78,7 @@ class ExternalInvocationApiControllerIntTest {
     void testGetExternalInvocationsPagePassesTheFiltersAndMapsTheInvocations() throws Exception {
         ExternalInvocationLog externalInvocationLog = createExternalInvocationLog(
             ExternalInvocationSource.API_ACTION, ExternalInvocationKind.COMPONENT,
-            ExternalInvocationOutcome.ERROR);
+            ExternalInvocationStatus.ERROR);
 
         externalInvocationLog.setErrorMessage("Channel not found");
         externalInvocationLog.setErrorType("IllegalStateException");
@@ -86,7 +88,7 @@ class ExternalInvocationApiControllerIntTest {
         when(
             externalInvocationFacade.getExternalInvocations(
                 EXTERNAL_USER_ID, Environment.STAGING, ExternalInvocationSource.API_ACTION,
-                ExternalInvocationOutcome.ERROR, START_DATE, END_DATE, 2))
+                ExternalInvocationStatus.ERROR, START_DATE, END_DATE, 2))
                     .thenReturn(new PageImpl<>(List.of(externalInvocationLog), PageRequest.of(2, 20), 41));
 
         mockMvc
@@ -94,7 +96,7 @@ class ExternalInvocationApiControllerIntTest {
                 get("/v1/{externalUserId}/external-invocations", EXTERNAL_USER_ID)
                     .header("X-Environment", "STAGING")
                     .param("source", "API_ACTION")
-                    .param("outcome", "ERROR")
+                    .param("status", "ERROR")
                     .param("startDate", START_DATE.toString())
                     .param("endDate", END_DATE.toString())
                     .param("pageNumber", "2"))
@@ -115,9 +117,9 @@ class ExternalInvocationApiControllerIntTest {
             .andExpect(jsonPath("$.content[0].integrationInstanceId").value(4))
             .andExpect(jsonPath("$.content[0].kind").value("COMPONENT"))
             .andExpect(jsonPath("$.content[0].operationName").value("sendMessage"))
-            .andExpect(jsonPath("$.content[0].outcome").value("ERROR"))
+            .andExpect(jsonPath("$.content[0].status").value("ERROR"))
             .andExpect(jsonPath("$.content[0].source").value("API_ACTION"))
-            .andExpect(jsonPath("$.content[0].toolName").value("sendMessage"));
+            .andExpect(jsonPath("$.content[0].invocationName").value("sendMessage"));
     }
 
     @Test
@@ -138,10 +140,10 @@ class ExternalInvocationApiControllerIntTest {
     }
 
     @Test
-    void testGetExternalInvocationsPageReturnsInvocationsOfEveryOutcome() throws Exception {
-        List<ExternalInvocationLog> externalInvocationLogs = Arrays.stream(ExternalInvocationOutcome.values())
-            .map(outcome -> createExternalInvocationLog(
-                ExternalInvocationSource.MCP_SERVER, ExternalInvocationKind.WORKFLOW, outcome))
+    void testGetExternalInvocationsPageReturnsInvocationsOfEveryStatus() throws Exception {
+        List<ExternalInvocationLog> externalInvocationLogs = Arrays.stream(ExternalInvocationStatus.values())
+            .map(status -> createExternalInvocationLog(
+                ExternalInvocationSource.MCP_SERVER, ExternalInvocationKind.WORKFLOW, status))
             .toList();
 
         mockExternalInvocations(externalInvocationLogs);
@@ -150,10 +152,10 @@ class ExternalInvocationApiControllerIntTest {
             .perform(get("/v1/{externalUserId}/external-invocations", EXTERNAL_USER_ID))
             .andExpect(status().isOk())
             .andExpect(
-                jsonPath("$.content[*].outcome").value(
+                jsonPath("$.content[*].status").value(
                     Matchers.contains(
-                        Arrays.stream(ExternalInvocationOutcome.values())
-                            .map(ExternalInvocationOutcome::name)
+                        Arrays.stream(ExternalInvocationStatus.values())
+                            .map(ExternalInvocationStatus::name)
                             .toArray())));
     }
 
@@ -161,7 +163,7 @@ class ExternalInvocationApiControllerIntTest {
     void testGetExternalInvocationsPageReturnsInvocationsOfEveryKind() throws Exception {
         List<ExternalInvocationLog> externalInvocationLogs = Arrays.stream(ExternalInvocationKind.values())
             .map(kind -> createExternalInvocationLog(ExternalInvocationSource.MCP_SERVER, kind,
-                ExternalInvocationOutcome.SUCCESS))
+                ExternalInvocationStatus.SUCCESS))
             .toList();
 
         mockExternalInvocations(externalInvocationLogs);
@@ -181,7 +183,7 @@ class ExternalInvocationApiControllerIntTest {
     void testGetExternalInvocationsPageReturnsInvocationsOfEveryEmbeddedSource() throws Exception {
         List<ExternalInvocationLog> externalInvocationLogs = EMBEDDED_SOURCES.stream()
             .map(source -> createExternalInvocationLog(source, ExternalInvocationKind.COMPONENT,
-                ExternalInvocationOutcome.SUCCESS))
+                ExternalInvocationStatus.SUCCESS))
             .toList();
 
         mockExternalInvocations(externalInvocationLogs);
@@ -198,25 +200,25 @@ class ExternalInvocationApiControllerIntTest {
     }
 
     @Test
-    void testGetExternalInvocationsPageAcceptsEveryOutcomeAsAFilter() throws Exception {
+    void testGetExternalInvocationsPageAcceptsEveryStatusAsAFilter() throws Exception {
         when(environmentService.getEnvironment((String) null)).thenReturn(Environment.PRODUCTION);
         when(externalInvocationFacade.getExternalInvocations(any(), any(), any(), any(), any(), any(), anyInt()))
             .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
 
-        for (ExternalInvocationOutcome outcome : ExternalInvocationOutcome.values()) {
+        for (ExternalInvocationStatus status : ExternalInvocationStatus.values()) {
             mockMvc
                 .perform(
                     get("/v1/{externalUserId}/external-invocations", EXTERNAL_USER_ID)
-                        .param("outcome", outcome.name()))
+                        .param("status", status.name()))
                 .andExpect(status().isOk());
 
             verify(externalInvocationFacade).getExternalInvocations(
-                eq(EXTERNAL_USER_ID), eq(Environment.PRODUCTION), isNull(), eq(outcome), isNull(), isNull(), eq(0));
+                eq(EXTERNAL_USER_ID), eq(Environment.PRODUCTION), isNull(), eq(status), isNull(), isNull(), eq(0));
         }
     }
 
     private ExternalInvocationLog createExternalInvocationLog(
-        ExternalInvocationSource source, ExternalInvocationKind kind, ExternalInvocationOutcome outcome) {
+        ExternalInvocationSource source, ExternalInvocationKind kind, ExternalInvocationStatus status) {
 
         ExternalInvocationLog externalInvocationLog = new ExternalInvocationLog();
 
@@ -227,9 +229,9 @@ class ExternalInvocationApiControllerIntTest {
         externalInvocationLog.setDurationMs(42);
         externalInvocationLog.setKind(kind);
         externalInvocationLog.setOperationName("sendMessage");
-        externalInvocationLog.setOutcome(outcome);
+        externalInvocationLog.setStatus(status);
         externalInvocationLog.setSource(source);
-        externalInvocationLog.setToolName("sendMessage");
+        externalInvocationLog.setInvocationName("sendMessage");
 
         return externalInvocationLog;
     }

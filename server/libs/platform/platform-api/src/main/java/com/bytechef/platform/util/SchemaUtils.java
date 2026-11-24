@@ -42,10 +42,12 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -176,8 +178,9 @@ public class SchemaUtils {
         SchemaPropertyFactory propertyFactoryFunction) {
 
         Object sampleOutput = outputResponse.getSampleOutput();
+        boolean sampleOutputGenerated = sampleOutput == null && outputResponse.getOutputSchema() != null;
 
-        if (sampleOutput == null && outputResponse.getOutputSchema() != null) {
+        if (sampleOutputGenerated) {
             sampleOutput = getSampleOutput(outputResponse.getOutputSchema());
         } else if (sampleOutput instanceof String string && !string.isBlank()) {
             String trimmedString = string.trim();
@@ -209,7 +212,8 @@ public class SchemaUtils {
             outputSchema = (BaseValueProperty<?>) getOutputSchema(sampleOutput, propertyFactoryFunction);
         }
 
-        return outputFactoryFunction.apply(outputSchema, sampleOutput, outputResponse.getPlaceholder());
+        return outputFactoryFunction.apply(
+            outputSchema, sampleOutput, outputResponse.getPlaceholder(), sampleOutputGenerated);
     }
 
     public static OutputResponse toOutput(
@@ -256,7 +260,7 @@ public class SchemaUtils {
             type = typeJsonNode.stringValue();
         }
 
-        return switch (type) {
+        BaseValueProperty<?> property = switch (type) {
             case "array" -> {
                 BaseValueProperty<?> arrayProperty = factory.create(propertyName, type);
 
@@ -277,7 +281,9 @@ public class SchemaUtils {
                 JsonNode propertiesJsonNode = jsonNode.get("properties");
 
                 if (propertiesJsonNode != null) {
-                    walkThroughObjectProperty(propertiesJsonNode, objectProperty, factory);
+                    walkThroughObjectProperty(
+                        propertiesJsonNode, getRequiredPropertyNames(jsonNode.get("required")), objectProperty,
+                        factory);
                 }
 
                 yield objectProperty;
@@ -285,6 +291,36 @@ public class SchemaUtils {
             case "string" -> factory.create(propertyName, type);
             default -> throw new IllegalArgumentException("Unsupported JSON schema type: " + type);
         };
+
+        Object defaultValue = getJsonSchemaDefaultValue(type, jsonNode.get("default"));
+
+        if (defaultValue != null) {
+            factory.setDefaultValue(property, defaultValue);
+        }
+
+        return property;
+    }
+
+    private static @Nullable Object getJsonSchemaDefaultValue(String type, @Nullable JsonNode defaultJsonNode) {
+        if (defaultJsonNode == null || defaultJsonNode.isNull()) {
+            return null;
+        }
+
+        Object defaultValue = switch (type) {
+            case "array" -> defaultJsonNode.isArray() ? JsonUtils.read(defaultJsonNode.toString()) : null;
+            case "boolean" -> defaultJsonNode.isBoolean() ? defaultJsonNode.booleanValue() : null;
+            case "integer" -> defaultJsonNode.isIntegralNumber() ? defaultJsonNode.longValue() : null;
+            case "number" -> defaultJsonNode.isNumber() ? defaultJsonNode.doubleValue() : null;
+            case "object" -> defaultJsonNode.isObject() ? JsonUtils.read(defaultJsonNode.toString()) : null;
+            case "string" -> defaultJsonNode.isString() ? defaultJsonNode.stringValue() : null;
+            default -> null;
+        };
+
+        if (defaultValue == null && log.isDebugEnabled()) {
+            log.debug("Ignoring JSON schema 'default' that does not match the '{}' type", type);
+        }
+
+        return defaultValue;
     }
 
     private static void walkThroughArrayProperty(
@@ -297,8 +333,25 @@ public class SchemaUtils {
         factory.addChildren(property, children);
     }
 
+    private static Set<String> getRequiredPropertyNames(@Nullable JsonNode requiredJsonNode) {
+        Set<String> requiredPropertyNames = new HashSet<>();
+
+        if (requiredJsonNode == null || !requiredJsonNode.isArray()) {
+            return requiredPropertyNames;
+        }
+
+        for (JsonNode requiredPropertyNameJsonNode : requiredJsonNode) {
+            if (requiredPropertyNameJsonNode.isString()) {
+                requiredPropertyNames.add(requiredPropertyNameJsonNode.stringValue());
+            }
+        }
+
+        return requiredPropertyNames;
+    }
+
     private static void walkThroughObjectProperty(
-        JsonNode jsonNode, BaseValueProperty<?> property, JsonSchemaPropertyFactory factory) {
+        JsonNode jsonNode, Set<String> requiredPropertyNames, BaseValueProperty<?> property,
+        JsonSchemaPropertyFactory factory) {
 
         if (jsonNode == null) {
             return;
@@ -308,9 +361,15 @@ public class SchemaUtils {
             String fieldName = field.getKey();
             JsonNode fieldJsonNode = field.getValue();
 
+            BaseValueProperty<?> childProperty = getJsonSchemaProperty(fieldName, fieldJsonNode, factory);
+
+            if (requiredPropertyNames.contains(fieldName)) {
+                factory.setRequired(childProperty, true);
+            }
+
             List<BaseValueProperty<?>> children = factory.getChildren(property);
 
-            children.add(getJsonSchemaProperty(fieldName, fieldJsonNode, factory));
+            children.add(childProperty);
 
             factory.addChildren(property, children);
         }
@@ -324,12 +383,21 @@ public class SchemaUtils {
         BaseValueProperty<?> create(String name, String type);
 
         List<BaseValueProperty<?>> getChildren(BaseValueProperty<?> property);
+
+        @SuppressWarnings("PMD.UnusedFormalParameter")
+        default void setDefaultValue(BaseValueProperty<?> property, Object defaultValue) {
+        }
+
+        @SuppressWarnings("PMD.UnusedFormalParameter")
+        default void setRequired(BaseValueProperty<?> property, boolean required) {
+        }
     }
 
     @FunctionalInterface
     public interface OutputFactoryFunction {
 
-        OutputResponse apply(BaseProperty outputSchema, Object sampleOutput, Object placeholder);
+        OutputResponse apply(
+            BaseProperty outputSchema, Object sampleOutput, Object placeholder, boolean sampleOutputGenerated);
     }
 
     @FunctionalInterface

@@ -4,11 +4,10 @@
   "description": "Integrations, workflows, connections, and the component kit.",
   "pages": [
     "integrations",
+    "code-integrations",
     "integration-marketplace",
     "workflows",
     "automations",
-    "automation-hub",
-    "activation-dialog",
     "connections",
     "app-events",
     "request-triggers",

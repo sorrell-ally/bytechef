@@ -92,6 +92,9 @@ const workflowTemplate: WorkflowTemplateType = {
 
 const project: AutomationProjectType = {
     categoryId: null,
+    codeWorkflowDraftPublishable: null,
+    codeWorkflowLanguage: null,
+    codeWorkflowProject: false,
     configurationCount: 1,
     description: null,
     id: 'project-1',
@@ -101,6 +104,7 @@ const project: AutomationProjectType = {
     permissionExpression: null,
     published: true,
     tagIds: [],
+    unpublishedChanges: false,
     version: 3,
     workflowTemplates: [workflowTemplate],
 };

@@ -1,0 +1,26 @@
+query embeddedGettingStarted {
+    embeddedGettingStarted {
+        apiBaseUrl
+        apiKeyCreated
+        completed
+        componentName
+        componentVersion
+        firstCallMade
+        integrationConfigurationCreated
+        integrationConfigurationEnabled
+        integrationCreated
+        integrationHasWorkflows
+        integrationId
+        integrationInstanceConfigurationId
+        integrationPublished
+        lastFailedCall {
+            createdDate
+            errorMessage
+            status
+        }
+        testUserAdded
+        testUserConnected
+        testUserExternalId
+        testUserId
+    }
+}

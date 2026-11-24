@@ -19,6 +19,7 @@ import com.bytechef.component.definition.Authorization.AuthorizationType;
 import com.bytechef.component.definition.ComponentDsl;
 import com.bytechef.component.definition.Property.Type;
 import com.bytechef.ee.embedded.configuration.domain.IntegrationInstance;
+import com.bytechef.ee.embedded.configuration.domain.IntegrationInstanceWorkflow;
 import com.bytechef.ee.embedded.configuration.dto.ConnectedUserIntegrationDTO;
 import com.bytechef.ee.embedded.configuration.dto.IntegrationInstanceConfigurationDTO;
 import com.bytechef.ee.embedded.configuration.dto.IntegrationInstanceConfigurationWorkflowDTO;
@@ -48,6 +49,7 @@ import com.bytechef.test.extension.ObjectMapperSetupExtension;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -200,6 +202,50 @@ class ConnectedUserIntegrationMapperTest {
     }
 
     @Test
+    void testIntegrationInstanceWorkflowMapsStaticWebhookUrl() {
+        ConnectedUserIntegrationMapper.ConnectedUserIntegrationToIntegrationMapper generatedMapper =
+            new ConnectedUserIntegrationMapper$ConnectedUserIntegrationToIntegrationMapperImpl();
+
+        IntegrationInstanceWorkflowModel integrationInstanceWorkflowModel = generatedMapper.map(
+            new ConnectedUserIntegrationDTO.ConnectedUserIntegrationInstanceWorkflow(
+                new IntegrationInstanceWorkflow(1L, Map.of(), true), "u-1",
+                "https://bytechef.example.com/webhooks/abc"));
+
+        assertEquals("u-1", integrationInstanceWorkflowModel.getWorkflowUuid());
+        assertEquals(
+            "https://bytechef.example.com/webhooks/abc", integrationInstanceWorkflowModel.getStaticWebhookUrl());
+    }
+
+    @Test
+    void testIntegrationWorkflowsFlagAStaticWebhookTrigger() {
+        IntegrationInstanceConfigurationDTO integrationInstanceConfigurationDTO =
+            IntegrationInstanceConfigurationDTO.builder()
+                .id(77L)
+                .integrationInstanceConfigurationWorkflows(
+                    List.of(getIntegrationInstanceConfigurationWorkflowDTO("u-1"),
+                        getIntegrationInstanceConfigurationWorkflowDTO("u-2")))
+                .build();
+
+        ConnectedUserIntegrationDTO connectedUserIntegrationDTO = new ConnectedUserIntegrationDTO(
+            null, integrationInstanceConfigurationDTO, List.of(), null, null, List.of(), List.of());
+
+        ConnectedUserIntegrationMapper.ConnectedUserIntegrationToIntegrationMapper generatedMapper =
+            new ConnectedUserIntegrationMapper$ConnectedUserIntegrationToIntegrationMapperImpl();
+
+        IntegrationModel integrationModel = generatedMapper.convert(
+            connectedUserIntegrationDTO.withStaticWebhookWorkflowUuids(Set.of("u-1")));
+
+        List<IntegrationWorkflowModel> integrationWorkflowModels = Objects.requireNonNull(
+            integrationModel.getWorkflows());
+
+        assertEquals(2, integrationWorkflowModels.size());
+        assertEquals(Boolean.TRUE, integrationWorkflowModels.get(0)
+            .getStaticWebhookTrigger());
+        assertEquals(Boolean.FALSE, integrationWorkflowModels.get(1)
+            .getStaticWebhookTrigger());
+    }
+
+    @Test
     void testBasicMapperIntegrationInstanceMapsConnectionId() {
         IntegrationInstance integrationInstance = new IntegrationInstance();
 
@@ -233,15 +279,143 @@ class ConnectedUserIntegrationMapperTest {
     }
 
     @Test
-    void testInputMapsInternalOnly() {
-        WorkflowInput input = new WorkflowInput(
-            new Workflow.Input(
-                "apiKey", "API Key", "field_mapping", false,
-                Map.of("internalOnly", true)));
+    void testMapperLeavesOutInternalOnlyInputs() {
+        ConnectedUserIntegrationMapper.ConnectedUserIntegrationToIntegrationMapper generatedMapper =
+            new ConnectedUserIntegrationMapper$ConnectedUserIntegrationToIntegrationMapperImpl();
 
-        InputModel model = mapper.map(input);
+        IntegrationWorkflowModel integrationWorkflowModel = generatedMapper.map(
+            getInternalOnlyWorkflowDTO("u-1"));
 
-        assertEquals(Boolean.TRUE, model.getInternalOnly());
+        assertEquals(
+            List.of("channel"),
+            Objects.requireNonNull(integrationWorkflowModel.getInputs())
+                .stream()
+                .map(InputModel::getName)
+                .toList());
+    }
+
+    @Test
+    void testMapperLeavesOutStoredInternalOnlyInstanceValues() {
+        IntegrationInstance integrationInstance = new IntegrationInstance();
+
+        integrationInstance.setId(5L);
+        integrationInstance.setConnectionId(77L);
+        integrationInstance.setEnabled(true);
+
+        IntegrationInstanceConfigurationDTO integrationInstanceConfigurationDTO =
+            IntegrationInstanceConfigurationDTO.builder()
+                .id(77L)
+                .integrationInstanceConfigurationWorkflows(List.of(getInternalOnlyWorkflowDTO("u-1")))
+                .build();
+
+        ConnectedUserIntegrationDTO.ConnectedUserIntegrationInstanceWorkflow instanceWorkflow =
+            new ConnectedUserIntegrationDTO.ConnectedUserIntegrationInstanceWorkflow(
+                new IntegrationInstanceWorkflow(1L, Map.of("accountId", "a", "channel", "c"), true), "u-1");
+
+        ConnectedUserIntegrationMapper.ConnectedUserIntegrationToIntegrationMapper generatedMapper =
+            new ConnectedUserIntegrationMapper$ConnectedUserIntegrationToIntegrationMapperImpl();
+
+        IntegrationInstanceModel integrationInstanceModel = generatedMapper.map(
+            new ConnectedUserIntegrationDTO.ConnectedUserIntegrationInstance(
+                new Connection(), integrationInstance, List.of(instanceWorkflow), List.of(),
+                List.of(instanceWorkflow), integrationInstanceConfigurationDTO, null));
+
+        assertEquals(
+            Map.of("channel", "c"), integrationInstanceModel.getWorkflows()
+                .getFirst()
+                .getInputs());
+        assertEquals(
+            Map.of("channel", "c"), integrationInstanceModel.getMcpWorkflows()
+                .getFirst()
+                .getInputs());
+    }
+
+    @Test
+    void testMapperLeavesOutStoredInternalOnlyInstanceValuesInBasicMapper() {
+        IntegrationInstance integrationInstance = new IntegrationInstance();
+
+        integrationInstance.setId(5L);
+        integrationInstance.setConnectionId(77L);
+        integrationInstance.setEnabled(true);
+
+        IntegrationInstanceConfigurationDTO integrationInstanceConfigurationDTO =
+            IntegrationInstanceConfigurationDTO.builder()
+                .id(77L)
+                .integrationInstanceConfigurationWorkflows(List.of(getInternalOnlyWorkflowDTO("u-1")))
+                .build();
+
+        ConnectedUserIntegrationDTO.ConnectedUserIntegrationInstanceWorkflow instanceWorkflow =
+            new ConnectedUserIntegrationDTO.ConnectedUserIntegrationInstanceWorkflow(
+                new IntegrationInstanceWorkflow(1L, Map.of("accountId", "a", "channel", "c"), true), "u-1");
+
+        ConnectedUserIntegrationMapper.ConnectedUserIntegrationToIntegrationBasicMapper generatedBasicMapper =
+            new ConnectedUserIntegrationMapper$ConnectedUserIntegrationToIntegrationBasicMapperImpl();
+
+        IntegrationInstanceModel integrationInstanceModel = generatedBasicMapper.map(
+            new ConnectedUserIntegrationDTO.ConnectedUserIntegrationInstance(
+                new Connection(), integrationInstance, List.of(instanceWorkflow), List.of(),
+                List.of(instanceWorkflow), integrationInstanceConfigurationDTO, null));
+
+        assertEquals(
+            Map.of("channel", "c"), integrationInstanceModel.getWorkflows()
+                .getFirst()
+                .getInputs());
+        assertEquals(
+            Map.of("channel", "c"), integrationInstanceModel.getMcpWorkflows()
+                .getFirst()
+                .getInputs());
+    }
+
+    @Test
+    void testMapperReturnsNoStoredInstanceValuesWhenTheDefinitionIsUnknown() {
+        IntegrationInstance integrationInstance = new IntegrationInstance();
+
+        integrationInstance.setId(5L);
+        integrationInstance.setConnectionId(77L);
+        integrationInstance.setEnabled(true);
+
+        IntegrationInstanceConfigurationDTO integrationInstanceConfigurationDTO =
+            IntegrationInstanceConfigurationDTO.builder()
+                .id(77L)
+                .integrationInstanceConfigurationWorkflows(List.of(getInternalOnlyWorkflowDTO("u-1")))
+                .build();
+
+        ConnectedUserIntegrationDTO.ConnectedUserIntegrationInstanceWorkflow unknownInstanceWorkflow =
+            new ConnectedUserIntegrationDTO.ConnectedUserIntegrationInstanceWorkflow(
+                new IntegrationInstanceWorkflow(1L, Map.of("accountId", "a", "channel", "c"), true), "u-unknown");
+
+        ConnectedUserIntegrationMapper.ConnectedUserIntegrationToIntegrationMapper generatedMapper =
+            new ConnectedUserIntegrationMapper$ConnectedUserIntegrationToIntegrationMapperImpl();
+
+        IntegrationInstanceModel withConfiguration = generatedMapper.map(
+            new ConnectedUserIntegrationDTO.ConnectedUserIntegrationInstance(
+                new Connection(), integrationInstance, List.of(unknownInstanceWorkflow), List.of(), List.of(),
+                integrationInstanceConfigurationDTO, null));
+
+        IntegrationInstanceModel withoutConfiguration = generatedMapper.map(
+            new ConnectedUserIntegrationDTO.ConnectedUserIntegrationInstance(
+                new Connection(), integrationInstance, List.of(unknownInstanceWorkflow), List.of(), List.of(), null,
+                null));
+
+        assertEquals(
+            Map.of(), withConfiguration.getWorkflows()
+                .getFirst()
+                .getInputs());
+        assertEquals(
+            Map.of(), withoutConfiguration.getWorkflows()
+                .getFirst()
+                .getInputs());
+    }
+
+    @Test
+    void testMcpInstanceWorkflowMapperReturnsNoStoredInputs() {
+        McpIntegrationInstanceWorkflowMapper.IntegrationInstanceWorkflowToIntegrationInstanceWorkflowModelMapper generatedMapper =
+            new McpIntegrationInstanceWorkflowMapper$IntegrationInstanceWorkflowToIntegrationInstanceWorkflowModelMapperImpl();
+
+        IntegrationInstanceWorkflowModel integrationInstanceWorkflowModel = generatedMapper.convert(
+            new IntegrationInstanceWorkflow(1L, Map.of("accountId", "a", "channel", "c"), true));
+
+        assertEquals(Map.of(), integrationInstanceWorkflowModel.getInputs());
     }
 
     @Test
@@ -364,5 +538,30 @@ class ConnectedUserIntegrationMapperTest {
 
         return generatedMapper.map(connectionConfig.inputs()
             .getFirst());
+    }
+
+    private static IntegrationInstanceConfigurationWorkflowDTO getInternalOnlyWorkflowDTO(String workflowUuid) {
+        Workflow workflow = mock(Workflow.class);
+
+        when(workflow.getInputs()).thenReturn(
+            List.of(
+                new Workflow.Input("accountId", "Account", "string", true, Map.of("internalOnly", true)),
+                new Workflow.Input("channel", "Channel", "string", false)));
+
+        return new IntegrationInstanceConfigurationWorkflowDTO(
+            List.of(), null, null, Map.of(), true, 1L, null, null, null, 77L, 0, workflow, "workflow-" + workflowUuid,
+            workflowUuid, Map.of());
+    }
+
+    private static IntegrationInstanceConfigurationWorkflowDTO getIntegrationInstanceConfigurationWorkflowDTO(
+        String workflowUuid) {
+
+        Workflow workflow = mock(Workflow.class);
+
+        when(workflow.getLabel()).thenReturn(workflowUuid);
+
+        return new IntegrationInstanceConfigurationWorkflowDTO(
+            List.of(), null, null, Map.of(), true, 1L, null, null, null, 77L, 0, workflow, "workflow-" + workflowUuid,
+            workflowUuid, Map.of());
     }
 }

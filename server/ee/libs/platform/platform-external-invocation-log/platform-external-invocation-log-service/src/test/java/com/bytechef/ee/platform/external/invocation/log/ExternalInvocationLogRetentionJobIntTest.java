@@ -17,8 +17,8 @@ import com.bytechef.ee.platform.external.invocation.log.repository.ExternalInvoc
 import com.bytechef.ee.platform.external.invocation.log.service.ExternalInvocationLogService;
 import com.bytechef.platform.constant.PlatformType;
 import com.bytechef.platform.external.invocation.ExternalInvocationKind;
-import com.bytechef.platform.external.invocation.ExternalInvocationOutcome;
 import com.bytechef.platform.external.invocation.ExternalInvocationSource;
+import com.bytechef.platform.external.invocation.ExternalInvocationStatus;
 import com.bytechef.tenant.TenantContext;
 import com.bytechef.tenant.service.TenantService;
 import com.bytechef.tenant.sql.BaseDataSource;
@@ -100,7 +100,7 @@ class ExternalInvocationLogRetentionJobIntTest {
         List<ExternalInvocationLog> externalInvocationLogs = externalInvocationLogRepository.findAll();
 
         assertThat(externalInvocationLogs)
-            .extracting(ExternalInvocationLog::getToolName)
+            .extracting(ExternalInvocationLog::getInvocationName)
             .containsExactly("retained");
     }
 
@@ -120,8 +120,8 @@ class ExternalInvocationLogRetentionJobIntTest {
 
         externalInvocationLogRetentionJob.purgeExpiredLogs();
 
-        assertThat(findToolNames(FIRST_TENANT_SCHEMA)).containsExactly("retained");
-        assertThat(findToolNames(SECOND_TENANT_SCHEMA)).containsExactly("retained");
+        assertThat(findInvocationNames(FIRST_TENANT_SCHEMA)).containsExactly("retained");
+        assertThat(findInvocationNames(SECOND_TENANT_SCHEMA)).containsExactly("retained");
     }
 
     @Test
@@ -141,7 +141,7 @@ class ExternalInvocationLogRetentionJobIntTest {
 
         externalInvocationLogRetentionJob.purgeExpiredLogs();
 
-        assertThat(findToolNames(FIRST_TENANT_SCHEMA)).isEmpty();
+        assertThat(findInvocationNames(FIRST_TENANT_SCHEMA)).isEmpty();
     }
 
     @Test
@@ -155,14 +155,14 @@ class ExternalInvocationLogRetentionJobIntTest {
         assertThat(schedulerLock.lockAtMostFor()).isEqualTo("PT1H");
     }
 
-    private void create(String toolName, Instant createdDate) {
+    private void create(String invocationName, Instant createdDate) {
         ExternalInvocationLog externalInvocationLog = new ExternalInvocationLog();
 
         externalInvocationLog.setType(PlatformType.AUTOMATION);
         externalInvocationLog.setSource(ExternalInvocationSource.MCP_SERVER);
         externalInvocationLog.setKind(ExternalInvocationKind.COMPONENT);
-        externalInvocationLog.setToolName(toolName);
-        externalInvocationLog.setOutcome(ExternalInvocationOutcome.SUCCESS);
+        externalInvocationLog.setInvocationName(invocationName);
+        externalInvocationLog.setStatus(ExternalInvocationStatus.SUCCESS);
         externalInvocationLog.setDurationMs(5);
         externalInvocationLog.setCreatedDate(createdDate);
 
@@ -177,18 +177,19 @@ class ExternalInvocationLogRetentionJobIntTest {
     }
 
     @SuppressFBWarnings("SQL_INJECTION_SPRING_JDBC")
-    private List<String> findToolNames(String schema) {
+    private List<String> findInvocationNames(String schema) {
         return jdbcTemplate.queryForList(
-            "SELECT tool_name FROM " + schema + ".external_invocation_log ORDER BY tool_name", String.class);
+            "SELECT invocation_name FROM " + schema + ".external_invocation_log ORDER BY invocation_name",
+            String.class);
     }
 
     @SuppressFBWarnings("SQL_INJECTION_SPRING_JDBC")
-    private void insert(String schema, String toolName, Instant createdDate) {
+    private void insert(String schema, String invocationName, Instant createdDate) {
         jdbcTemplate.update(
             "INSERT INTO " + schema + ".external_invocation_log " +
-                "(type, source, kind, tool_name, outcome, duration_ms, created_date) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "(type, source, kind, invocation_name, status, duration_ms, created_date) VALUES (?, ?, ?, ?, ?, ?, ?)",
             PlatformType.AUTOMATION.ordinal(), ExternalInvocationSource.MCP_SERVER.ordinal(),
-            ExternalInvocationKind.COMPONENT.ordinal(), toolName, ExternalInvocationOutcome.SUCCESS.ordinal(), 5,
+            ExternalInvocationKind.COMPONENT.ordinal(), invocationName, ExternalInvocationStatus.SUCCESS.ordinal(), 5,
             Timestamp.from(createdDate));
     }
 

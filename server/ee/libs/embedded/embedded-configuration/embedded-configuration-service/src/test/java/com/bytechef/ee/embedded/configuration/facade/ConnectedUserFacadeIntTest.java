@@ -31,10 +31,13 @@ import com.bytechef.automation.configuration.facade.WorkspaceFacade;
 import com.bytechef.automation.configuration.service.ProjectDeploymentService;
 import com.bytechef.automation.configuration.service.ProjectService;
 import com.bytechef.automation.configuration.service.ProjectWorkflowService;
+import com.bytechef.ee.embedded.ai.mcp.facade.McpAutomationRowFacade;
+import com.bytechef.ee.embedded.ai.mcp.facade.McpIntegrationInstanceRowFacade;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationComponentService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceConfigurationService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceConfigurationWorkflowService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceToolService;
+import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceWorkflowService;
 import com.bytechef.ee.embedded.configuration.domain.ConnectedUserProject;
 import com.bytechef.ee.embedded.configuration.domain.ConnectedUserProjectWorkflow;
 import com.bytechef.ee.embedded.configuration.domain.Integration;
@@ -130,6 +133,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
     JobFacade.class, JobService.class, McpComponentService.class, McpIntegrationComponentService.class,
     McpIntegrationInstanceConfigurationService.class,
     McpIntegrationInstanceConfigurationWorkflowService.class, McpIntegrationInstanceToolService.class,
+    McpIntegrationInstanceWorkflowService.class, McpAutomationRowFacade.class, McpIntegrationInstanceRowFacade.class,
     McpServerService.class, McpToolService.class, OAuth2ParametersFacade.class, OAuth2Service.class,
     PrincipalJobFacade.class, PrincipalJobService.class, TaskDispatcherDefinitionService.class,
     TaskExecutionService.class, TriggerDefinitionFacade.class, TriggerDefinitionService.class,
@@ -335,6 +339,7 @@ class ConnectedUserFacadeIntTest {
         connection.setComponentName("slack");
         connection.setEnvironmentId(Environment.PRODUCTION.ordinal());
         connection.setId(OWN_CONNECTION_ID);
+        connection.setType(PlatformType.EMBEDDED);
 
         ComponentConnection slot = new ComponentConnection("slack", 1, "postMessage1", "slack", true);
 
@@ -352,6 +357,7 @@ class ConnectedUserFacadeIntTest {
                     .id(OWN_CONNECTION_ID)
                     .build()));
         when(connectionService.getConnection(OWN_CONNECTION_ID)).thenReturn(connection);
+        when(connectionService.getConnections(anyList())).thenReturn(List.of(connection));
         when(connectionService.getConnections(PlatformType.EMBEDDED)).thenReturn(List.of());
         when(embeddedPermissionEvaluator.evaluate(any(), any())).thenReturn(true);
         when(environmentService.getEnvironment(ENVIRONMENT_ID)).thenReturn(Environment.PRODUCTION);
