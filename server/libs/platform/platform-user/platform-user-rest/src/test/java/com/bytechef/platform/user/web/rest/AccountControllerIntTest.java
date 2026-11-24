@@ -41,9 +41,11 @@ import com.bytechef.platform.user.exception.UserErrorType;
 import com.bytechef.platform.user.repository.AuthorityRepository;
 import com.bytechef.platform.user.repository.PersistentTokenRepository;
 import com.bytechef.platform.user.repository.UserRepository;
+import com.bytechef.platform.user.service.AuthenticationPolicyService;
 import com.bytechef.platform.user.service.UserService;
 import com.bytechef.platform.user.web.rest.config.UserIntTestConfiguration;
 import com.bytechef.platform.user.web.rest.config.UserIntTestConfigurationSharedMocks;
+import com.bytechef.platform.user.web.rest.exception.AccountErrorType;
 import com.bytechef.platform.user.web.rest.vm.KeyAndPasswordVM;
 import com.bytechef.platform.user.web.rest.vm.ManagedUserVM;
 import com.bytechef.platform.user.web.rest.webhook.SignUpWebhook;
@@ -84,6 +86,9 @@ import tools.jackson.databind.ObjectMapper;
 class AccountControllerIntTest {
 
     static final String TEST_USER_LOGIN = "test";
+
+    @Autowired
+    private AuthenticationPolicyService authenticationPolicyService;
 
     @Autowired
     private AuthorityRepository authorityRepository;
@@ -274,6 +279,63 @@ class AccountControllerIntTest {
             .andExpect(jsonPath("$.errorKey").value(UserErrorType.INVALID_EMAIL.getErrorKey()));
 
         assertThat(userRepository.findByLogin("test-register-rejected")).isEmpty();
+    }
+
+    @Test
+    @Transactional
+    void testRegisterRefusesWhenSelfSignUpIsDisabled() throws Exception {
+        AdminUserDTO existingUser = new AdminUserDTO();
+
+        existingUser.setLogin("existing-admin");
+        existingUser.setEmail("existing-admin@example.com");
+        existingUser.setAuthorities(Set.of(AuthorityConstants.ADMIN));
+
+        userService.create(existingUser);
+        authenticationPolicyService.updateSelfSignUpEnabled(false);
+
+        ManagedUserVM managedUser = new ManagedUserVM();
+
+        managedUser.setLogin("new-signup");
+        managedUser.setPassword("Password1");
+        managedUser.setFirstName("New");
+        managedUser.setLastName("Signup");
+        managedUser.setEmail("new-signup@example.com");
+        managedUser.setLangKey(UserConstants.DEFAULT_LANGUAGE);
+
+        restAccountMockMvc
+            .perform(
+                post("/api/register").contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsBytes(managedUser))
+                    .with(csrf()))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errorKey").value(AccountErrorType.SIGN_UP_DISABLED.getErrorKey()));
+
+        assertThat(userRepository.findByLogin("new-signup")).isEmpty();
+    }
+
+    @Test
+    @Transactional
+    void testRegisterRefusesPasswordRegistrationWhenSsoOnly() throws Exception {
+        authenticationPolicyService.updateSsoOnlyEnabled(true);
+
+        ManagedUserVM managedUser = new ManagedUserVM();
+
+        managedUser.setLogin("sso-only-signup");
+        managedUser.setPassword("Password1");
+        managedUser.setFirstName("Sso");
+        managedUser.setLastName("Only");
+        managedUser.setEmail("sso-only-signup@example.com");
+        managedUser.setLangKey(UserConstants.DEFAULT_LANGUAGE);
+
+        restAccountMockMvc
+            .perform(
+                post("/api/register").contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsBytes(managedUser))
+                    .with(csrf()))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errorKey").value(AccountErrorType.SSO_ONLY.getErrorKey()));
+
+        assertThat(userRepository.findByLogin("sso-only-signup")).isEmpty();
     }
 
     static Stream<ManagedUserVM> invalidUsers() {

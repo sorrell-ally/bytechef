@@ -51,6 +51,7 @@ The **Event type** group of the filter menu is populated from the events your in
 | Area | Event types |
 |---|---|
 | **Users** | `USER_INVITED`, `USER_ROLE_UPDATED`, `USER_DELETED` |
+| **Authentication** | `SIGN_UP_ENABLED_UPDATED`, `SSO_ONLY_ENABLED_UPDATED` - an administrator turning self sign-up or SSO-only mode on or off; the entry holds `enabled` as `true` or `false` |
 | **Identity providers** | `IDENTITY_PROVIDER_CREATED`, `IDENTITY_PROVIDER_UPDATED`, `IDENTITY_PROVIDER_DELETED` |
 | **SSO providers** | `SSO_PROVIDER_CREATED`, `SSO_PROVIDER_UPDATED`, `SSO_PROVIDER_DELETED` - the entry holds `ssoProviderId`, `name`, `type`, `vendor`, `domains` and the switches `enabled`, `enforceSso`, `autoProvision` and `defaultAuthority`; a deletion holds the id and, when the provider existed, its name. The client id, client secret, issuer, scopes and SAML metadata are never recorded |
 | **OAuth2 clients** | `OAUTH2_CLIENT_DELETED`, `OAUTH2_CLIENT_GRANT_REVOKED`, `OAUTH2_CLIENT_ALL_GRANTS_REVOKED` - deleting a client that does not exist is not recorded |

@@ -5,6 +5,7 @@
   "icon": "Server",
   "pages": [
     "users",
+    "authentication",
     "identity-providers",
     "connections",
     "ai",

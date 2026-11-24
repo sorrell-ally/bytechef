@@ -5392,6 +5392,12 @@ public class ApplicationProperties {
          */
         private TwoFactorAuthentication twoFactorAuthentication = new TwoFactorAuthentication();
 
+        /**
+         * When true, activated administrators can sign in with a password even while SSO-only mode is on. Recovery
+         * switch. Environment variable {@code BYTECHEF_SECURITY_PASSWORD_LOGIN_BREAK_GLASS}.
+         */
+        private boolean passwordLoginBreakGlass;
+
         public String getContentSecurityPolicy() {
             return contentSecurityPolicy;
         }
@@ -5438,6 +5444,14 @@ public class ApplicationProperties {
 
         public void setTwoFactorAuthentication(TwoFactorAuthentication twoFactorAuthentication) {
             this.twoFactorAuthentication = twoFactorAuthentication;
+        }
+
+        public boolean isPasswordLoginBreakGlass() {
+            return passwordLoginBreakGlass;
+        }
+
+        public void setPasswordLoginBreakGlass(boolean passwordLoginBreakGlass) {
+            this.passwordLoginBreakGlass = passwordLoginBreakGlass;
         }
 
         /**

@@ -29,6 +29,7 @@ import com.bytechef.platform.sso.web.registration.SsoIdTokenDecoderFactory;
 import com.bytechef.platform.sso.web.registration.SsoRegistrationCache;
 import com.bytechef.platform.sso.web.registration.SsoRegistrationFactory;
 import com.bytechef.platform.sso.web.registration.SsoRemoteDocumentFetcher;
+import com.bytechef.platform.user.service.AuthenticationPolicyService;
 import com.bytechef.platform.user.service.AuthorityService;
 import com.bytechef.platform.user.service.UserService;
 import com.bytechef.tenant.annotation.ConditionalOnSingleTenant;
@@ -89,7 +90,8 @@ public class SsoWebConfiguration {
 
     @Bean
     SecurityConfigurerContributor ssoPasswordLoginEnforcementSecurityConfigurerContributor(
-        AuthorityService authorityService, SsoProviderService ssoProviderService, UserService userService) {
+        AuthenticationPolicyService authenticationPolicyService, AuthorityService authorityService,
+        SsoProviderService ssoProviderService, UserService userService) {
 
         return new SecurityConfigurerContributor() {
 
@@ -99,7 +101,8 @@ public class SsoWebConfiguration {
                 getSecurityConfigurerAdapter() {
 
                 return (T) new SsoPasswordLoginEnforcementConfigurer(
-                    new SsoPasswordLoginEnforcementFilter(authorityService, ssoProviderService, userService));
+                    new SsoPasswordLoginEnforcementFilter(
+                        authenticationPolicyService, authorityService, ssoProviderService, userService));
             }
         };
     }

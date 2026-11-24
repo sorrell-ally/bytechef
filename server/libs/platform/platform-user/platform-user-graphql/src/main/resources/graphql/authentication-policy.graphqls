@@ -1,0 +1,24 @@
+extend type Query {
+    "Admin only. The authentication policy in effect, including whether self sign-up still follows the environment default."
+    authenticationPolicy: AuthenticationPolicy!
+}
+
+extend type Mutation {
+    "Admin only. Saves the self sign-up choice. After this, the environment property is no longer the value in effect."
+    updateSelfSignUpEnabled(enabled: Boolean!): AuthenticationPolicy!
+    "Admin only. Turns password login and password registration off or on. Enabling requires an enabled SSO provider the acting administrator has signed in through."
+    updateSsoOnlyEnabled(enabled: Boolean!): AuthenticationPolicy!
+}
+
+type AuthenticationPolicy {
+    "Whether bytechef.security.password-login-break-glass is on."
+    passwordLoginBreakGlass: Boolean!
+    "The self sign-up value in effect."
+    signUpEnabled: Boolean!
+    "bytechef.sign-up.enabled, the value used until an administrator saves a choice."
+    signUpEnvironmentDefault: Boolean!
+    "Whether an administrator has saved a self sign-up choice."
+    signUpOverridden: Boolean!
+    "Whether password login and password registration are turned off."
+    ssoOnlyEnabled: Boolean!
+}

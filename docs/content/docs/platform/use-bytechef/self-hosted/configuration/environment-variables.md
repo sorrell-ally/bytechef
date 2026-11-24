@@ -505,6 +505,7 @@ Limits of the [script sandbox](/platform/use-bytechef/self-hosted/configuration/
 
 | Environment Variable | Description | Default Value |
 |---|---|---|
+| `BYTECHEF_SECURITY_PASSWORD_LOGIN_BREAK_GLASS` | Re-enable password login for activated administrators while SSO-only mode is on. Restart after changing it. Turn it off again once an administrator has turned SSO-only mode off. See [Authentication](/platform/settings/authentication). | `false` |
 | `BYTECHEF_SECURITY_CONTENT_SECURITY_POLICY` | Content Security Policy | `"default-src 'self'; frame-src 'self' https://*.command.ai data:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.command.ai https://*.commandbar.com https://*.i.posthog.com https://cdn.jsdelivr.net https://storage.googleapis.com https://unpkg.com; style-src 'self' 'unsafe-inline' https://*.commandbar.com https://cdn.jsdelivr.net https://*.command.ai https://unpkg.com; img-src 'self' https://*.command.ai data:; font-src 'self' data:; media-src 'self' https://*.command.ai; connect-src 'self' https://*.command.ai https://*.i.posthog.com https://*.commandbar.com; worker-src blob: 'self';"` |
 | `BYTECHEF_SECURITY_REMEMBER_ME_KEY` | Remember Me key (sensitive). Generated on first start and kept in `~/.bytechef/remember-me-key` when unset. Set it explicitly across replicas, or a remember-me cookie signed by one is rejected by the others. | generated |
 | `BYTECHEF_SECURITY_SOCIAL_LOGIN_ENABLED` | Enable social login | `false` |
@@ -563,7 +564,7 @@ When a runner is configured both in a YAML file and through environment variable
 | Environment Variable | Description | Default Value |
 |---|---|---|
 | `BYTECHEF_SIGN_UP_ACTIVATION_REQUIRED` | Require account activation | `false` |
-| `BYTECHEF_SIGN_UP_ENABLED` | Enable sign up | `true` |
+| `BYTECHEF_SIGN_UP_ENABLED` | Default for self sign-up until an administrator saves a choice in Settings → Authentication. After that save, the stored value is the one in effect and changing this variable does not overwrite it. | `true` |
 
 ## Tenant Configuration
 

@@ -1,0 +1,46 @@
+---
+title: Authentication
+description: Turn self sign-up and password login on or off, and recover if SSO-only mode locks password sign-in.
+---
+
+**Settings → Authentication** is where an administrator turns self sign-up and SSO-only mode on or off. Both choices are stored in the database and take effect without a restart. The server enforces them on registration and password login. Hiding the controls in the browser is not what keeps them off.
+
+## Self sign-up
+
+`BYTECHEF_SIGN_UP_ENABLED` (property `bytechef.sign-up.enabled`) is the self sign-up value until an administrator saves a choice on this page. Saving writes the choice to `authentication_policy.sign_up_enabled`. From then on that stored value is the only one that counts. Changing the environment variable later does not overwrite it.
+
+Until a choice is saved, the column stays null and the environment variable remains in effect. A deployment that starts with `SignUpEnabled=false` therefore stays closed to self sign-up until an administrator turns it on here.
+
+In single-tenant mode the registration endpoint still accepts only the first account, the same as before. Further people are added by invitation. In multi-tenant mode an open sign-up lets a visitor register a new tenant.
+
+## SSO-only mode
+
+SSO-only mode turns off password login and password registration. People sign in with an OIDC or SAML provider configured under **Settings → Single Sign-On**. The server refuses `POST /api/authentication`, `POST /api/register`, password reset, password change, and accepting an invitation by setting a password.
+
+The switch can be turned on only when both of these are true:
+
+- At least one single sign-on provider is enabled.
+- The administrator who turns it on has signed in through one of those enabled providers. That completed sign-in is the test of the provider: it links the account's `auth_provider` to the provider.
+
+Turning SSO-only mode off does not require either check.
+
+A provider that enforces SSO for its own email domains still does, when SSO-only mode is off. That per-domain rule keeps a separate local-administrator exception for accounts that have never signed in with SSO. SSO-only mode does not use that exception.
+
+## Recovering a locked-out administrator
+
+Use this when SSO-only mode is on and password sign-in no longer works, for example because the identity provider is down.
+
+1. Set `BYTECHEF_SECURITY_PASSWORD_LOGIN_BREAK_GLASS` to `true` (property `bytechef.security.password-login-break-glass`) and restart ByteChef.
+2. Sign in as an activated administrator with that account's password. The flag allows password login for activated administrators only, including accounts already linked to an SSO provider. Everyone else still has to use SSO.
+3. Open **Settings → Authentication** and turn SSO-only mode off.
+4. Set the variable back to `false` and restart.
+
+While the flag is on, password reset and password change work again, so an administrator who still has access to the account email can set a new password and then sign in.
+
+If the administrator password is unknown and the identity provider is unavailable, set the stored flag off directly and restart:
+
+```sql
+UPDATE authentication_policy SET sso_only_enabled = false WHERE id = 1;
+```
+
+Setting `BYTECHEF_SECURITY_SSO_ENABLED` to `false` and restarting removes single sign-on entirely, which also restores password login. Prefer the break-glass flag when other people should keep signing in with SSO.
