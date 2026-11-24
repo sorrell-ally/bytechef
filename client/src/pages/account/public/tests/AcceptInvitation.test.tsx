@@ -41,9 +41,12 @@ it('should keep a token invitation usable when self sign-up is disabled', async 
     });
 
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-        new Response(JSON.stringify({email: 'invitee@example.com', expiresAt: '2026-12-01T00:00:00Z', ssoOnly: false}), {
-            status: 200,
-        })
+        new Response(
+            JSON.stringify({email: 'invitee@example.com', expiresAt: '2026-12-01T00:00:00Z', ssoOnly: false}),
+            {
+                status: 200,
+            }
+        )
     );
 
     render(
