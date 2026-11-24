@@ -68,6 +68,7 @@ export interface ApplicationInfoI {
     signUp: {
         activationRequired: boolean;
         enabled: boolean;
+        ssoOnly: boolean;
     };
     socialLogin: {
         enabled: boolean;
@@ -92,6 +93,8 @@ export interface ApplicationInfoI {
 const toAllowedParentOrigins = (value: unknown): string[] =>
     Array.isArray(value) ? value.filter((origin): origin is string => typeof origin === 'string') : [];
 
+const isEnabledFlag = (value: unknown) => value === true || value === 'true';
+
 const fetchGetActuatorInfo = async (): Promise<Response> => {
     return await fetch('/actuator/info', {
         method: 'GET',
@@ -113,6 +116,11 @@ export const applicationInfoStore = createStore<ApplicationInfoI>()(
 
                 if (response.status === 200) {
                     const json = await response.json();
+                    const signUpEnabledFromPolicy = json.authenticationPolicy?.signUpEnabled;
+                    const signUpEnabled =
+                        isEnabledFlag(signUpEnabledFromPolicy) ||
+                        (signUpEnabledFromPolicy == null && isEnabledFlag(json.signUp?.enabled));
+                    const ssoOnly = isEnabledFlag(json.authenticationPolicy?.ssoOnly);
 
                     set((state) => ({
                         ...state,
@@ -166,7 +174,8 @@ export const applicationInfoStore = createStore<ApplicationInfoI>()(
                         },
                         signUp: {
                             activationRequired: json.signUp?.activationRequired === 'true',
-                            enabled: json.signUp?.enabled === 'true',
+                            enabled: signUpEnabled,
+                            ssoOnly,
                         },
                         socialLogin: {
                             enabled: json.socialLogin?.enabled === 'true',
@@ -256,6 +265,7 @@ export const applicationInfoStore = createStore<ApplicationInfoI>()(
                 signUp: {
                     activationRequired: false,
                     enabled: true,
+                    ssoOnly: false,
                 },
                 socialLogin: {
                     enabled: false,

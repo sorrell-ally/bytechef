@@ -3078,6 +3078,11 @@ export type UpdateSsoProviderMutationVariables = Exact<{
 
 export type UpdateSsoProviderMutation = { updateSsoProvider: { id: string, name: string, type: Types.SsoProviderType, vendor: Types.SsoProviderVendor, enabled: boolean, domains: Array<string>, enforceSso: boolean, autoProvision: boolean, defaultAuthority: string, registrationId: string, loginPath: string, callbackPath: string, serviceProviderMetadataPath: string | null, issuerUri: string | null, clientId: string | null, clientSecretSet: boolean, scopes: Array<string>, metadataUrl: string | null, metadataXml: string | null } };
 
+export type AuthenticationPolicyQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type AuthenticationPolicyQuery = { authenticationPolicy: { passwordLoginBreakGlass: boolean, signUpEnabled: boolean, signUpEnvironmentDefault: boolean, signUpOverridden: boolean, ssoOnlyEnabled: boolean } };
+
 export type AuthoritiesQueryVariables = Exact<{ [key: string]: never; }>;
 
 
@@ -3089,6 +3094,14 @@ export type CreateIdentityProviderMutationVariables = Exact<{
 
 
 export type CreateIdentityProviderMutation = { createIdentityProvider: { autoProvision: boolean, clientId: string | null, createdBy: string | null, createdDate: any, defaultAuthority: string, domains: Array<string>, enabled: boolean, enforced: boolean, id: string, issuerUri: string | null, lastModifiedBy: string | null, lastModifiedDate: any, metadataUri: string | null, mfaMethod: string | null, mfaRequired: boolean, name: string, nameIdFormat: string | null, scopes: string | null, signingCertificate: string | null, type: string } };
+
+export type CreateUserInvitationMutationVariables = Exact<{
+  email: string;
+  role: string;
+}>;
+
+
+export type CreateUserInvitationMutation = { createUserInvitation: { acceptUrl: string | null, deliveryError: string | null, mailed: boolean, invitation: { email: string, id: string } } };
 
 export type DeleteIdentityProviderMutationVariables = Exact<{
   id: string | number;
@@ -3124,6 +3137,25 @@ export type InviteUserMutationVariables = Exact<{
 
 export type InviteUserMutation = { inviteUser: boolean };
 
+export type PendingUserInvitationsQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type PendingUserInvitationsQuery = { pendingUserInvitations: Array<{ id: string, email: string, role: string, expiresAt: any }> };
+
+export type ResendUserInvitationMutationVariables = Exact<{
+  id: string | number;
+}>;
+
+
+export type ResendUserInvitationMutation = { resendUserInvitation: { acceptUrl: string | null, deliveryError: string | null, mailed: boolean } };
+
+export type RevokeUserInvitationMutationVariables = Exact<{
+  id: string | number;
+}>;
+
+
+export type RevokeUserInvitationMutation = { revokeUserInvitation: boolean };
+
 export type UpdateIdentityProviderMutationVariables = Exact<{
   id: string | number;
   input: Types.IdentityProviderInput;
@@ -3131,6 +3163,20 @@ export type UpdateIdentityProviderMutationVariables = Exact<{
 
 
 export type UpdateIdentityProviderMutation = { updateIdentityProvider: { autoProvision: boolean, clientId: string | null, createdBy: string | null, createdDate: any, defaultAuthority: string, domains: Array<string>, enabled: boolean, enforced: boolean, id: string, issuerUri: string | null, lastModifiedBy: string | null, lastModifiedDate: any, metadataUri: string | null, mfaMethod: string | null, mfaRequired: boolean, name: string, nameIdFormat: string | null, scopes: string | null, signingCertificate: string | null, type: string } };
+
+export type UpdateSelfSignUpEnabledMutationVariables = Exact<{
+  enabled: boolean;
+}>;
+
+
+export type UpdateSelfSignUpEnabledMutation = { updateSelfSignUpEnabled: { passwordLoginBreakGlass: boolean, signUpEnabled: boolean, signUpEnvironmentDefault: boolean, signUpOverridden: boolean, ssoOnlyEnabled: boolean } };
+
+export type UpdateSsoOnlyEnabledMutationVariables = Exact<{
+  enabled: boolean;
+}>;
+
+
+export type UpdateSsoOnlyEnabledMutation = { updateSsoOnlyEnabled: { passwordLoginBreakGlass: boolean, signUpEnabled: boolean, signUpEnvironmentDefault: boolean, signUpOverridden: boolean, ssoOnlyEnabled: boolean } };
 
 export type UpdateUserMutationVariables = Exact<{
   login: string;
@@ -14545,6 +14591,34 @@ export const useUpdateSsoProviderMutation = <
   }
     )};
 
+export const AuthenticationPolicyDocument = new TypedDocumentString(`
+    query authenticationPolicy {
+  authenticationPolicy {
+    passwordLoginBreakGlass
+    signUpEnabled
+    signUpEnvironmentDefault
+    signUpOverridden
+    ssoOnlyEnabled
+  }
+}
+    `);
+
+export const useAuthenticationPolicyQuery = <
+      TData = AuthenticationPolicyQuery,
+      TError = unknown
+    >(
+      variables?: AuthenticationPolicyQueryVariables,
+      options?: Omit<UseQueryOptions<AuthenticationPolicyQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<AuthenticationPolicyQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<AuthenticationPolicyQuery, TError, TData>(
+      {
+    queryKey: variables === undefined ? ['authenticationPolicy'] : ['authenticationPolicy', variables],
+    queryFn: fetcher<AuthenticationPolicyQuery, AuthenticationPolicyQueryVariables>(AuthenticationPolicyDocument, variables),
+    ...options
+  }
+    )};
+
 export const AuthoritiesDocument = new TypedDocumentString(`
     query authorities {
   authorities
@@ -14603,6 +14677,33 @@ export const useCreateIdentityProviderMutation = <
       {
     mutationKey: ['createIdentityProvider'],
     mutationFn: (variables?: CreateIdentityProviderMutationVariables) => fetcher<CreateIdentityProviderMutation, CreateIdentityProviderMutationVariables>(CreateIdentityProviderDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const CreateUserInvitationDocument = new TypedDocumentString(`
+    mutation createUserInvitation($email: String!, $role: String!) {
+  createUserInvitation(email: $email, role: $role) {
+    acceptUrl
+    deliveryError
+    invitation {
+      email
+      id
+    }
+    mailed
+  }
+}
+    `);
+
+export const useCreateUserInvitationMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<CreateUserInvitationMutation, TError, CreateUserInvitationMutationVariables, TContext>) => {
+    
+    return useMutation<CreateUserInvitationMutation, TError, CreateUserInvitationMutationVariables, TContext>(
+      {
+    mutationKey: ['createUserInvitation'],
+    mutationFn: (variables?: CreateUserInvitationMutationVariables) => fetcher<CreateUserInvitationMutation, CreateUserInvitationMutationVariables>(CreateUserInvitationDocument, variables)(),
     ...options
   }
     )};
@@ -14750,6 +14851,75 @@ export const useInviteUserMutation = <
   }
     )};
 
+export const PendingUserInvitationsDocument = new TypedDocumentString(`
+    query pendingUserInvitations {
+  pendingUserInvitations {
+    id
+    email
+    role
+    expiresAt
+  }
+}
+    `);
+
+export const usePendingUserInvitationsQuery = <
+      TData = PendingUserInvitationsQuery,
+      TError = unknown
+    >(
+      variables?: PendingUserInvitationsQueryVariables,
+      options?: Omit<UseQueryOptions<PendingUserInvitationsQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<PendingUserInvitationsQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<PendingUserInvitationsQuery, TError, TData>(
+      {
+    queryKey: variables === undefined ? ['pendingUserInvitations'] : ['pendingUserInvitations', variables],
+    queryFn: fetcher<PendingUserInvitationsQuery, PendingUserInvitationsQueryVariables>(PendingUserInvitationsDocument, variables),
+    ...options
+  }
+    )};
+
+export const ResendUserInvitationDocument = new TypedDocumentString(`
+    mutation resendUserInvitation($id: ID!) {
+  resendUserInvitation(id: $id) {
+    acceptUrl
+    deliveryError
+    mailed
+  }
+}
+    `);
+
+export const useResendUserInvitationMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<ResendUserInvitationMutation, TError, ResendUserInvitationMutationVariables, TContext>) => {
+    
+    return useMutation<ResendUserInvitationMutation, TError, ResendUserInvitationMutationVariables, TContext>(
+      {
+    mutationKey: ['resendUserInvitation'],
+    mutationFn: (variables?: ResendUserInvitationMutationVariables) => fetcher<ResendUserInvitationMutation, ResendUserInvitationMutationVariables>(ResendUserInvitationDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const RevokeUserInvitationDocument = new TypedDocumentString(`
+    mutation revokeUserInvitation($id: ID!) {
+  revokeUserInvitation(id: $id)
+}
+    `);
+
+export const useRevokeUserInvitationMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<RevokeUserInvitationMutation, TError, RevokeUserInvitationMutationVariables, TContext>) => {
+    
+    return useMutation<RevokeUserInvitationMutation, TError, RevokeUserInvitationMutationVariables, TContext>(
+      {
+    mutationKey: ['revokeUserInvitation'],
+    mutationFn: (variables?: RevokeUserInvitationMutationVariables) => fetcher<RevokeUserInvitationMutation, RevokeUserInvitationMutationVariables>(RevokeUserInvitationDocument, variables)(),
+    ...options
+  }
+    )};
+
 export const UpdateIdentityProviderDocument = new TypedDocumentString(`
     mutation updateIdentityProvider($id: ID!, $input: IdentityProviderInput!) {
   updateIdentityProvider(id: $id, input: $input) {
@@ -14786,6 +14956,56 @@ export const useUpdateIdentityProviderMutation = <
       {
     mutationKey: ['updateIdentityProvider'],
     mutationFn: (variables?: UpdateIdentityProviderMutationVariables) => fetcher<UpdateIdentityProviderMutation, UpdateIdentityProviderMutationVariables>(UpdateIdentityProviderDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const UpdateSelfSignUpEnabledDocument = new TypedDocumentString(`
+    mutation updateSelfSignUpEnabled($enabled: Boolean!) {
+  updateSelfSignUpEnabled(enabled: $enabled) {
+    passwordLoginBreakGlass
+    signUpEnabled
+    signUpEnvironmentDefault
+    signUpOverridden
+    ssoOnlyEnabled
+  }
+}
+    `);
+
+export const useUpdateSelfSignUpEnabledMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<UpdateSelfSignUpEnabledMutation, TError, UpdateSelfSignUpEnabledMutationVariables, TContext>) => {
+    
+    return useMutation<UpdateSelfSignUpEnabledMutation, TError, UpdateSelfSignUpEnabledMutationVariables, TContext>(
+      {
+    mutationKey: ['updateSelfSignUpEnabled'],
+    mutationFn: (variables?: UpdateSelfSignUpEnabledMutationVariables) => fetcher<UpdateSelfSignUpEnabledMutation, UpdateSelfSignUpEnabledMutationVariables>(UpdateSelfSignUpEnabledDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const UpdateSsoOnlyEnabledDocument = new TypedDocumentString(`
+    mutation updateSsoOnlyEnabled($enabled: Boolean!) {
+  updateSsoOnlyEnabled(enabled: $enabled) {
+    passwordLoginBreakGlass
+    signUpEnabled
+    signUpEnvironmentDefault
+    signUpOverridden
+    ssoOnlyEnabled
+  }
+}
+    `);
+
+export const useUpdateSsoOnlyEnabledMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<UpdateSsoOnlyEnabledMutation, TError, UpdateSsoOnlyEnabledMutationVariables, TContext>) => {
+    
+    return useMutation<UpdateSsoOnlyEnabledMutation, TError, UpdateSsoOnlyEnabledMutationVariables, TContext>(
+      {
+    mutationKey: ['updateSsoOnlyEnabled'],
+    mutationFn: (variables?: UpdateSsoOnlyEnabledMutationVariables) => fetcher<UpdateSsoOnlyEnabledMutation, UpdateSsoOnlyEnabledMutationVariables>(UpdateSsoOnlyEnabledDocument, variables)(),
     ...options
   }
     )};

@@ -5392,6 +5392,12 @@ public class ApplicationProperties {
          */
         private TwoFactorAuthentication twoFactorAuthentication = new TwoFactorAuthentication();
 
+        /**
+         * When true, activated administrators can sign in with a password even while SSO-only mode is on. Recovery
+         * switch. Environment variable {@code BYTECHEF_SECURITY_PASSWORD_LOGIN_BREAK_GLASS}.
+         */
+        private boolean passwordLoginBreakGlass;
+
         public String getContentSecurityPolicy() {
             return contentSecurityPolicy;
         }
@@ -5438,6 +5444,14 @@ public class ApplicationProperties {
 
         public void setTwoFactorAuthentication(TwoFactorAuthentication twoFactorAuthentication) {
             this.twoFactorAuthentication = twoFactorAuthentication;
+        }
+
+        public boolean isPasswordLoginBreakGlass() {
+            return passwordLoginBreakGlass;
+        }
+
+        public void setPasswordLoginBreakGlass(boolean passwordLoginBreakGlass) {
+            this.passwordLoginBreakGlass = passwordLoginBreakGlass;
         }
 
         /**
@@ -5723,6 +5737,12 @@ public class ApplicationProperties {
          */
         private boolean enabled;
 
+        /**
+         * How long a mailed invitation link stays valid. Environment variable
+         * {@code BYTECHEF_SIGN_UP_INVITATION_TIME_TO_LIVE}.
+         */
+        private Duration invitationTimeToLive = Duration.ofDays(7);
+
         public boolean isActivationRequired() {
             return activationRequired;
         }
@@ -5737,6 +5757,14 @@ public class ApplicationProperties {
 
         public void setEnabled(boolean enabled) {
             this.enabled = enabled;
+        }
+
+        public Duration getInvitationTimeToLive() {
+            return invitationTimeToLive;
+        }
+
+        public void setInvitationTimeToLive(Duration invitationTimeToLive) {
+            this.invitationTimeToLive = invitationTimeToLive;
         }
     }
 

@@ -4,7 +4,7 @@ import NewPasswordForm from '@/pages/account/public/components/NewPasswordForm';
 import PublicLayoutContainer from '@/shared/layout/PublicLayoutContainer';
 import {getXsrfToken} from '@/shared/util/cookie-utils';
 import {CircleCheckBigIcon} from 'lucide-react';
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
 import {Link, useSearchParams} from 'react-router-dom';
 
 type AcceptInvitationStatusType = 'connectionError' | 'failure' | 'idle' | 'invalidPassword' | 'success';
@@ -12,13 +12,19 @@ type AcceptInvitationStatusType = 'connectionError' | 'failure' | 'idle' | 'inva
 const AcceptInvitation = () => {
     const [status, setStatus] = useState<AcceptInvitationStatusType>('idle');
 
+    const [ssoOnly, setSsoOnly] = useState(false);
+
     const [searchParams] = useSearchParams();
     const key = searchParams.get('key');
+    const token = searchParams.get('token');
 
     async function handleSubmit(newPassword: string) {
+        const requestUrl = token ? '/api/account/accept-user-invitation' : '/api/account/accept-invitation';
+        const body = token ? {password: newPassword, token} : {key, newPassword};
+
         try {
-            const response = await fetch('/api/account/accept-invitation', {
-                body: JSON.stringify({key, newPassword}),
+            const response = await fetch(requestUrl, {
+                body: JSON.stringify(body),
                 headers: {
                     'Content-Type': 'application/json',
                     'X-XSRF-TOKEN': await getXsrfToken(),
@@ -37,6 +43,60 @@ const AcceptInvitation = () => {
             setStatus('connectionError');
         }
     }
+
+    async function handleSso() {
+        if (!token) {
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/user-invitations/sso', {
+                body: JSON.stringify({token}),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-XSRF-TOKEN': await getXsrfToken(),
+                },
+                method: 'POST',
+            });
+
+            if (!response.ok) {
+                setStatus('failure');
+
+                return;
+            }
+
+            const body = await response.json();
+
+            window.location.assign(body.redirectUrl);
+        } catch {
+            setStatus('connectionError');
+        }
+    }
+
+    // Loads whether this invitation must be accepted with single sign-on.
+    useEffect(() => {
+        if (!token) {
+            return;
+        }
+
+        const previewUrl = `/api/user-invitations/preview?token=${encodeURIComponent(token)}`;
+
+        fetch(previewUrl)
+            .then(async (response) => {
+                if (!response.ok) {
+                    setStatus('failure');
+
+                    return;
+                }
+
+                const body = await response.json();
+
+                setSsoOnly(body.ssoOnly === true);
+            })
+            .catch(() => {
+                setStatus('connectionError');
+            });
+    }, [token]);
 
     if (status === 'success') {
         return (
@@ -92,7 +152,13 @@ const AcceptInvitation = () => {
                         </p>
                     )}
 
-                    {key && <NewPasswordForm onSubmit={handleSubmit} submitLabel="Activate account" />}
+                    {ssoOnly && (
+                        <Button className="w-full" label="Continue with single sign-on" onClick={handleSso} size="lg" />
+                    )}
+
+                    {!ssoOnly && (key || token) && (
+                        <NewPasswordForm onSubmit={handleSubmit} submitLabel="Activate account" />
+                    )}
                 </CardContent>
             </Card>
         </PublicLayoutContainer>

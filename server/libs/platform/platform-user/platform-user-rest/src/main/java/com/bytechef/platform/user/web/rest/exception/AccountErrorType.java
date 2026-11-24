@@ -35,6 +35,7 @@ public class AccountErrorType extends AbstractErrorType {
     public static final AccountErrorType INVALID_PASSWORD = new AccountErrorType(105, HttpStatus.BAD_REQUEST);
     public static final AccountErrorType QR_CODE_GENERATION_FAILED = new AccountErrorType(
         106, HttpStatus.INTERNAL_SERVER_ERROR);
+    public static final AccountErrorType SSO_ONLY = new AccountErrorType(107, HttpStatus.BAD_REQUEST);
 
     private final HttpStatus status;
 

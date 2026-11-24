@@ -27,6 +27,7 @@ import com.bytechef.platform.sso.domain.SsoProviderType;
 import com.bytechef.platform.sso.service.SsoProviderService;
 import com.bytechef.platform.user.domain.Authority;
 import com.bytechef.platform.user.domain.User;
+import com.bytechef.platform.user.service.AuthenticationPolicyService;
 import com.bytechef.platform.user.service.AuthorityService;
 import com.bytechef.platform.user.service.UserService;
 import java.util.List;
@@ -39,6 +40,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 
 class SsoPasswordLoginEnforcementFilterTest {
 
+    private AuthenticationPolicyService authenticationPolicyService;
     private SsoPasswordLoginEnforcementFilter ssoPasswordLoginEnforcementFilter;
     private SsoProviderService ssoProviderService;
     private UserService userService;
@@ -47,9 +49,12 @@ class SsoPasswordLoginEnforcementFilterTest {
     void beforeEach() {
         AuthorityService authorityService = mock(AuthorityService.class);
 
+        authenticationPolicyService = mock(AuthenticationPolicyService.class);
         ssoProviderService = mock(SsoProviderService.class);
         userService = mock(UserService.class);
 
+        when(authenticationPolicyService.isPasswordLoginBreakGlass()).thenReturn(false);
+        when(authenticationPolicyService.isSsoOnlyEnabled()).thenReturn(false);
         when(authorityService.fetchAuthority(1L)).thenReturn(
             Optional.of(new Authority().id(1L)
                 .name(AuthorityConstants.ADMIN)));
@@ -61,7 +66,7 @@ class SsoPasswordLoginEnforcementFilterTest {
         when(userService.fetchUserByLogin(anyString())).thenReturn(Optional.empty());
 
         ssoPasswordLoginEnforcementFilter = new SsoPasswordLoginEnforcementFilter(
-            authorityService, ssoProviderService, userService);
+            authenticationPolicyService, authorityService, ssoProviderService, userService);
     }
 
     @Test
@@ -146,6 +151,53 @@ class SsoPasswordLoginEnforcementFilterTest {
             loginRequest("jane@acme.com"), new MockHttpServletResponse(), filterChain);
 
         assertThat(filterChain.getRequest()).isNotNull();
+    }
+
+    @Test
+    void testSsoOnlyRefusesPasswordLogin() throws Exception {
+        when(authenticationPolicyService.isSsoOnlyEnabled()).thenReturn(true);
+
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        ssoPasswordLoginEnforcementFilter.doFilter(
+            loginRequest("admin@acme.com"), response, new MockFilterChain());
+
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(response.getContentAsString()).contains("\"error\":\"sso_only\"");
+    }
+
+    @Test
+    void testSsoOnlyAllowsAnActivatedAdminWhenBreakGlassIsOn() throws Exception {
+        User administrator = user("SSO-0011223344556677", 1L);
+
+        when(authenticationPolicyService.isPasswordLoginBreakGlass()).thenReturn(true);
+        when(authenticationPolicyService.isSsoOnlyEnabled()).thenReturn(true);
+        when(authenticationPolicyService.isActivatedAdmin(administrator)).thenReturn(true);
+        when(userService.fetchUserByEmail("admin@acme.com")).thenReturn(Optional.of(administrator));
+
+        MockFilterChain filterChain = new MockFilterChain();
+
+        ssoPasswordLoginEnforcementFilter.doFilter(
+            loginRequest("admin@acme.com"), new MockHttpServletResponse(), filterChain);
+
+        assertThat(filterChain.getRequest()).isNotNull();
+    }
+
+    @Test
+    void testSsoOnlyRefusesANonAdminWhenBreakGlassIsOn() throws Exception {
+        User user = user("LOCAL", 2L);
+
+        when(authenticationPolicyService.isPasswordLoginBreakGlass()).thenReturn(true);
+        when(authenticationPolicyService.isSsoOnlyEnabled()).thenReturn(true);
+        when(authenticationPolicyService.isActivatedAdmin(user)).thenReturn(false);
+        when(userService.fetchUserByEmail("admin@acme.com")).thenReturn(Optional.of(user));
+
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        ssoPasswordLoginEnforcementFilter.doFilter(loginRequest("admin@acme.com"), response, new MockFilterChain());
+
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(response.getContentAsString()).contains("\"error\":\"sso_only\"");
     }
 
     @Test

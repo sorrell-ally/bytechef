@@ -1,9 +1,9 @@
 import {useInviteUserDialogStore} from '@/pages/settings/platform/users/stores/useInviteUserDialogStore';
 import {AUTHORITIES} from '@/shared/constants';
 import useCeEdition from '@/shared/edition/useCeEdition';
-import {useAuthoritiesQuery, useInviteUserMutation} from '@/shared/middleware/graphql';
+import {useAuthoritiesQuery, useCreateUserInvitationMutation} from '@/shared/middleware/graphql';
 import {useQueryClient} from '@tanstack/react-query';
-import {useEffect, useMemo} from 'react';
+import {useEffect, useMemo, useState} from 'react';
 
 interface UseInviteUserDialogI {
     authorities: string[];
@@ -13,6 +13,11 @@ interface UseInviteUserDialogI {
     handleOpen: () => void;
     handleOpenChange: (open: boolean) => void;
     handleRoleChange: (role: string) => void;
+    invitationResult: {
+        acceptUrl?: string | null;
+        deliveryError?: string | null;
+        mailed: boolean;
+    } | null;
     inviteDisabled: boolean;
     inviteEmail: string;
     invitePending: boolean;
@@ -28,12 +33,20 @@ export default function useInviteUserDialog(): UseInviteUserDialogI {
 
     const {data: authoritiesData} = useAuthoritiesQuery({}, {enabled: !ceEdition});
 
+    const [invitationResult, setInvitationResult] = useState<{
+        acceptUrl?: string | null;
+        deliveryError?: string | null;
+        mailed: boolean;
+    } | null>(null);
+
     const queryClient = useQueryClient();
 
-    const inviteUserMutation = useInviteUserMutation({
-        onSuccess: () => {
+    const inviteUserMutation = useCreateUserInvitationMutation({
+        onSuccess: (result) => {
+            setInvitationResult(result.createUserInvitation);
+
+            void queryClient.invalidateQueries({queryKey: ['pendingUserInvitations']});
             void queryClient.invalidateQueries({queryKey: ['users']});
-            reset();
         },
     });
 
@@ -49,6 +62,7 @@ export default function useInviteUserDialog(): UseInviteUserDialogI {
     }, [roleSelectVisible, open, inviteRole, authorities, setInviteRole]);
 
     const handleClose = () => {
+        setInvitationResult(null);
         reset();
     };
 
@@ -93,6 +107,7 @@ export default function useInviteUserDialog(): UseInviteUserDialogI {
         handleOpen,
         handleOpenChange,
         handleRoleChange,
+        invitationResult,
         inviteDisabled,
         inviteEmail,
         invitePending,

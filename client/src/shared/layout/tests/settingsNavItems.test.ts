@@ -64,6 +64,7 @@ describe('getSettingsNavItems', () => {
             );
 
             expect(organizationHrefs).toContain('/settings/users');
+            expect(organizationHrefs).toContain('/settings/authentication');
             expect(organizationHrefs).toContain('/settings/single-sign-on');
             expect(organizationHrefs.every((href) => href.startsWith('/settings/'))).toBe(true);
         }

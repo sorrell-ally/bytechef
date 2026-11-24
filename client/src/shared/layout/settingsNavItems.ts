@@ -64,6 +64,10 @@ const organizationNavItems: SettingsNavItemI[] = [
         title: 'Users',
     },
     {
+        href: `${ORGANIZATION_SETTINGS_PATH}/authentication`,
+        title: 'Authentication',
+    },
+    {
         href: BILLING_SETTINGS_PATH,
         title: 'Billing',
     },

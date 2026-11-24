@@ -86,6 +86,7 @@ const Chats = lazy(() => import('@/pages/automation/chats/Chats'));
 const WorkflowTemplate = lazy(() => import('@/pages/automation/template/workflow-template/WorkflowTemplate'));
 const WorkflowTemplates = lazy(() => import('@/pages/automation/templates/workflow-templates/WorkflowTemplates'));
 
+const AuthenticationSettings = lazy(() => import('@/pages/settings/platform/authentication/AuthenticationSettings'));
 const SingleSignOn = lazy(() => import('@/pages/settings/platform/sso/SingleSignOn'));
 const AiProviders = lazy(() => import('@/pages/settings/platform/ai-providers/AiProviders'));
 const ApiClients = lazy(() => import('@/ee/pages/automation/api-platform/api-clients/ApiClients'));
@@ -253,6 +254,16 @@ const platformSettingsRoutes = {
                 </PrivateRoute>
             ),
             path: 'users',
+        },
+        {
+            element: (
+                <PrivateRoute hasAnyAuthorities={[AUTHORITIES.ADMIN]}>
+                    <LazyLoadWrapper>
+                        <AuthenticationSettings />
+                    </LazyLoadWrapper>
+                </PrivateRoute>
+            ),
+            path: 'authentication',
         },
         {
             element: (

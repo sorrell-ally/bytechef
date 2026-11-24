@@ -52,13 +52,20 @@ vi.mock('@/shared/middleware/graphql', () => ({
     useAuthoritiesQuery: vi.fn(() => ({
         data: {authorities: ['ROLE_ADMIN', 'ROLE_USER']},
     })),
-    useInviteUserMutation: vi.fn((options: {onSuccess: () => void}) => ({
-        isPending: hoisted.inviteUserPending,
-        mutate: (vars: unknown) => {
-            hoisted.inviteUserMutate(vars);
-            options.onSuccess();
-        },
-    })),
+    useCreateUserInvitationMutation: vi.fn(
+        (options: {onSuccess: (result: {createUserInvitation: {acceptUrl: string; mailed: boolean}}) => void}) => ({
+            isPending: hoisted.inviteUserPending,
+            mutate: (vars: unknown) => {
+                hoisted.inviteUserMutate(vars);
+                options.onSuccess({
+                    createUserInvitation: {
+                        acceptUrl: 'https://example.test/accept-invitation?token=abc',
+                        mailed: false,
+                    },
+                });
+            },
+        })
+    ),
 }));
 
 vi.mock('@/shared/stores/useApplicationInfoStore', () => ({
@@ -209,7 +216,7 @@ describe('useInviteUserDialog', () => {
             expect(result.current.inviteDisabled).toBe(true);
         });
 
-        it('closes dialog after successful invite', () => {
+        it('keeps the dialog open after a successful invite so the link can be copied', () => {
             hoisted.storeState.open = true;
             hoisted.storeState.inviteEmail = 'newuser@test.com';
             hoisted.storeState.inviteRole = 'ROLE_ADMIN';
@@ -221,7 +228,9 @@ describe('useInviteUserDialog', () => {
 
             rerender();
 
-            expect(result.current.open).toBe(false);
+            expect(result.current.open).toBe(true);
+            expect(result.current.invitationResult?.acceptUrl).toContain('accept-invitation?token=');
+            expect(result.current.invitationResult?.mailed).toBe(false);
         });
     });
 

@@ -7,6 +7,7 @@ export const createMockApplicationInfoStore = (overrides = {}) => {
         signUp: {
             activationRequired: false,
             enabled: true,
+            ssoOnly: false,
         },
     };
 
@@ -19,7 +20,13 @@ export const createMockApplicationInfoStore = (overrides = {}) => {
 export const mockApplicationInfoStore = (overrides = {}) => {
     const mockStore = createMockApplicationInfoStore(overrides);
 
-    (useApplicationInfoStore as unknown as Mock).mockReturnValue(mockStore);
+    (useApplicationInfoStore as unknown as Mock).mockImplementation((selector) => {
+        if (typeof selector === 'function') {
+            return selector(mockStore);
+        }
+
+        return mockStore;
+    });
 
     return mockStore;
 };

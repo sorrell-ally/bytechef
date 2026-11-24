@@ -24,9 +24,13 @@ import com.bytechef.platform.user.constant.UserConstants;
 import com.bytechef.platform.user.domain.Authority;
 import com.bytechef.platform.user.domain.User;
 import com.bytechef.platform.user.service.AuthorityService;
+import com.bytechef.platform.user.service.PendingUserInvitation;
+import com.bytechef.platform.user.service.PendingUserInvitation.InvitationRole;
 import com.bytechef.platform.user.service.UserService;
 import com.bytechef.tenant.annotation.ConditionalOnSingleTenant;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -37,11 +41,15 @@ import java.util.Optional;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 /**
  * Maps an identity asserted by an SSO provider onto a ByteChef user. The rules, in order:
@@ -70,20 +78,25 @@ public class SsoUserResolver {
 
     private static final Logger log = LoggerFactory.getLogger(SsoUserResolver.class);
 
+    public static final String INVITATION_COOKIE = "BYTECHEF_INVITATION";
+
     private static final int GENERATED_PASSWORD_BYTES = 32;
     private static final int PROVIDER_ID_MAX_LENGTH = 255;
 
     private final AuthorityService authorityService;
     private final PasswordEncoder passwordEncoder;
+    private final ObjectProvider<PendingUserInvitation> pendingUserInvitations;
     private final SecureRandom secureRandom = new SecureRandom();
     private final UserService userService;
 
     @SuppressFBWarnings("EI")
     public SsoUserResolver(
-        AuthorityService authorityService, PasswordEncoder passwordEncoder, UserService userService) {
+        AuthorityService authorityService, PasswordEncoder passwordEncoder,
+        ObjectProvider<PendingUserInvitation> pendingUserInvitations, UserService userService) {
 
         this.authorityService = authorityService;
         this.passwordEncoder = passwordEncoder;
+        this.pendingUserInvitations = pendingUserInvitations;
         this.userService = userService;
     }
 
@@ -164,11 +177,20 @@ public class SsoUserResolver {
             return linkUser(emailUser.get(), authProvider, ssoIdentity);
         }
 
-        if (!ssoProvider.isAutoProvision()) {
+        Optional<InvitationRole> invitationRole = findInvitationRole(normalizedEmail);
+
+        if (invitationRole.isEmpty() && !ssoProvider.isAutoProvision()) {
             throw new SsoLoginException(SsoLoginError.ACCOUNT_NOT_PROVISIONED);
         }
 
-        return provisionUser(ssoProvider, ssoIdentity, normalizedEmail);
+        String authorityName = invitationRole.map(InvitationRole::roleName)
+            .orElse(null);
+        User user = provisionUser(ssoProvider, ssoIdentity, normalizedEmail, authorityName);
+
+        invitationRole.ifPresent(role -> pendingUserInvitations.getObject()
+            .markAccepted(role.id()));
+
+        return user;
     }
 
     private User linkUser(User user, String authProvider, SsoIdentity ssoIdentity) {
@@ -201,14 +223,55 @@ public class SsoUserResolver {
         return user;
     }
 
+    private Optional<InvitationRole> findInvitationRole(String email) {
+        PendingUserInvitation pendingUserInvitation = pendingUserInvitations.getIfAvailable();
+
+        if (pendingUserInvitation == null) {
+            return Optional.empty();
+        }
+
+        RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();
+
+        if (!(requestAttributes instanceof ServletRequestAttributes servletRequestAttributes)) {
+            return Optional.empty();
+        }
+
+        HttpServletRequest httpServletRequest = servletRequestAttributes.getRequest();
+        Cookie[] cookies = httpServletRequest.getCookies();
+
+        if (cookies == null) {
+            return Optional.empty();
+        }
+
+        for (Cookie cookie : cookies) {
+            if (!INVITATION_COOKIE.equals(cookie.getName())) {
+                continue;
+            }
+
+            try {
+                long invitationId = Long.parseLong(cookie.getValue());
+
+                return pendingUserInvitation.findOpenInvitation(invitationId, email);
+            } catch (NumberFormatException numberFormatException) {
+                return Optional.empty();
+            }
+        }
+
+        return Optional.empty();
+    }
+
     private User provisionUser(SsoProvider ssoProvider, SsoIdentity ssoIdentity, String email) {
+        return provisionUser(ssoProvider, ssoIdentity, email, null);
+    }
+
+    private User provisionUser(SsoProvider ssoProvider, SsoIdentity ssoIdentity, String email, String authorityName) {
         // LOGIN_MAX_LENGTH is the tighter of the login and email column limits; the email doubles as the login
         if (email.length() > UserConstants.LOGIN_MAX_LENGTH) {
             throw new SsoLoginException(SsoLoginError.PROVISIONING_FAILED);
         }
 
         String defaultAuthority = Objects.requireNonNullElse(
-            ssoProvider.getDefaultAuthority(), AuthorityConstants.USER);
+            authorityName, Objects.requireNonNullElse(ssoProvider.getDefaultAuthority(), AuthorityConstants.USER));
 
         Authority authority = authorityService.getAuthorities()
             .stream()

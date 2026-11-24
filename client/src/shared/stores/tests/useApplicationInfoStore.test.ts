@@ -86,6 +86,52 @@ describe('applicationInfoStore', () => {
             expect(fetchSpy).toHaveBeenCalledTimes(2);
         });
 
+        it('uses the authentication policy from actuator info when it is present', async () => {
+            mockActuatorInfo({
+                ...ACTUATOR_INFO,
+                authenticationPolicy: {signUpEnabled: 'false', ssoOnly: 'true'},
+                signUp: {enabled: 'true'},
+            });
+
+            await applicationInfoStore.getState().getApplicationInfo();
+
+            expect(applicationInfoStore.getState().signUp).toEqual({
+                activationRequired: false,
+                enabled: false,
+                ssoOnly: true,
+            });
+        });
+
+        it('treats a false environment sign-up flag as disabled when no policy is published', async () => {
+            mockActuatorInfo({...ACTUATOR_INFO, signUp: {enabled: 'false'}});
+
+            await applicationInfoStore.getState().getApplicationInfo();
+
+            expect(applicationInfoStore.getState().signUp.enabled).toBe(false);
+            expect(applicationInfoStore.getState().signUp.ssoOnly).toBe(false);
+        });
+
+        it('treats boolean false from actuator info as disabled', async () => {
+            mockActuatorInfo({
+                ...ACTUATOR_INFO,
+                authenticationPolicy: {signUpEnabled: false, ssoOnly: false},
+                signUp: {enabled: true},
+            });
+
+            await applicationInfoStore.getState().getApplicationInfo();
+
+            expect(applicationInfoStore.getState().signUp.enabled).toBe(false);
+        });
+
+        it('falls back to the sign-up property when the authentication policy is absent', async () => {
+            mockActuatorInfo({...ACTUATOR_INFO, signUp: {activationRequired: 'true', enabled: 'true'}});
+
+            await applicationInfoStore.getState().getApplicationInfo();
+
+            expect(applicationInfoStore.getState().signUp.enabled).toBe(true);
+            expect(applicationInfoStore.getState().signUp.ssoOnly).toBe(false);
+        });
+
         it('parses authorizationServer enabled from actuator info', async () => {
             mockActuatorInfo({...ACTUATOR_INFO, oauth2: {authorizationServer: {enabled: 'true'}}});
 

@@ -1,0 +1,9 @@
+query authenticationPolicy {
+    authenticationPolicy {
+        passwordLoginBreakGlass
+        signUpEnabled
+        signUpEnvironmentDefault
+        signUpOverridden
+        ssoOnlyEnabled
+    }
+}

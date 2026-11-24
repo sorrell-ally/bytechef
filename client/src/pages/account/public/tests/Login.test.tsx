@@ -476,4 +476,28 @@ describe('SSO sign-in errors', () => {
         expect(screen.getByText(/requires single sign-on/)).toBeInTheDocument();
         expect(screen.getByRole('button', {name: 'Continue with Acme'})).toBeInTheDocument();
     });
+
+    it('hides password sign-in and self sign-up when SSO-only mode is on', () => {
+        mockApplicationInfoStore({
+            signUp: {activationRequired: false, enabled: true, ssoOnly: true},
+        });
+
+        renderLoginPage();
+
+        expect(screen.getByText(/Password sign-in is turned off/)).toBeInTheDocument();
+        expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', {name: 'log in button'})).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', {name: 'Create account'})).not.toBeInTheDocument();
+    });
+
+    it('hides the create account link when self sign-up is off', () => {
+        mockApplicationInfoStore({
+            signUp: {activationRequired: false, enabled: false, ssoOnly: false},
+        });
+
+        renderLoginPage();
+
+        expect(screen.getByLabelText('Password')).toBeInTheDocument();
+        expect(screen.queryByRole('button', {name: 'Create account'})).not.toBeInTheDocument();
+    });
 });

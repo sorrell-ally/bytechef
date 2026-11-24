@@ -3,6 +3,7 @@ import TablePagination from '@/components/TablePagination';
 import DeleteUserAlertDialog from '@/pages/settings/platform/users/components/DeleteUserAlertDialog';
 import EditUserDialog from '@/pages/settings/platform/users/components/EditUserDialog';
 import InviteUserDialog from '@/pages/settings/platform/users/components/InviteUserDialog';
+import PendingInvitations from '@/pages/settings/platform/users/components/PendingInvitations';
 import UsersTable from '@/pages/settings/platform/users/components/UsersTable';
 import useInviteUserDialog from '@/pages/settings/platform/users/components/hooks/useInviteUserDialog';
 import useUsersTable from '@/pages/settings/platform/users/components/hooks/useUsersTable';
@@ -52,6 +53,8 @@ export default function UsersPage() {
             leftSidebarOpen={false}
         >
             <div className="w-full space-y-4 self-start p-4 pt-0 text-sm 3xl:mx-auto 3xl:w-4/5">
+                <PendingInvitations />
+
                 <UsersTable pageNumber={pageNumber} />
             </div>
 

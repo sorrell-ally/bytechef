@@ -30,6 +30,7 @@ import com.bytechef.platform.user.exception.EmailAlreadyUsedException;
 import com.bytechef.platform.user.exception.InvalidEmailException;
 import com.bytechef.platform.user.exception.LoginAlreadyUsedException;
 import com.bytechef.platform.user.exception.UserNotFoundException;
+import com.bytechef.platform.user.service.AuthenticationPolicyService;
 import com.bytechef.platform.user.service.AuthorityService;
 import com.bytechef.platform.user.service.PersistentTokenService;
 import com.bytechef.platform.user.service.UserService;
@@ -79,6 +80,7 @@ public class AccountController {
     private static final Logger log = LoggerFactory.getLogger(AccountController.class);
 
     private final ApplicationProperties applicationProperties;
+    private final AuthenticationPolicyService authenticationPolicyService;
     private final AuthorityService authorityService;
     private final MailService mailService;
     private final PasswordEncoder passwordEncoder;
@@ -89,11 +91,13 @@ public class AccountController {
 
     @SuppressFBWarnings("EI")
     public AccountController(
-        ApplicationProperties applicationProperties, AuthorityService authorityService, MailService mailService,
-        PasswordEncoder passwordEncoder, PersistentTokenService persistentTokenService, SignUpWebhook signUpWebhook,
-        TenantService tenantService, UserService userService) {
+        ApplicationProperties applicationProperties, AuthenticationPolicyService authenticationPolicyService,
+        AuthorityService authorityService, MailService mailService, PasswordEncoder passwordEncoder,
+        PersistentTokenService persistentTokenService, SignUpWebhook signUpWebhook, TenantService tenantService,
+        UserService userService) {
 
         this.applicationProperties = applicationProperties;
+        this.authenticationPolicyService = authenticationPolicyService;
         this.authorityService = authorityService;
         this.mailService = mailService;
         this.passwordEncoder = passwordEncoder;
@@ -120,9 +124,17 @@ public class AccountController {
             throw new InvalidEmailException(managedUserVM.getEmail());
         }
 
+        if (authenticationPolicyService.isSsoOnlyEnabled()) {
+            throw new AccountResourceException(
+                "Password registration is turned off. Sign in with your organization's single sign-on provider.",
+                AccountErrorType.SSO_ONLY);
+        }
+
         ApplicationProperties.SignUp signUp = applicationProperties.getSignUp();
 
-        if (!signUp.isEnabled() && (tenantService.isMultiTenantEnabled() || userService.countActiveUsers() > 0)) {
+        if (!authenticationPolicyService.isSelfSignUpEnabled() &&
+            (tenantService.isMultiTenantEnabled() || userService.countActiveUsers() > 0)) {
+
             throw new AccountResourceException("Sign-up is disabled", AccountErrorType.SIGN_UP_DISABLED);
         }
 
@@ -170,6 +182,8 @@ public class AccountController {
      */
     @PostMapping("/account/accept-invitation")
     public void acceptInvitation(@RequestBody KeyAndPasswordVM keyAndPassword) {
+        rejectPasswordChangeWhenSsoOnly();
+
         String key = keyAndPassword.getKey();
         String newPassword = keyAndPassword.getNewPassword();
 
@@ -430,6 +444,8 @@ public class AccountController {
      */
     @PostMapping(path = "/account/change-password")
     public void changePassword(@RequestBody PasswordChangeDTO passwordChangeDto) {
+        rejectPasswordChangeWhenSsoOnly();
+
         PasswordValidator.validate(passwordChangeDto.getNewPassword());
 
         userService.changePassword(passwordChangeDto.getCurrentPassword(), passwordChangeDto.getNewPassword());
@@ -490,6 +506,8 @@ public class AccountController {
      */
     @PostMapping(path = "/account/reset-password/init")
     public void requestPasswordReset(@RequestBody String email) {
+        rejectPasswordChangeWhenSsoOnly();
+
         Optional<User> user;
 
         if (tenantService.isMultiTenantEnabled()) {
@@ -520,6 +538,8 @@ public class AccountController {
      */
     @PostMapping(path = "/account/reset-password/finish")
     public void finishPasswordReset(@RequestBody KeyAndPasswordVM keyAndPassword) {
+        rejectPasswordChangeWhenSsoOnly();
+
         PasswordValidator.validate(keyAndPassword.getNewPassword());
 
         Optional<User> user;
@@ -542,6 +562,20 @@ public class AccountController {
         if (user.isEmpty()) {
             throw new AccountResourceException("No user was found for this reset key", AccountErrorType.USER_NOT_FOUND);
         }
+    }
+
+    private void rejectPasswordChangeWhenSsoOnly() {
+        if (!authenticationPolicyService.isSsoOnlyEnabled()) {
+            return;
+        }
+
+        if (authenticationPolicyService.isPasswordLoginBreakGlass()) {
+            return;
+        }
+
+        throw new AccountResourceException(
+            "Password sign-in is turned off. Sign in with your organization's single sign-on provider.",
+            AccountErrorType.SSO_ONLY);
     }
 
     private static boolean isEqualsIgnoreCase(Optional<User> existingUser, String userLogin) {

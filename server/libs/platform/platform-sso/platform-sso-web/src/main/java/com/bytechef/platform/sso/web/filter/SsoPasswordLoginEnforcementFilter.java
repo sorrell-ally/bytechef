@@ -24,6 +24,7 @@ import com.bytechef.platform.sso.util.SsoProviderPathUtils;
 import com.bytechef.platform.user.constant.UserConstants;
 import com.bytechef.platform.user.domain.Authority;
 import com.bytechef.platform.user.domain.User;
+import com.bytechef.platform.user.service.AuthenticationPolicyService;
 import com.bytechef.platform.user.service.AuthorityService;
 import com.bytechef.platform.user.service.UserService;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -55,6 +56,15 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * {@code bytechef.security.sso.enabled=false} and restart, which removes this filter entirely.
  *
  * <p>
+ * <b>SSO-only mode</b> ({@code authentication_policy.sso_only_enabled}) refuses every password login, including the
+ * local-administrator exception above. Recovery without turning single sign-on off: set
+ * {@code bytechef.security.password-login-break-glass=true} (environment variable
+ * {@code BYTECHEF_SECURITY_PASSWORD_LOGIN_BREAK_GLASS}) and restart. Password login then works for activated
+ * administrators only, including accounts already linked to an SSO provider, and this filter does not apply the
+ * per-domain rule to them. Turn the property off again after SSO-only mode is disabled. If the administrator password
+ * is unknown, set {@code sso_only_enabled} to false in {@code authentication_policy} and restart.
+ *
+ * <p>
  * The refusal is {@code 403} with a JSON body the login page can show and act on:
  * {@code {"error":"sso_required","message":"...","providerName":"...","redirectUrl":"/oauth2/authorization/sso-..."}}.
  * It does not depend on whether the account exists, so it reveals nothing beyond what {@code /api/sso/discover} already
@@ -64,19 +74,23 @@ public class SsoPasswordLoginEnforcementFilter extends OncePerRequestFilter {
 
     public static final String ERROR_CODE = "sso_required";
     public static final String LOGIN_PROCESSING_PATH = "/api/authentication";
+    public static final String SSO_ONLY_ERROR_CODE = "sso_only";
 
     private static final Logger log = LoggerFactory.getLogger(SsoPasswordLoginEnforcementFilter.class);
 
     private static final String USERNAME_PARAMETER = "username";
 
+    private final AuthenticationPolicyService authenticationPolicyService;
     private final AuthorityService authorityService;
     private final SsoProviderService ssoProviderService;
     private final UserService userService;
 
     @SuppressFBWarnings("EI2")
     public SsoPasswordLoginEnforcementFilter(
-        AuthorityService authorityService, SsoProviderService ssoProviderService, UserService userService) {
+        AuthenticationPolicyService authenticationPolicyService, AuthorityService authorityService,
+        SsoProviderService ssoProviderService, UserService userService) {
 
+        this.authenticationPolicyService = authenticationPolicyService;
         this.authorityService = authorityService;
         this.ssoProviderService = ssoProviderService;
         this.userService = userService;
@@ -88,6 +102,20 @@ public class SsoPasswordLoginEnforcementFilter extends OncePerRequestFilter {
         throws ServletException, IOException {
 
         String username = request.getParameter(USERNAME_PARAMETER);
+
+        if (authenticationPolicyService.isSsoOnlyEnabled()) {
+            if (allowsPasswordLoginBreakGlass(username)) {
+                log.info("Allowing password login for an administrator because password-login break-glass is on");
+
+                filterChain.doFilter(request, response);
+
+                return;
+            }
+
+            writeSsoOnlyResponse(response);
+
+            return;
+        }
 
         Optional<SsoProvider> enforcingSsoProvider = findEnforcingSsoProvider(username);
 
@@ -143,6 +171,20 @@ public class SsoPasswordLoginEnforcementFilter extends OncePerRequestFilter {
             .filter(SsoProvider::isEnforceSso);
     }
 
+    private boolean allowsPasswordLoginBreakGlass(String username) {
+        if (!authenticationPolicyService.isPasswordLoginBreakGlass() || username == null || username.isBlank()) {
+            return false;
+        }
+
+        Optional<User> user = findUser(username);
+
+        if (user.isEmpty()) {
+            return false;
+        }
+
+        return authenticationPolicyService.isActivatedAdmin(user.get());
+    }
+
     boolean isBreakGlassUser(User user) {
         String authProvider = user.getAuthProvider();
 
@@ -184,6 +226,25 @@ public class SsoPasswordLoginEnforcementFilter extends OncePerRequestFilter {
         body.put("message", "Your organization requires signing in with " + ssoProvider.getName() + ".");
         body.put("providerName", ssoProvider.getName());
         body.put("redirectUrl", SsoProviderPathUtils.getLoginPath(ssoProvider));
+
+        JsonWriter<Object> jsonWriter = JsonWriter.standard();
+
+        response.setStatus(HttpStatus.FORBIDDEN.value());
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+
+        response.getWriter()
+            .write(jsonWriter.writeToString(body));
+    }
+
+    @SuppressFBWarnings(value = "XSS_SERVLET", justification = "application/json body serialized by JsonWriter")
+    private static void writeSsoOnlyResponse(HttpServletResponse response) throws IOException {
+        Map<String, Object> body = new LinkedHashMap<>();
+
+        body.put("error", SSO_ONLY_ERROR_CODE);
+        body.put(
+            "message",
+            "Password sign-in is turned off. Use your organization's single sign-on provider.");
 
         JsonWriter<Object> jsonWriter = JsonWriter.standard();
 

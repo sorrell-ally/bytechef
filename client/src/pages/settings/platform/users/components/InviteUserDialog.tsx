@@ -22,6 +22,7 @@ const InviteUserDialog = () => {
         handleInvite,
         handleOpenChange,
         handleRoleChange,
+        invitationResult,
         inviteDisabled,
         inviteEmail,
         invitePending,
@@ -35,7 +36,7 @@ const InviteUserDialog = () => {
             <DialogContent>
                 <DialogMain>
                     <DialogHeader
-                        description="The invitee receives an email with a link on which they set their own password. The link expires after 3 days."
+                        description="The invitee gets a single-use link that expires. If mail is not configured, or the email cannot be sent, the link is shown here so you can copy it."
                         title="Invite User"
                     />
 
@@ -72,6 +73,25 @@ const InviteUserDialog = () => {
                                             ))}
                                         </SelectContent>
                                     </Select>
+                                </div>
+                            )}
+
+                            {invitationResult && (
+                                <div className="flex flex-col gap-2">
+                                    <p className="text-sm text-content-neutral-secondary" role="status">
+                                        {invitationResult.mailed
+                                            ? 'The invitation email was sent. The link is also here if you need to share it.'
+                                            : invitationResult.deliveryError}
+                                    </p>
+
+                                    {invitationResult.acceptUrl && (
+                                        <input
+                                            aria-label="Invitation link"
+                                            className="w-full rounded-md border border-stroke-neutral-secondary px-2 py-1 text-sm"
+                                            readOnly
+                                            value={invitationResult.acceptUrl}
+                                        />
+                                    )}
                                 </div>
                             )}
                         </div>

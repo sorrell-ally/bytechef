@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                   http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+    <changeSet id="20261124120000" author="ByteChef">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="authentication_policy"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="authentication_policy">
+            <column name="id" type="BIGINT">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="sign_up_enabled" type="BOOLEAN"/>
+            <column name="sso_only_enabled" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="version" type="INT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_date" type="TIMESTAMP"/>
+            <column name="created_by" type="VARCHAR(50)"/>
+            <column name="last_modified_date" type="TIMESTAMP"/>
+            <column name="last_modified_by" type="VARCHAR(50)"/>
+        </createTable>
+
+        <insert tableName="authentication_policy">
+            <column name="id" valueNumeric="1"/>
+            <column name="sso_only_enabled" valueBoolean="false"/>
+            <column name="version" valueNumeric="0"/>
+            <column name="created_by" value="system"/>
+            <column name="created_date" valueDate="2026-11-24T00:00:00"/>
+            <column name="last_modified_by" value="system"/>
+            <column name="last_modified_date" valueDate="2026-11-24T00:00:00"/>
+        </insert>
+    </changeSet>
+</databaseChangeLog>

@@ -132,7 +132,8 @@ A few instance-wide switches shape the whole deployment:
 | `BYTECHEF_EDITION` | Selects Community (`CE`) or Enterprise (`EE`) behavior. EE-only features (SSO, connection visibility scopes, S3 file storage) require `EE`. | `EE` |
 | `BYTECHEF_TENANT_MODE` | `SINGLE` for one tenant per instance, `MULTI` for multi-tenant. | `SINGLE` |
 | `BYTECHEF_ENVIRONMENT` | Optionally pin the instance to a single environment (`DEVELOPMENT`, `STAGING`, `PRODUCTION`). | - |
-| `BYTECHEF_SIGN_UP_ENABLED` | Whether visitors can self-register from the login screen. | `true` |
+| `BYTECHEF_SIGN_UP_ENABLED` | Default for self sign-up until an administrator saves a choice in Settings → Authentication. The saved choice then wins. | `true` |
+| `BYTECHEF_SECURITY_PASSWORD_LOGIN_BREAK_GLASS` | Lets activated administrators sign in with a password while SSO-only mode is on. See [Authentication](/platform/settings/authentication). | `false` |
 | `BYTECHEF_SIGN_UP_ACTIVATION_REQUIRED` | Whether new accounts must confirm via email before logging in (requires mail to be configured). | `false` |
 
 ## Verifying the resolved configuration

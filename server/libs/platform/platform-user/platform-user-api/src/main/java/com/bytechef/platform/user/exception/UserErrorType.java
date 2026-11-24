@@ -33,6 +33,8 @@ public class UserErrorType extends AbstractErrorType {
     public static final UserErrorType INVALID_EMAIL = new UserErrorType(106);
     public static final UserErrorType INVALID_ROLE = new UserErrorType(107);
     public static final UserErrorType INVITATION_MAIL_NOT_SENT = new UserErrorType(108);
+    public static final UserErrorType SSO_ONLY_NOT_ALLOWED = new UserErrorType(109);
+    public static final UserErrorType INVITATION_ALREADY_PENDING = new UserErrorType(110);
 
     private UserErrorType(int errorKey) {
         super(User.class, errorKey);

@@ -1,0 +1,8 @@
+query pendingUserInvitations {
+    pendingUserInvitations {
+        id
+        email
+        role
+        expiresAt
+    }
+}
