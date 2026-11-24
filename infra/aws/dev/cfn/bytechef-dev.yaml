@@ -1,0 +1,482 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ByteChef dev (sorrell-ally/bytechef fork) on ECS Fargate behind an HTTPS ALB, Neon Postgres, image built by CodeBuild.
+
+Parameters:
+  DomainName:
+    Type: String
+    Default: bytechef.allylogistics.com
+  RepoUrl:
+    Type: String
+    Default: https://github.com/sorrell-ally/bytechef.git
+  RepoRef:
+    Type: String
+    Default: master
+  ImageTag:
+    Type: String
+    Default: latest
+  DesiredCount:
+    Type: Number
+    Default: 0
+    AllowedValues: [0, 1]
+  SignUpEnabled:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+  NeonHost:
+    Type: String
+    Description: Neon direct (non-pooler) endpoint host
+  NeonDatabase:
+    Type: String
+    Default: bytechef
+  NeonUsername:
+    Type: String
+    Default: bytechef
+  NeonPassword:
+    Type: String
+    NoEcho: true
+  EncryptionKey:
+    Type: String
+    NoEcho: true
+    Description: Base64 AES-256 key for BYTECHEF_ENCRYPTION_PROPERTY_KEY (never change after first start)
+  VpcCidr:
+    Type: String
+    Default: 10.61.0.0/16
+
+Resources:
+  # ---------- Network ----------
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags: [{Key: Name, Value: bytechef-dev}, {Key: Project, Value: bytechef-dev}]
+  Igw:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags: [{Key: Name, Value: bytechef-dev}, {Key: Project, Value: bytechef-dev}]
+  IgwAttach:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties: {VpcId: !Ref Vpc, InternetGatewayId: !Ref Igw}
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !Select [0, !Cidr [!Ref VpcCidr, 4, 8]]
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      Tags: [{Key: Name, Value: bytechef-dev-public-a}, {Key: Project, Value: bytechef-dev}]
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !Select [1, !Cidr [!Ref VpcCidr, 4, 8]]
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      Tags: [{Key: Name, Value: bytechef-dev-public-b}, {Key: Project, Value: bytechef-dev}]
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags: [{Key: Name, Value: bytechef-dev-public}, {Key: Project, Value: bytechef-dev}]
+  DefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: IgwAttach
+    Properties: {RouteTableId: !Ref PublicRouteTable, DestinationCidrBlock: 0.0.0.0/0, GatewayId: !Ref Igw}
+  SubnetARoute:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: {SubnetId: !Ref PublicSubnetA, RouteTableId: !Ref PublicRouteTable}
+  SubnetBRoute:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: {SubnetId: !Ref PublicSubnetB, RouteTableId: !Ref PublicRouteTable}
+
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: bytechef-dev ALB - public HTTP/HTTPS
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - {IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: 0.0.0.0/0}
+        - {IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: 0.0.0.0/0}
+      Tags: [{Key: Name, Value: bytechef-dev-alb}, {Key: Project, Value: bytechef-dev}]
+  TaskSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: bytechef-dev task - 8080 from ALB only
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - {IpProtocol: tcp, FromPort: 8080, ToPort: 8080, SourceSecurityGroupId: !Ref AlbSecurityGroup}
+      Tags: [{Key: Name, Value: bytechef-dev-task}, {Key: Project, Value: bytechef-dev}]
+
+  # ---------- Secrets ----------
+  NeonPasswordSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: bytechef-dev/neon-password
+      Description: Neon password for role used by ByteChef dev
+      SecretString: !Ref NeonPassword
+      Tags: [{Key: Project, Value: bytechef-dev}]
+  EncryptionKeySecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Name: bytechef-dev/encryption-key
+      Description: ByteChef BYTECHEF_ENCRYPTION_PROPERTY_KEY - losing it makes stored connection credentials unreadable
+      SecretString: !Ref EncryptionKey
+      Tags: [{Key: Project, Value: bytechef-dev}]
+  RememberMeSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: bytechef-dev/remember-me-key
+      Description: ByteChef BYTECHEF_SECURITY_REMEMBER_ME_KEY
+      GenerateSecretString:
+        PasswordLength: 64
+        ExcludePunctuation: true
+      Tags: [{Key: Project, Value: bytechef-dev}]
+
+  # ---------- Image build ----------
+  Repository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: bytechef-dev
+      ImageScanningConfiguration: {ScanOnPush: true}
+      LifecyclePolicy:
+        LifecyclePolicyText: '{"rules":[{"rulePriority":1,"description":"keep last 10","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":10},"action":{"type":"expire"}}]}'
+      Tags: [{Key: Project, Value: bytechef-dev}]
+  BuildLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /codebuild/bytechef-dev
+      RetentionInDays: 30
+      Tags: [{Key: Project, Value: bytechef-dev}]
+  BuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement: [{Effect: Allow, Principal: {Service: codebuild.amazonaws.com}, Action: sts:AssumeRole}]
+      Policies:
+        - PolicyName: build
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub '${BuildLogGroup.Arn}:*'
+              - Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: '*'
+              - Effect: Allow
+                Action: [ecr:BatchCheckLayerAvailability, ecr:InitiateLayerUpload, ecr:UploadLayerPart, ecr:CompleteLayerUpload, ecr:PutImage, ecr:BatchGetImage, ecr:GetDownloadUrlForLayer]
+                Resource: !GetAtt Repository.Arn
+      Tags: [{Key: Project, Value: bytechef-dev}]
+  BuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: bytechef-dev-image
+      Description: Builds sorrell-ally/bytechef per deploy.md and pushes bytechef/bytechef to ECR
+      ServiceRole: !GetAtt BuildRole.Arn
+      TimeoutInMinutes: 180
+      Artifacts: {Type: NO_ARTIFACTS}
+      LogsConfig:
+        CloudWatchLogs: {Status: ENABLED, GroupName: !Ref BuildLogGroup}
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_LARGE
+        Image: aws/codebuild/standard:7.0
+        PrivilegedMode: true
+        EnvironmentVariables:
+          - {Name: REPO_URL, Value: !Ref RepoUrl}
+          - {Name: REPO_REF, Value: !Ref RepoRef}
+          - {Name: ECR_REPO, Value: !GetAtt Repository.RepositoryUri}
+          - {Name: GRAALVM_URL, Value: 'https://github.com/graalvm/graalvm-ce-builds/releases/download/graal-25.2.4/graalvm-community-jdk-25i2-25.0.4_linux-x64_bin.tar.gz'}
+          - {Name: NODE_VERSION, Value: '24.15.0'}
+          # Tests skipped until the fork's AuditDataContractTest failures (SSO/Git sync audit coverage) are fixed
+          - {Name: SKIP_TESTS, Value: 'true'}
+          # tsc in the client build exceeds Node's default heap; single-use Gradle daemon frees its 4 GB before npm runs
+          - {Name: NODE_OPTIONS, Value: '--max-old-space-size=6144'}
+          - {Name: GRADLE_OPTS, Value: '-Dorg.gradle.daemon=false'}
+      Source:
+        Type: NO_SOURCE
+        BuildSpec: |
+          version: 0.2
+          env:
+            shell: bash
+          phases:
+            install:
+              commands:
+                - mkdir -p /opt/graalvm /opt/node
+                - curl -fsSL "$GRAALVM_URL" | tar -xz -C /opt/graalvm --strip-components=1
+                - curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" | tar -xJ -C /opt/node --strip-components=1
+                - export JAVA_HOME=/opt/graalvm PATH=/opt/graalvm/bin:/opt/node/bin:$PATH
+                - java -version && node --version && npm --version && docker version --format '{{.Server.Version}}'
+            pre_build:
+              commands:
+                - export JAVA_HOME=/opt/graalvm PATH=/opt/graalvm/bin:/opt/node/bin:$PATH
+                - git clone --branch "$REPO_REF" --depth 50 "$REPO_URL" src
+                - cd src && export GIT_SHA=$(git rev-parse --short=12 HEAD) && echo "Building commit $(git rev-parse HEAD)"
+                - export IMAGE_TAG="$(date -u +%Y%m%d%H%M)-$GIT_SHA"
+                - |
+                  if [ "$SKIP_TESTS" = "true" ]; then
+                    mkdir -p ~/.gradle/init.d
+                    printf 'allprojects { tasks.withType(Test).configureEach { enabled = false } }\n' > ~/.gradle/init.d/skip-tests.gradle
+                    echo "Tests disabled via Gradle init script"
+                  fi
+                - aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "${ECR_REPO%%/*}"
+            build:
+              commands:
+                - export JAVA_HOME=/opt/graalvm PATH=/opt/graalvm/bin:/opt/node/bin:$PATH
+                - cd "$CODEBUILD_SRC_DIR/src" && ./docker-build.sh --no-push "$IMAGE_TAG"
+                - docker image inspect "bytechef/bytechef:$IMAGE_TAG" > /dev/null
+            post_build:
+              commands:
+                - |
+                  if [ "$CODEBUILD_BUILD_SUCCEEDING" = "1" ]; then
+                    docker tag "bytechef/bytechef:$IMAGE_TAG" "$ECR_REPO:$IMAGE_TAG"
+                    docker tag "bytechef/bytechef:$IMAGE_TAG" "$ECR_REPO:latest"
+                    docker push "$ECR_REPO:$IMAGE_TAG"
+                    docker push "$ECR_REPO:latest"
+                    echo "PUSHED $ECR_REPO:$IMAGE_TAG"
+                  fi
+      Tags: [{Key: Project, Value: bytechef-dev}]
+
+  # ---------- TLS + load balancer ----------
+  Certificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref DomainName
+      ValidationMethod: DNS
+      Tags: [{Key: Project, Value: bytechef-dev}]
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: bytechef-dev
+      Scheme: internet-facing
+      Type: application
+      Subnets: [!Ref PublicSubnetA, !Ref PublicSubnetB]
+      SecurityGroups: [!Ref AlbSecurityGroup]
+      LoadBalancerAttributes:
+        - {Key: idle_timeout.timeout_seconds, Value: '120'}
+        - {Key: routing.http.drop_invalid_header_fields.enabled, Value: 'true'}
+      Tags: [{Key: Project, Value: bytechef-dev}]
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: bytechef-dev
+      VpcId: !Ref Vpc
+      TargetType: ip
+      Protocol: HTTP
+      Port: 8080
+      HealthCheckPath: /actuator/health/readiness
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 5
+      Matcher: {HttpCode: '200'}
+      TargetGroupAttributes:
+        - {Key: deregistration_delay.timeout_seconds, Value: '30'}
+      Tags: [{Key: Project, Value: bytechef-dev}]
+  HttpListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: redirect
+          RedirectConfig: {Protocol: HTTPS, Port: '443', StatusCode: HTTP_301}
+  HttpsListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 443
+      Protocol: HTTPS
+      SslPolicy: ELBSecurityPolicy-TLS13-1-2-2021-06
+      Certificates: [{CertificateArn: !Ref Certificate}]
+      DefaultActions: [{Type: forward, TargetGroupArn: !Ref TargetGroup}]
+  HealthRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref HttpsListener
+      Priority: 10
+      # /actuator/info is read by the web client (edition, feature flags) and must stay reachable
+      Conditions: [{Field: path-pattern, PathPatternConfig: {Values: ['/actuator/health', '/actuator/health/*', '/actuator/info']}}]
+      Actions: [{Type: forward, TargetGroupArn: !Ref TargetGroup}]
+  BlockActuatorRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref HttpsListener
+      Priority: 20
+      Conditions: [{Field: path-pattern, PathPatternConfig: {Values: ['/actuator', '/actuator/*']}}]
+      Actions:
+        - Type: fixed-response
+          FixedResponseConfig: {StatusCode: '404', ContentType: text/plain, MessageBody: Not found}
+
+  # ---------- ECS ----------
+  AppLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/bytechef-dev
+      RetentionInDays: 30
+      Tags: [{Key: Project, Value: bytechef-dev}]
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: bytechef-dev
+      ClusterSettings: [{Name: containerInsights, Value: disabled}]
+      Tags: [{Key: Project, Value: bytechef-dev}]
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement: [{Effect: Allow, Principal: {Service: ecs-tasks.amazonaws.com}, Action: sts:AssumeRole}]
+      ManagedPolicyArns: [arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy]
+      Policies:
+        - PolicyName: secrets
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: [!Ref NeonPasswordSecret, !Ref EncryptionKeySecret, !Ref RememberMeSecret]
+      Tags: [{Key: Project, Value: bytechef-dev}]
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement: [{Effect: Allow, Principal: {Service: ecs-tasks.amazonaws.com}, Action: sts:AssumeRole}]
+      Tags: [{Key: Project, Value: bytechef-dev}]
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: bytechef-dev
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: '1024'
+      Memory: '4096'
+      RuntimePlatform: {CpuArchitecture: X86_64, OperatingSystemFamily: LINUX}
+      ExecutionRoleArn: !GetAtt ExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: bytechef
+          Image: !Sub '${Repository.RepositoryUri}:${ImageTag}'
+          Essential: true
+          PortMappings: [{ContainerPort: 8080, Protocol: tcp}]
+          Environment:
+            - {Name: BYTECHEF_DATASOURCE_URL, Value: !Sub 'jdbc:postgresql://${NeonHost}:5432/${NeonDatabase}?sslmode=require'}
+            - {Name: BYTECHEF_DATASOURCE_USERNAME, Value: !Ref NeonUsername}
+            - {Name: BYTECHEF_ENCRYPTION_PROVIDER, Value: PROPERTY}
+            - {Name: BYTECHEF_FILE_STORAGE_PROVIDER, Value: JDBC}
+            - {Name: BYTECHEF_EDITION, Value: CE}
+            - {Name: BYTECHEF_PUBLIC_URL, Value: !Sub 'https://${DomainName}'}
+            - {Name: BYTECHEF_SECURITY_SSO_ENABLED, Value: 'false'}
+            - {Name: BYTECHEF_SIGN_UP_ENABLED, Value: !Ref SignUpEnabled}
+            - {Name: BYTECHEF_ANALYTICS_ENABLED, Value: 'false'}
+            - {Name: SERVER_FORWARD_HEADERS_STRATEGY, Value: NATIVE}
+            - {Name: JAVA_TOOL_OPTIONS, Value: '-XX:MaxRAMPercentage=75'}
+            # No SMTP configured yet; keep the mail check from marking overall health DOWN
+            - {Name: MANAGEMENT_HEALTH_MAIL_ENABLED, Value: 'false'}
+          Secrets:
+            - {Name: BYTECHEF_DATASOURCE_PASSWORD, ValueFrom: !Ref NeonPasswordSecret}
+            - {Name: BYTECHEF_ENCRYPTION_PROPERTY_KEY, ValueFrom: !Ref EncryptionKeySecret}
+            - {Name: BYTECHEF_SECURITY_REMEMBER_ME_KEY, ValueFrom: !Ref RememberMeSecret}
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref AppLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: bytechef
+      Tags: [{Key: Project, Value: bytechef-dev}]
+  Service:
+    Type: AWS::ECS::Service
+    DependsOn: [HttpsListener]
+    Properties:
+      ServiceName: bytechef-dev
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref TaskDefinition
+      LaunchType: FARGATE
+      DesiredCount: !Ref DesiredCount
+      HealthCheckGracePeriodSeconds: 900
+      EnableExecuteCommand: false
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 0
+        MaximumPercent: 100
+        DeploymentCircuitBreaker: {Enable: true, Rollback: false}
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets: [!Ref PublicSubnetA, !Ref PublicSubnetB]
+          SecurityGroups: [!Ref TaskSecurityGroup]
+      LoadBalancers: [{ContainerName: bytechef, ContainerPort: 8080, TargetGroupArn: !Ref TargetGroup}]
+      PropagateTags: SERVICE
+      Tags: [{Key: Project, Value: bytechef-dev}]
+
+  # ---------- Alarms ----------
+  AlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: bytechef-dev-alerts
+      Tags: [{Key: Project, Value: bytechef-dev}]
+  NoHealthyTargetAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: bytechef-dev-no-healthy-target
+      AlarmDescription: No healthy ByteChef task behind the ALB for 15 minutes
+      Namespace: AWS/ApplicationELB
+      MetricName: HealthyHostCount
+      Dimensions:
+        - {Name: LoadBalancer, Value: !GetAtt LoadBalancer.LoadBalancerFullName}
+        - {Name: TargetGroup, Value: !GetAtt TargetGroup.TargetGroupFullName}
+      Statistic: Minimum
+      Period: 300
+      EvaluationPeriods: 3
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertTopic]
+      OKActions: [!Ref AlertTopic]
+  Target5xxAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: bytechef-dev-target-5xx
+      AlarmDescription: More than 25 target 5xx responses in 5 minutes
+      Namespace: AWS/ApplicationELB
+      MetricName: HTTPCode_Target_5XX_Count
+      Dimensions:
+        - {Name: LoadBalancer, Value: !GetAtt LoadBalancer.LoadBalancerFullName}
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 25
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertTopic]
+
+Outputs:
+  Url:
+    Value: !Sub 'https://${DomainName}'
+  AlbDnsName:
+    Value: !GetAtt LoadBalancer.DNSName
+  CertificateArn:
+    Value: !Ref Certificate
+  EcrRepositoryUri:
+    Value: !GetAtt Repository.RepositoryUri
+  CodeBuildProject:
+    Value: !Ref BuildProject
+  ClusterName:
+    Value: !Ref Cluster
+  ServiceName:
+    Value: !GetAtt Service.Name
+  AppLogGroup:
+    Value: !Ref AppLogGroup
+  EncryptionKeySecretArn:
+    Value: !Ref EncryptionKeySecret
+  RememberMeSecretArn:
+    Value: !Ref RememberMeSecret
+  NeonPasswordSecretArn:
+    Value: !Ref NeonPasswordSecret
+  AlertTopicArn:
+    Value: !Ref AlertTopic

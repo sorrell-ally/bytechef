@@ -1,0 +1,50 @@
+[
+  {
+    "ParameterKey": "DomainName",
+    "ParameterValue": "bytechef.allylogistics.com"
+  },
+  {
+    "ParameterKey": "RepoUrl",
+    "ParameterValue": "https://github.com/sorrell-ally/bytechef.git"
+  },
+  {
+    "ParameterKey": "RepoRef",
+    "ParameterValue": "master"
+  },
+  {
+    "ParameterKey": "ImageTag",
+    "ParameterValue": "latest"
+  },
+  {
+    "ParameterKey": "DesiredCount",
+    "ParameterValue": "0"
+  },
+  {
+    "ParameterKey": "SignUpEnabled",
+    "ParameterValue": "true"
+  },
+  {
+    "ParameterKey": "NeonHost",
+    "ParameterValue": "REPLACE_WITH_NEON_DIRECT_HOST"
+  },
+  {
+    "ParameterKey": "NeonDatabase",
+    "ParameterValue": "bytechef"
+  },
+  {
+    "ParameterKey": "NeonUsername",
+    "ParameterValue": "bytechef"
+  },
+  {
+    "ParameterKey": "NeonPassword",
+    "ParameterValue": "REPLACE_WITH_NEON_PASSWORD"
+  },
+  {
+    "ParameterKey": "EncryptionKey",
+    "ParameterValue": "REPLACE_WITH_BASE64_AES_256_KEY"
+  },
+  {
+    "ParameterKey": "VpcCidr",
+    "ParameterValue": "10.61.0.0/16"
+  }
+]

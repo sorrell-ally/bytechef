@@ -1,0 +1,186 @@
+# ByteChef dev on AWS
+
+Infrastructure for the existing dev deployment of this fork. The CloudFormation template
+in [`cfn/bytechef-dev.yaml`](cfn/bytechef-dev.yaml) is the template deployed as stack
+`bytechef-dev`. It is the source of truth for what is running. Apply changes with a
+change set and review the diff before executing it.
+
+`deploy/` in this repo is the Docker image notes, and `kubernetes/` is the Helm chart.
+This directory is the AWS dev account layout. Nothing here runs on its own: `deploy.sh`
+talks to AWS only when you invoke it, and `--dry-run` prints the commands without calling
+AWS.
+
+## Where it runs
+
+| Item | Value |
+|---|---|
+| AWS account | 179150817144 |
+| Region | us-east-2 |
+| Stack | `bytechef-dev` |
+| Stack tag | `Project=bytechef-dev` |
+| Tooling | `aws cloudformation` create-change-set and execute-change-set. The stack was created the same way. |
+| URL | https://bytechef.allylogistics.com |
+
+Resource tags inside the template also set `Project=bytechef-dev`.
+
+## Network
+
+- VPC `10.61.0.0/16` (`VpcCidr`). DNS hostnames and DNS support are on.
+- Two public subnets, the first two `/24`s from that CIDR (`10.61.0.0/24` and `10.61.1.0/24`), in the first two availability zones. No NAT gateway.
+- Subnets do not auto-assign public IPs. The ECS service sets `AssignPublicIp` so the task has a public IP and can reach Neon and the image registry without a NAT.
+- Internet gateway and one public route table.
+- ALB security group allows TCP 443 and 80 from the internet.
+- Task security group allows TCP 8080 from the ALB security group only.
+
+## Image build
+
+- ECR repository `bytechef-dev`. Images are scanned on push. A lifecycle policy keeps the last 10 images.
+- CodeBuild project `bytechef-dev-image`, compute `BUILD_GENERAL1_LARGE`, privileged mode, timeout 180 minutes.
+- The build clones `https://github.com/sorrell-ally/bytechef.git` at ref `master` (`RepoUrl`, `RepoRef`) and runs `./docker-build.sh`.
+- The build environment installs GraalVM Community 25.0.4 and Node.js 24.15.0 before that script.
+- Tests are skipped. See [Known issues](#known-issues).
+- A successful build pushes `<utc-timestamp>-<12-char-sha>` and `latest` to the ECR repository. The log line is `PUSHED <repository-uri>:<tag>`.
+
+Image recorded on 2026-11-24, built from fork commit `5a0d6ab7f0`:
+
+`179150817144.dkr.ecr.us-east-2.amazonaws.com/bytechef-dev:202611241943-5a0d6ab7f000`
+
+## ECS service
+
+- Cluster `bytechef-dev`, service `bytechef-dev`, launch type Fargate, platform Linux x86_64.
+- Task size is 1 vCPU and 4 GB (`Cpu: 1024`, `Memory: 4096`).
+- The running service has 1 task. The `DesiredCount` parameter allows `0` or `1` and defaults to `0`, so a fresh stack does not start a task before an image exists.
+- The task has a public IP. Container port 8080 is registered with the target group.
+- `DeploymentConfiguration` is `MinimumHealthyPercent: 0` and `MaximumPercent: 100`. A deploy stops the old task before it starts the new one.
+- The deployment circuit breaker is on and rollback is off. A failed deploy stays failed until someone updates the stack again.
+- Health-check grace period is 900 seconds.
+- ECS Exec is off.
+- Container Insights is off.
+- `JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=75`, so the JVM heap ceiling is 75% of the 4 GB task memory.
+
+## Load balancer and certificate
+
+- Internet-facing application load balancer named `bytechef-dev`, in both public subnets.
+- Idle timeout 120 seconds. Invalid header fields are dropped.
+- Port 80 redirects to 443 with HTTP 301.
+- Port 443 uses ACM certificate for `bytechef.allylogistics.com`, validation method DNS, TLS policy `ELBSecurityPolicy-TLS13-1-2-2021-06`.
+- Target group `bytechef-dev` is HTTP port 8080, target type `ip`. Health check is `GET /actuator/health/readiness`, matcher `200`, interval 30 seconds, timeout 10 seconds, healthy threshold 2, unhealthy threshold 5.
+- Listener rule priority 10 forwards `/actuator/health`, `/actuator/health/*`, and `/actuator/info`.
+- Listener rule priority 20 returns 404 `Not found` for `/actuator` and `/actuator/*`.
+- ALB DNS name recorded with the app hostname: `bytechef-dev-1461596847.us-east-2.elb.amazonaws.com`.
+
+`/actuator/info` stays forwarded because the web client reads edition, feature flags, and sign-up config from it. On 2026-11-24 a rule that returned 404 for that path left a blank page after login. Change set `allow-actuator-info` updated the listener rule only (no task restart). Login was then checked with a temporary database user (id 999001), which was deleted afterwards: the browser landed on `/automation/getting-started` and the API calls returned 200.
+
+## Secrets
+
+| Secret | Name | Notes |
+|---|---|---|
+| Neon password | `bytechef-dev/neon-password` | `NoEcho` parameter `NeonPassword` |
+| Encryption key | `bytechef-dev/encryption-key` | `DeletionPolicy: Retain` and `UpdateReplacePolicy: Retain`. Never change it after the first start. |
+| Remember-me key | `bytechef-dev/remember-me-key` | Generated by Secrets Manager (64 characters, punctuation excluded). Changing it logs every session out. |
+
+Current secret ARNs. AWS appends a six-character suffix to each secret name:
+
+- `arn:aws:secretsmanager:us-east-2:179150817144:secret:bytechef-dev/encryption-key-kAm8X4`
+- `arn:aws:secretsmanager:us-east-2:179150817144:secret:bytechef-dev/remember-me-key-FKLtWD`
+- `arn:aws:secretsmanager:us-east-2:179150817144:secret:bytechef-dev/neon-password-mpBIEu`
+
+Keep the encryption key in 1Password. Keep the Neon password and the remember-me key there as well. The encryption key is the one that cannot be rotated: ByteChef uses it as `BYTECHEF_ENCRYPTION_PROPERTY_KEY`, and a different key makes stored connection credentials unreadable. Deleting the stack retains the secret because of `DeletionPolicy: Retain`.
+
+## Logs, alarms, and IAM
+
+- Log group `/ecs/bytechef-dev`, 30-day retention. Stream prefix `bytechef`.
+- Log group `/codebuild/bytechef-dev`, 30-day retention.
+- SNS topic `bytechef-dev-alerts`. The template does not subscribe anyone. Add a subscription on the topic itself if a person should receive the alarms.
+- Alarm `bytechef-dev-no-healthy-target`: ALB `HealthyHostCount` minimum below 1 for three periods of 5 minutes. Missing data does not breach. Alarm and OK both publish to the topic.
+- Alarm `bytechef-dev-target-5xx`: more than 25 target 5xx responses in 5 minutes. Missing data does not breach. Alarm publishes to the topic.
+- IAM roles are in the template. The CodeBuild role can write its log group and push to the `bytechef-dev` ECR repository. The ECS execution role has `AmazonECSTaskExecutionRolePolicy` plus `secretsmanager:GetSecretValue` on the three secrets. The ECS task role can be assumed by `ecs-tasks.amazonaws.com` and has no extra policies.
+
+## Application environment
+
+The task definition sets:
+
+| Variable | Value |
+|---|---|
+| `BYTECHEF_DATASOURCE_URL` | `jdbc:postgresql://<NeonHost>:5432/<NeonDatabase>?sslmode=require` |
+| `BYTECHEF_DATASOURCE_USERNAME` | `NeonUsername` (default `bytechef`) |
+| `BYTECHEF_DATASOURCE_PASSWORD` | secret `bytechef-dev/neon-password` |
+| `BYTECHEF_ENCRYPTION_PROVIDER` | `PROPERTY` |
+| `BYTECHEF_ENCRYPTION_PROPERTY_KEY` | secret `bytechef-dev/encryption-key` |
+| `BYTECHEF_SECURITY_REMEMBER_ME_KEY` | secret `bytechef-dev/remember-me-key` |
+| `BYTECHEF_PUBLIC_URL` | `https://bytechef.allylogistics.com` |
+| `BYTECHEF_FILE_STORAGE_PROVIDER` | `JDBC` |
+| `BYTECHEF_EDITION` | `CE` |
+| `BYTECHEF_ANALYTICS_ENABLED` | `false` |
+| `BYTECHEF_SECURITY_SSO_ENABLED` | `false` |
+| `BYTECHEF_SIGN_UP_ENABLED` | parameter `SignUpEnabled` |
+| `SERVER_FORWARD_HEADERS_STRATEGY` | `NATIVE` (the app honors the ALB forwarded headers) |
+| `MANAGEMENT_HEALTH_MAIL_ENABLED` | `false` |
+| `JAVA_TOOL_OPTIONS` | `-XX:MaxRAMPercentage=75` |
+
+## Outside CloudFormation
+
+These were created through their own APIs. The template does not create them, and deleting the stack does not delete them.
+
+### Neon
+
+- Project name `bytechef-dev`, project id `royal-violet-84716474`, region `aws-us-east-2`.
+- Postgres 16. Database and role are both `bytechef`.
+- `NeonHost` is the project's direct endpoint. The JDBC URL uses that host and `sslmode=require`. Neon also lists a pooled endpoint; this stack is built for the direct one.
+- Created with the Neon API.
+- The role password is parameter `NeonPassword`, stored in `bytechef-dev/neon-password`. Keep a copy in 1Password.
+
+### Cloudflare
+
+Zone `allylogistics.com`, zone id `3e27dd7bcbe2c785d720d1b9f147ccf7`. Both records are DNS-only and were created with the Cloudflare API.
+
+| Record | Id | Purpose |
+|---|---|---|
+| ACM validation CNAME | `bf77428734d09cc6d47d4ca0f0bc18ef` | Leave this in place so the certificate can renew. |
+| `bytechef` CNAME to `bytechef-dev-1461596847.us-east-2.elb.amazonaws.com` | `dc1e061b14e14e157877bc653a974f1e` | Public name `bytechef.allylogistics.com`. |
+
+## Parameters
+
+[`params.example.json`](params.example.json) lists every template parameter. `NeonPassword` and `EncryptionKey` are placeholders. `NeonHost` is a placeholder because the template has no default for it. The other values are the template defaults, including `DesiredCount` `0` and `ImageTag` `latest`.
+
+The running service is `DesiredCount` 1 and a dated image tag. Copy the example to a gitignored file such as `params.json` only when you must supply a secret. Root `.gitignore` ignores `infra/**/params.json`, `infra/**/params.*.json` (the example file is the exception), and `infra/**/*.env`.
+
+For an update of the running stack, pass `UsePreviousValue` for every parameter you are not changing. That leaves the encryption key and the Neon password stored in Secrets Manager.
+
+## Update the stack
+
+Template-only change, keep every parameter:
+
+```bash
+cd infra/aws/dev
+./deploy.sh --profile PROFILE --change-set-name describe-the-change --use-previous
+```
+
+That creates the change set and waits until it is `CREATE_COMPLETE`. It does not execute it. Read the change set, then run the same command with `--execute`.
+
+Roll a new image after CodeBuild:
+
+```bash
+aws codebuild start-build --project-name bytechef-dev-image --profile PROFILE --region us-east-2
+```
+
+When the log shows `PUSHED`, update `ImageTag` and keep every other parameter:
+
+```bash
+./deploy.sh --profile PROFILE --region us-east-2 \
+    --change-set-name image-YYYYMMDDHHMM \
+    --use-previous \
+    --set ImageTag=YYYYMMDDHHMM-GITSHA
+```
+
+Add `--execute` only after the change set looks right. `--dry-run` prints the `aws` commands and does not call AWS.
+
+`deploy.sh` always uses change set type `UPDATE` and capability `CAPABILITY_IAM` (the template creates IAM roles and does not assign role names). It rejects `NeonPassword` and `EncryptionKey` on the command line so those values stay out of shell history. A full parameters file, if you have to pass a secret, is `--parameters-file` pointing at a gitignored file.
+
+A change set with no resource changes fails while it is created. The script stops before execute and prints a `describe-change-set` command.
+
+## Known issues
+
+- CodeBuild sets `SKIP_TESTS=true`. The build then writes a Gradle init script that disables every `Test` task, so the image build runs no tests. Two `AuditDataContractTest` tests fail on this fork: SSO audit events are missing from the audit contract, and `ProjectGitSyncFacadeImpl` writes are not audited. The skip stays until those two are fixed.
+- `GET /actuator/health` is DOWN because the mail health indicator checks `localhost:25` and no SMTP server is configured. The ALB uses `/actuator/health/readiness`, which is UP. `MANAGEMENT_HEALTH_MAIL_ENABLED=false` is set on the task and did not clear the overall DOWN status.
+- `SignUpEnabled` defaults to `true`. ByteChef rejects a sign-up after the first user exists ("Organization already exists"), so registration is closed once that user is in the database. Set `SignUpEnabled` to `false` with a change set when you want the parameter to match that.
