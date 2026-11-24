@@ -18,6 +18,8 @@ package com.bytechef.automation.configuration.gitsync.facade;
 
 import com.bytechef.automation.configuration.domain.Project;
 import com.bytechef.automation.configuration.domain.ProjectVersion;
+import com.bytechef.automation.configuration.gitsync.audit.ProjectGitSyncAuditEvents;
+import com.bytechef.automation.configuration.gitsync.audit.ProjectGitSyncAuditMapper;
 import com.bytechef.automation.configuration.gitsync.domain.ProjectGitSync;
 import com.bytechef.automation.configuration.gitsync.domain.ProjectGitSyncDirection;
 import com.bytechef.automation.configuration.gitsync.domain.ProjectGitSyncStatus;
@@ -41,6 +43,7 @@ import com.bytechef.automation.configuration.gitsync.sync.ProjectGitSyncPublishe
 import com.bytechef.automation.configuration.gitsync.sync.ProjectGitSyncRemoteFactory;
 import com.bytechef.automation.configuration.service.ProjectService;
 import com.bytechef.platform.annotation.ConditionalOnCEVersion;
+import com.bytechef.platform.audit.Audited;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.List;
 import java.util.Objects;
@@ -84,6 +87,8 @@ public class ProjectGitSyncFacadeImpl implements ProjectGitSyncFacade {
     }
 
     @Override
+    @Audited(
+        event = ProjectGitSyncAuditEvents.PROJECT_GIT_SYNC_DELETED, mapper = ProjectGitSyncAuditMapper.class)
     @PreAuthorize("hasPermission(#projectId, 'Project', 'PROJECT_SETTINGS')")
     public void deleteProjectGitSync(long projectId) {
         projectGitSyncService.deleteByProjectId(projectId);
@@ -108,6 +113,7 @@ public class ProjectGitSyncFacadeImpl implements ProjectGitSyncFacade {
     }
 
     @Override
+    @Audited(event = ProjectGitSyncAuditEvents.PROJECT_GIT_SYNC_PULLED, mapper = ProjectGitSyncAuditMapper.class)
     @PreAuthorize("hasPermission(#projectId, 'Project', 'WORKFLOW_EDIT')")
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public ProjectGitSyncPullResultDTO pullProjectGitSync(long projectId) {
@@ -129,6 +135,7 @@ public class ProjectGitSyncFacadeImpl implements ProjectGitSyncFacade {
     }
 
     @Override
+    @Audited(event = ProjectGitSyncAuditEvents.PROJECT_GIT_SYNC_PUSHED, mapper = ProjectGitSyncAuditMapper.class)
     @PreAuthorize("hasPermission(#projectId, 'Project', 'WORKFLOW_EDIT') and " +
         "hasPermission(#projectId, 'Project', 'DEPLOYMENT_PUSH')")
     public ProjectGitSyncDTO pushProjectGitSync(long projectId) {
@@ -151,6 +158,7 @@ public class ProjectGitSyncFacadeImpl implements ProjectGitSyncFacade {
     }
 
     @Override
+    @Audited(event = ProjectGitSyncAuditEvents.PROJECT_GIT_SYNC_SAVED, mapper = ProjectGitSyncAuditMapper.class)
     @PreAuthorize("hasPermission(#projectId, 'Project', 'PROJECT_SETTINGS')")
     public ProjectGitSyncDTO saveProjectGitSync(long projectId, ProjectGitSyncSettingsDTO projectGitSyncSettingsDTO) {
         projectService.getProject(projectId);
@@ -212,6 +220,9 @@ public class ProjectGitSyncFacadeImpl implements ProjectGitSyncFacade {
     }
 
     @Override
+    @Audited(
+        event = ProjectGitSyncAuditEvents.PROJECT_GIT_SYNC_CONNECTION_TESTED,
+        mapper = ProjectGitSyncAuditMapper.class)
     @PreAuthorize("hasPermission(#projectId, 'Project', 'PROJECT_SETTINGS')")
     public ProjectGitSyncConnectionTestResultDTO testProjectGitSyncConnection(
         long projectId, @Nullable ProjectGitSyncSettingsDTO projectGitSyncSettingsDTO) {
