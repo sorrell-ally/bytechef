@@ -2,7 +2,12 @@ import {render, resetAll, screen, userEvent, waitFor, windowResizeObserver} from
 import {MemoryRouter, Route, Routes} from 'react-router-dom';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 
+vi.mock('@/shared/stores/useApplicationInfoStore', () => ({
+    useApplicationInfoStore: vi.fn(),
+}));
+
 import AcceptInvitation from '../AcceptInvitation';
+import {mockApplicationInfoStore} from './mocks/mockApplicationInfoStore';
 
 const renderAcceptInvitationPage = () => {
     render(
@@ -28,6 +33,29 @@ afterEach(() => {
     resetAll();
 
     vi.restoreAllMocks();
+});
+
+it('should keep a token invitation usable when self sign-up is disabled', async () => {
+    mockApplicationInfoStore({
+        signUp: {activationRequired: false, enabled: false, ssoOnly: false},
+    });
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        new Response(JSON.stringify({email: 'invitee@example.com', expiresAt: '2026-12-01T00:00:00Z', ssoOnly: false}), {
+            status: 200,
+        })
+    );
+
+    render(
+        <MemoryRouter initialEntries={['/accept-invitation?token=invite-token']}>
+            <Routes>
+                <Route element={<AcceptInvitation />} path="/accept-invitation" />
+            </Routes>
+        </MemoryRouter>
+    );
+
+    expect(await screen.findByRole('button', {name: 'Activate account'})).toBeInTheDocument();
+    expect(screen.queryByText('Sign-up is disabled', {exact: true})).not.toBeInTheDocument();
 });
 
 it('should render the set password form', () => {
