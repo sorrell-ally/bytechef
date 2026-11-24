@@ -2,11 +2,13 @@
 /* eslint-disable */
 export * from './AppEvent';
 export * from './AuthorizationType';
+export * from './AutomationProjectCodeWorkflowDeployResult';
 export * from './Category';
 export * from './ComponentCategory';
 export * from './ComponentConnection';
 export * from './ComponentDefinitionBasic';
 export * from './ComponentInputReference';
+export * from './ConfigurationChangeVersionRequest';
 export * from './ConfigurationConnectedUser';
 export * from './ConfigurationMoveImpact';
 export * from './ConfigurationMoveImpactWorkflow';
@@ -43,6 +45,8 @@ export * from './StartWebhookTriggerTest200Response';
 export * from './Tag';
 export * from './UpdateConnectionCredentialsRequest';
 export * from './UpdateConnectionRequest';
+export * from './UpdateIntegrationInstanceConnectionRequest';
+export * from './UpdateIntegrationInstanceWorkflowRequest';
 export * from './UpdateTagsRequest';
 export * from './Workflow';
 export * from './Workflow1';

@@ -6,20 +6,42 @@ import {
     DropdownMenuTrigger,
 } from '@/components/DropdownMenu/DropdownMenu';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip';
-import {EllipsisVerticalIcon, RefreshCcwIcon, Trash2Icon} from 'lucide-react';
+import {
+    ArrowUpDownIcon,
+    ClipboardIcon,
+    EditIcon,
+    EllipsisVerticalIcon,
+    KeyRoundIcon,
+    RefreshCcwIcon,
+    Trash2Icon,
+} from 'lucide-react';
 
 interface ConnectedUserSheetDeleteDropdownMenuProps {
     changeConfigurationDisabled?: boolean;
     changeConfigurationDisabledReason?: string;
+    changeVersionDisabled?: boolean;
+    changeVersionDisabledReason?: string;
+    credentialsDisabledReason?: string;
     onChangeConfigurationClick?: () => void;
-    onDeleteClick: () => void;
+    onChangeVersionClick?: () => void;
+    onCopyWorkflowUuidClick?: () => void;
+    onCredentialsClick?: () => void;
+    onDeleteClick?: () => void;
+    onEditClick?: () => void;
 }
 
 const ConnectedUserSheetDeleteDropdownMenu = ({
     changeConfigurationDisabled,
     changeConfigurationDisabledReason,
+    changeVersionDisabled,
+    changeVersionDisabledReason,
+    credentialsDisabledReason,
     onChangeConfigurationClick,
+    onChangeVersionClick,
+    onCopyWorkflowUuidClick,
+    onCredentialsClick,
     onDeleteClick,
+    onEditClick,
 }: ConnectedUserSheetDeleteDropdownMenuProps) => (
     <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -32,6 +54,24 @@ const ConnectedUserSheetDeleteDropdownMenu = ({
         </DropdownMenuTrigger>
 
         <DropdownMenuContent align="end">
+            {onEditClick && <DropdownMenuItem icon={<EditIcon />} label="Edit" onClick={onEditClick} />}
+
+            {onCredentialsClick && (
+                <DropdownMenuItem icon={<KeyRoundIcon />} label="Credentials" onClick={onCredentialsClick} />
+            )}
+
+            {credentialsDisabledReason && (
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <span className="block">
+                            <DropdownMenuItem disabled icon={<KeyRoundIcon />} label="Credentials" />
+                        </span>
+                    </TooltipTrigger>
+
+                    <TooltipContent side="left">{credentialsDisabledReason}</TooltipContent>
+                </Tooltip>
+            )}
+
             {onChangeConfigurationClick && (
                 <Tooltip>
                     <TooltipTrigger asChild>
@@ -52,7 +92,37 @@ const ConnectedUserSheetDeleteDropdownMenu = ({
                 </Tooltip>
             )}
 
-            <DropdownMenuItem icon={<Trash2Icon />} label="Delete" onClick={onDeleteClick} variant="destructive" />
+            {onChangeVersionClick && (
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <span className="block">
+                            <DropdownMenuItem
+                                aria-label="Change version"
+                                disabled={changeVersionDisabled || !!changeVersionDisabledReason}
+                                icon={<ArrowUpDownIcon />}
+                                label="Change version…"
+                                onClick={onChangeVersionClick}
+                            />
+                        </span>
+                    </TooltipTrigger>
+
+                    {changeVersionDisabledReason && (
+                        <TooltipContent side="left">{changeVersionDisabledReason}</TooltipContent>
+                    )}
+                </Tooltip>
+            )}
+
+            {onCopyWorkflowUuidClick && (
+                <DropdownMenuItem
+                    icon={<ClipboardIcon />}
+                    label="Copy Workflow UUID"
+                    onClick={onCopyWorkflowUuidClick}
+                />
+            )}
+
+            {onDeleteClick && (
+                <DropdownMenuItem icon={<Trash2Icon />} label="Delete" onClick={onDeleteClick} variant="destructive" />
+            )}
         </DropdownMenuContent>
     </DropdownMenu>
 );

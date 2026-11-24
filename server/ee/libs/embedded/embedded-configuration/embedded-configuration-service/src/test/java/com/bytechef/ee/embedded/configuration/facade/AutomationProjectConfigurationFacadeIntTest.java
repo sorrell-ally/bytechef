@@ -1,0 +1,2616 @@
+/*
+ * Copyright 2025 ByteChef
+ *
+ * Licensed under the ByteChef Enterprise license (the "Enterprise License");
+ * you may not use this file except in compliance with the Enterprise License.
+ */
+
+package com.bytechef.ee.embedded.configuration.facade;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
+import static org.mockito.Answers.RETURNS_DEFAULTS;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anySet;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import com.bytechef.atlas.configuration.domain.Workflow;
+import com.bytechef.atlas.configuration.domain.WorkflowTask;
+import com.bytechef.atlas.configuration.service.WorkflowService;
+import com.bytechef.atlas.execution.facade.JobFacade;
+import com.bytechef.atlas.execution.service.JobService;
+import com.bytechef.atlas.execution.service.TaskExecutionService;
+import com.bytechef.automation.configuration.domain.ProjectDeployment;
+import com.bytechef.automation.configuration.domain.ProjectDeploymentWorkflow;
+import com.bytechef.automation.configuration.facade.ProjectDeploymentFacade;
+import com.bytechef.automation.configuration.facade.ProjectFacade;
+import com.bytechef.automation.configuration.facade.WorkspaceConnectionFacade;
+import com.bytechef.automation.configuration.facade.WorkspaceFacade;
+import com.bytechef.automation.configuration.security.AutomationMethodSecurityExpressionHandler;
+import com.bytechef.automation.configuration.security.AutomationPermissionEvaluator;
+import com.bytechef.automation.configuration.service.PermissionService;
+import com.bytechef.automation.configuration.service.ProjectDeploymentService;
+import com.bytechef.automation.configuration.service.ProjectDeploymentWorkflowService;
+import com.bytechef.automation.configuration.service.ProjectWorkflowService;
+import com.bytechef.ee.embedded.ai.mcp.facade.McpAutomationRowFacade;
+import com.bytechef.ee.embedded.ai.mcp.facade.McpIntegrationInstanceRowFacade;
+import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationComponentService;
+import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceConfigurationService;
+import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceConfigurationWorkflowService;
+import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceToolService;
+import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceWorkflowService;
+import com.bytechef.ee.embedded.configuration.domain.AutomationProjectConfiguration;
+import com.bytechef.ee.embedded.configuration.domain.AutomationProjectConfigurationWorkflow;
+import com.bytechef.ee.embedded.configuration.domain.ConnectedUserProjectConfiguration;
+import com.bytechef.ee.embedded.configuration.dto.AutomationProjectConfigurationDTO;
+import com.bytechef.ee.embedded.configuration.dto.AutomationProjectConfigurationVersionImpactDTO;
+import com.bytechef.ee.embedded.configuration.dto.AutomationProjectConfigurationWorkflowProvidableValuesDTO;
+import com.bytechef.ee.embedded.configuration.dto.AutomationProjectDTO;
+import com.bytechef.ee.embedded.configuration.dto.ConfigurationMoveResultDTO;
+import com.bytechef.ee.embedded.configuration.dto.ConnectedUserWorkflowReferenceDTO;
+import com.bytechef.ee.embedded.configuration.event.AutomationProjectConfigurationDeletedEvent;
+import com.bytechef.ee.embedded.configuration.event.AutomationProjectConfigurationUpdatedEvent;
+import com.bytechef.ee.embedded.configuration.exception.AutomationProjectConfigurationErrorType;
+import com.bytechef.ee.embedded.configuration.security.EmbeddedPermissionEvaluator;
+import com.bytechef.ee.embedded.configuration.service.AutomationProjectConfigurationService;
+import com.bytechef.ee.embedded.configuration.service.ConnectedUserConnectionService;
+import com.bytechef.ee.embedded.configuration.service.ConnectedUserProjectConfigurationService;
+import com.bytechef.ee.embedded.connected.user.domain.ConnectedUser;
+import com.bytechef.ee.embedded.connected.user.service.ConnectedUserService;
+import com.bytechef.evaluator.SpelEvaluator;
+import com.bytechef.exception.ConfigurationException;
+import com.bytechef.platform.component.domain.Option;
+import com.bytechef.platform.component.facade.ActionDefinitionFacade;
+import com.bytechef.platform.component.facade.ComponentDefinitionFacade;
+import com.bytechef.platform.component.facade.TriggerDefinitionFacade;
+import com.bytechef.platform.component.service.ClusterElementDefinitionService;
+import com.bytechef.platform.component.service.ComponentDefinitionService;
+import com.bytechef.platform.component.service.ConnectionDefinitionService;
+import com.bytechef.platform.component.service.TriggerDefinitionService;
+import com.bytechef.platform.configuration.cache.WorkflowCacheManager;
+import com.bytechef.platform.configuration.domain.ComponentConnection;
+import com.bytechef.platform.configuration.domain.Environment;
+import com.bytechef.platform.configuration.facade.ComponentConnectionFacade;
+import com.bytechef.platform.configuration.facade.OAuth2ParametersFacade;
+import com.bytechef.platform.configuration.facade.WorkflowNodeParameterFacade;
+import com.bytechef.platform.configuration.facade.WorkflowTestConfigurationFacade;
+import com.bytechef.platform.configuration.service.EnvironmentService;
+import com.bytechef.platform.configuration.service.WorkflowNodeTestOutputService;
+import com.bytechef.platform.configuration.service.WorkflowTestConfigurationService;
+import com.bytechef.platform.connection.domain.Connection;
+import com.bytechef.platform.connection.facade.ConnectionFacade;
+import com.bytechef.platform.connection.service.ConnectionService;
+import com.bytechef.platform.constant.PlatformType;
+import com.bytechef.platform.githubproxy.client.GitHubProxyClient;
+import com.bytechef.platform.mcp.service.McpComponentService;
+import com.bytechef.platform.mcp.service.McpServerService;
+import com.bytechef.platform.mcp.service.McpToolService;
+import com.bytechef.platform.oauth2.service.OAuth2Service;
+import com.bytechef.platform.security.constant.AuthorityConstants;
+import com.bytechef.platform.security.facade.ApiKeyFacade;
+import com.bytechef.platform.security.service.ApiKeyService;
+import com.bytechef.platform.security.util.SecurityUtils;
+import com.bytechef.platform.security.web.expression.MethodSecurityExpressionContributor;
+import com.bytechef.platform.user.service.AuthorityService;
+import com.bytechef.platform.user.service.UserService;
+import com.bytechef.platform.workflow.execution.facade.ConnectionLifecycleFacade;
+import com.bytechef.platform.workflow.execution.facade.PrincipalJobFacade;
+import com.bytechef.platform.workflow.execution.facade.TriggerLifecycleFacade;
+import com.bytechef.platform.workflow.execution.service.PrincipalJobService;
+import com.bytechef.platform.workflow.execution.service.TriggerExecutionService;
+import com.bytechef.platform.workflow.task.dispatcher.service.TaskDispatcherDefinitionService;
+import com.bytechef.test.config.testcontainers.PostgreSQLContainerConfiguration;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.context.SecurityContextImpl;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
+
+/**
+ * @version ee
+ *
+ * @author Ivica Cardic
+ */
+@SpringBootTest(
+    classes = {
+        AutomationProjectFacadeIntTestConfiguration.class,
+        AutomationProjectConfigurationFacadeIntTest.MethodSecurityConfiguration.class
+    },
+    properties = {
+        "bytechef.edition=EE",
+        "bytechef.workflow.repository.jdbc.enabled=true",
+        "bytechef.webhook-url=/webhooks/{id}",
+        "spring.liquibase.contexts=configuration,user",
+        "spring.main.allow-bean-definition-overriding=true"
+    })
+@Import(PostgreSQLContainerConfiguration.class)
+@RecordApplicationEvents
+@MockitoBean(types = {
+    ActionDefinitionFacade.class, ApiKeyFacade.class, ApiKeyService.class, AuthorityService.class,
+    ClusterElementDefinitionService.class, TriggerDefinitionFacade.class,
+    ComponentConnectionFacade.class,
+    ComponentDefinitionService.class, ConnectedUserService.class, ConnectionDefinitionService.class,
+    ConnectedUserWorkflowReferenceFacade.class,
+    ConnectionFacade.class, ConnectionLifecycleFacade.class, ConnectionService.class,
+    EmbeddedPermissionEvaluator.class, EnvironmentService.class,
+    GitHubProxyClient.class, JobFacade.class, JobService.class, McpComponentService.class,
+    McpIntegrationComponentService.class,
+    McpIntegrationInstanceConfigurationService.class, McpIntegrationInstanceConfigurationWorkflowService.class,
+    McpIntegrationInstanceToolService.class,
+    McpIntegrationInstanceWorkflowService.class, McpAutomationRowFacade.class, McpIntegrationInstanceRowFacade.class,
+    McpServerService.class,
+    McpToolService.class,
+    OAuth2ParametersFacade.class,
+    OAuth2Service.class, PrincipalJobFacade.class, PrincipalJobService.class, ProjectDeploymentFacade.class,
+    ProjectDeploymentService.class, ProjectDeploymentWorkflowService.class, ProjectFacade.class,
+    TaskDispatcherDefinitionService.class, TaskExecutionService.class, TriggerDefinitionService.class,
+    TriggerExecutionService.class,
+    TriggerLifecycleFacade.class, UserService.class, WorkflowCacheManager.class,
+    WorkflowNodeParameterFacade.class, WorkflowNodeTestOutputService.class,
+    WorkflowTestConfigurationFacade.class, WorkflowTestConfigurationService.class,
+    WorkspaceConnectionFacade.class, WorkspaceFacade.class
+})
+class AutomationProjectConfigurationFacadeIntTest {
+
+    private static final String CONFIGURATION_NAME = "Default";
+    private static final AtomicLong CONNECTED_USER_ID_SEQUENCE = new AtomicLong(1_000_000L);
+    private static final long ENVIRONMENT_ID = 0L;
+
+    private static final long PRODUCTION_ENVIRONMENT_ID = Environment.PRODUCTION.ordinal();
+
+    private static final long STAGING_ENVIRONMENT_ID = Environment.STAGING.ordinal();
+
+    private static final String CHANNEL_REQUIRED_DEFINITION = """
+        {"label":"%s","inputs":[{"name":"channel","label":"Channel","type":"string","required":true}],
+         "triggers":[],"tasks":[]}
+        """;
+
+    private static final String CHANNEL_OPTIONAL_DEFINITION = """
+        {"label":"%s","inputs":[{"name":"channel","label":"Channel","type":"string","required":false}],
+         "triggers":[],"tasks":[]}
+        """;
+
+    private static final String CHANNEL_AND_OPTIONAL_INTERNAL_ONLY_DEFINITION = """
+        {"label":"%s","inputs":[{"name":"channel","label":"Channel","type":"string","required":true},
+         {"name":"accountId","label":"Account","type":"string","required":false,"internalOnly":true}],
+         "triggers":[],"tasks":[]}
+        """;
+
+    private static final String CHANNEL_AND_REQUIRED_INTERNAL_ONLY_DEFINITION = """
+        {"label":"%s","inputs":[{"name":"channel","label":"Channel","type":"string","required":true},
+         {"name":"accountId","label":"Account","type":"string","required":true,"internalOnly":true}],
+         "triggers":[],"tasks":[]}
+        """;
+
+    private static final String REQUIRED_INTERNAL_ONLY_DEFINITION = """
+        {"label":"%s","inputs":[
+         {"name":"accountId","label":"Account","type":"string","required":true,"internalOnly":true}],
+         "triggers":[],"tasks":[]}
+        """;
+
+    private static final String STRING_TYPED_INPUTS_DEFINITION = """
+        {"label":"%s","inputs":[
+         {"name":"channel","label":"Channel","type":"string","required":false,"internalOnly":true},
+         {"name":"region","label":"Region","type":"string","required":false,"internalOnly":true},
+         {"name":"removed","label":"Removed","type":"string","required":false,"internalOnly":true},
+         {"name":"accountId","label":"Account","type":"string","required":true,"internalOnly":true}],
+         "triggers":[],"tasks":[]}
+        """;
+
+    private static final String RETYPED_INPUTS_DEFINITION = """
+        {"label":"%s","inputs":[
+         {"name":"channel","label":"Channel","type":"integer","required":false,"internalOnly":true},
+         {"name":"region","label":"Region","type":"STRING","required":false,"internalOnly":true},
+         {"name":"accountId","label":"Account","type":"integer","required":true,"internalOnly":true}],
+         "triggers":[],"tasks":[]}
+        """;
+
+    private static final String NO_INPUT_DEFINITION = """
+        {"label":"%s","triggers":[],"tasks":[]}
+        """;
+
+    private static final String SLACK_DEFINITION = """
+        {"label":"%s","triggers":[],"tasks":[{"name":"postMessage1","type":"slack/v1/postMessage","parameters":{}}]}
+        """;
+
+    private static final String SLACK_WITH_CHANNEL_DEFINITION = """
+        {"label":"%s","inputs":[{"name":"channel","label":"Channel","type":"string","required":true}],
+         "triggers":[],"tasks":[{"name":"postMessage1","type":"slack/v1/postMessage","parameters":{}}]}
+        """;
+
+    private static final String SLACK_WITH_INTERNAL_ONLY_CHANNEL_DEFINITION = """
+        {"label":"%s","inputs":[
+         {"name":"channel","label":"Channel","type":"string","required":false,"internalOnly":true},
+         {"name":"topic","label":"Topic","type":"string","required":false}],
+         "triggers":[],"tasks":[{"name":"postMessage1","type":"slack/v1/postMessage","parameters":{}}]}
+        """;
+
+    private static final String INTERNAL_ONLY_CHANNEL_OPTIONAL_DEFINITION = """
+        {"label":"%s","inputs":[
+         {"name":"channel","label":"Channel","type":"string","required":false,"internalOnly":true}],
+         "triggers":[],"tasks":[]}
+        """;
+
+    private static final String SLACK_CHANNEL_REFERENCE_DEFINITION = """
+        {"label":"%s","inputs":[{"name":"channel","label":"Slack Channel","type":"STRING","required":true,
+         "componentName":"slack","componentVersion":1,"groupName":"channel","internalOnly":true},
+         {"name":"topic","label":"Topic","type":"string","required":false}],"triggers":[],"tasks":[]}
+        """;
+
+    private static final String SLACK_AND_JIRA_DEFINITION = """
+        {"label":"%s","triggers":[],"tasks":[{"name":"postMessage1","type":"slack/v1/postMessage","parameters":{}},
+         {"name":"createIssue1","type":"jira/v1/createIssue","parameters":{}}]}
+        """;
+
+    @Autowired
+    private ApplicationEvents applicationEvents;
+
+    @Autowired
+    private AutomationProjectConfigurationFacade automationProjectConfigurationFacade;
+
+    @Autowired
+    private ComponentConnectionFacade componentConnectionFacade;
+
+    @Autowired
+    private ComponentDefinitionFacade componentDefinitionFacade;
+
+    @Autowired
+    private ConnectedUserWorkflowReferenceFacade connectedUserWorkflowReferenceFacade;
+
+    @Autowired
+    private ConnectedUserConnectionService connectedUserConnectionService;
+
+    @MockitoSpyBean
+    private ConnectedUserProjectConfigurationService connectedUserProjectConfigurationService;
+
+    @Autowired
+    private ConnectedUserService connectedUserService;
+
+    @Autowired
+    private ConnectionService connectionService;
+
+    @Autowired
+    private EmbeddedPermissionEvaluator embeddedPermissionEvaluator;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private ProjectDeploymentService projectDeploymentService;
+
+    @Autowired
+    private ProjectDeploymentWorkflowService projectDeploymentWorkflowService;
+
+    @Autowired
+    private WorkflowService workflowService;
+
+    @Autowired
+    private AutomationProjectFacade automationProjectFacade;
+
+    @Autowired
+    private AutomationProjectConfigurationResolver automationProjectConfigurationResolver;
+
+    @MockitoSpyBean
+    private AutomationProjectConfigurationService automationProjectConfigurationService;
+
+    @Autowired
+    private ProjectWorkflowService projectWorkflowService;
+
+    @BeforeEach
+    void beforeEach() {
+        authenticate(admin());
+    }
+
+    @AfterEach
+    void afterEach() {
+        SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void testCreateConfigurationWithUnpublishedVersionThrows() {
+        long projectId = createPublishedProject("Unpublished Version", 1);
+
+        assertThatThrownBy(
+            () -> automationProjectConfigurationFacade.createConfiguration(
+                projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 2, true, true))
+                    .isInstanceOf(ConfigurationException.class);
+    }
+
+    @Test
+    void testCreateConfigurationWithAnUnknownEnvironmentIdThrows() {
+        long projectId = createPublishedProject("Unknown Environment", 1);
+
+        assertThatThrownBy(
+            () -> automationProjectConfigurationFacade.createConfiguration(
+                projectId, Environment.values().length, CONFIGURATION_NAME, null, 1, true, true))
+                    .isInstanceOf(ConfigurationException.class);
+        assertThatThrownBy(
+            () -> automationProjectConfigurationFacade.createConfiguration(
+                projectId, -1, CONFIGURATION_NAME, null, 1, true, true))
+                    .isInstanceOf(ConfigurationException.class);
+        assertThat(automationProjectConfigurationFacade.getConfigurations(projectId)).isEmpty();
+    }
+
+    @Test
+    void testCreateTwoConfigurationsInOneEnvironment() {
+        long projectId = createPublishedProject("Two Configurations", 1);
+
+        long firstConfigurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, "Standard", null, 1, true, true);
+        long secondConfigurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, " Beta ", "metadata['beta'] == 'true'", 1, true, false);
+
+        assertThat(automationProjectConfigurationFacade.getConfigurations(projectId))
+            .extracting(
+                AutomationProjectConfigurationDTO::id, AutomationProjectConfigurationDTO::environmentId,
+                AutomationProjectConfigurationDTO::name,
+                AutomationProjectConfigurationDTO::permissionExpression)
+            .containsExactly(
+                tuple(firstConfigurationId, ENVIRONMENT_ID, "Standard", null),
+                tuple(secondConfigurationId, ENVIRONMENT_ID, "Beta", "metadata['beta'] == 'true'"));
+    }
+
+    @Test
+    void testGetConfigurationsOfOneEnvironment() {
+        long projectId = createPublishedProject("Per Environment", 1);
+
+        long developmentConfigurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, "Standard", null, 1, true, true);
+        long stagingConfigurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, STAGING_ENVIRONMENT_ID, "Standard", null, 1, true, true);
+
+        assertThat(automationProjectConfigurationFacade.getConfigurations(projectId, ENVIRONMENT_ID))
+            .extracting(AutomationProjectConfigurationDTO::id)
+            .containsExactly(developmentConfigurationId);
+        assertThat(
+            automationProjectConfigurationFacade.getConfigurations(projectId, STAGING_ENVIRONMENT_ID))
+                .extracting(AutomationProjectConfigurationDTO::id)
+                .containsExactly(stagingConfigurationId);
+        assertThat(
+            automationProjectConfigurationFacade.getConfigurations(projectId, PRODUCTION_ENVIRONMENT_ID))
+                .isEmpty();
+    }
+
+    @Test
+    void testGetProjectsCountsTheConfigurationsOfOneEnvironment() {
+        long projectId = createPublishedProject("Counted Per Environment", 1);
+
+        automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, "Standard", null, 1, true, true);
+        automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, "Beta", null, 1, true, true);
+        automationProjectConfigurationFacade.createConfiguration(
+            projectId, STAGING_ENVIRONMENT_ID, "Standard", null, 1, true, true);
+
+        assertThat(getConfigurationCount(automationProjectFacade.getProjects(), projectId)).isEqualTo(3);
+        assertThat(getConfigurationCount(automationProjectFacade.getProjects(ENVIRONMENT_ID), projectId))
+            .isEqualTo(2);
+        assertThat(
+            getConfigurationCount(automationProjectFacade.getProjects(STAGING_ENVIRONMENT_ID), projectId))
+                .isEqualTo(1);
+        assertThat(
+            getConfigurationCount(automationProjectFacade.getProjects(PRODUCTION_ENVIRONMENT_ID), projectId))
+                .isZero();
+    }
+
+    @Test
+    void testCreateConfigurationWithDuplicateNameThrows() {
+        long projectId = createPublishedProject("Duplicate Name", 1);
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, "Standard", null, 1, true, true);
+        long otherConfigurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, "Beta", null, 1, true, true);
+
+        assertThatThrownBy(
+            () -> automationProjectConfigurationFacade.createConfiguration(
+                projectId, ENVIRONMENT_ID, " standard ", null, 1, true, true))
+                    .isInstanceOfSatisfying(ConfigurationException.class, configurationException -> {
+                        assertThat(configurationException.getMessage()).isEqualTo(
+                            "Project id=%s already has a configuration named 'standard' in environment id=%s"
+                                .formatted(projectId, ENVIRONMENT_ID));
+                        assertThat(configurationException.getErrorKey()).isEqualTo(
+                            AutomationProjectConfigurationErrorType.CONFIGURATION_NAME_EXISTS.getErrorKey());
+                    });
+        assertThatThrownBy(
+            () -> automationProjectConfigurationFacade.updateConfiguration(
+                otherConfigurationId, "STANDARD", null, 1, true, true))
+                    .isInstanceOfSatisfying(ConfigurationException.class, configurationException -> assertThat(
+                        configurationException.getErrorKey()).isEqualTo(
+                            AutomationProjectConfigurationErrorType.CONFIGURATION_NAME_EXISTS.getErrorKey()));
+
+        automationProjectConfigurationFacade.updateConfiguration(
+            configurationId, "Standard", "metadata['tier'] == 'pro'", 1, true, true);
+
+        long otherEnvironmentConfigurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID + 1, "Standard", null, 1, true, true);
+
+        assertThat(automationProjectConfigurationFacade.getConfigurations(projectId))
+            .extracting(
+                AutomationProjectConfigurationDTO::id, AutomationProjectConfigurationDTO::name,
+                AutomationProjectConfigurationDTO::permissionExpression)
+            .containsExactly(
+                tuple(configurationId, "Standard", "metadata['tier'] == 'pro'"),
+                tuple(otherConfigurationId, "Beta", null),
+                tuple(otherEnvironmentConfigurationId, "Standard", null));
+    }
+
+    @Test
+    void testGetConfigurationsReportsConnectedUserCount() {
+        long projectId = createPublishedProject("Connected User Count", 1);
+
+        long firstConfigurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, "Standard", null, 1, true, true);
+        long secondConfigurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, "Beta", null, 1, true, true);
+        long emptyConfigurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, "Empty", null, 1, true, true);
+
+        connectedUserProjectConfigurationService.assign(
+            CONNECTED_USER_ID_SEQUENCE.incrementAndGet(), projectId, firstConfigurationId);
+        connectedUserProjectConfigurationService.assign(
+            CONNECTED_USER_ID_SEQUENCE.incrementAndGet(), projectId, firstConfigurationId);
+        connectedUserProjectConfigurationService.assign(
+            CONNECTED_USER_ID_SEQUENCE.incrementAndGet(), projectId, secondConfigurationId);
+
+        assertThat(automationProjectConfigurationFacade.getConfigurations(projectId))
+            .extracting(
+                AutomationProjectConfigurationDTO::id,
+                AutomationProjectConfigurationDTO::connectedUserCount)
+            .containsExactly(
+                tuple(firstConfigurationId, 2), tuple(secondConfigurationId, 1), tuple(emptyConfigurationId, 0));
+        assertThat(automationProjectConfigurationFacade.getConfiguration(firstConfigurationId)
+            .connectedUserCount()).isEqualTo(2);
+    }
+
+    @Test
+    void testGetConfigurationsListsPinnedVersionWorkflows() {
+        long projectId = createPublishedProject("Pinned Version", 1);
+
+        automationProjectFacade.createProjectWorkflow(projectId, null, null);
+        automationProjectFacade.publishProject(projectId);
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+
+        List<AutomationProjectConfigurationDTO> configurations =
+            automationProjectConfigurationFacade.getConfigurations(projectId);
+
+        assertThat(configurations).hasSize(1);
+
+        AutomationProjectConfigurationDTO configuration = configurations.getFirst();
+
+        assertThat(configuration.id()).isEqualTo(configurationId);
+        assertThat(configuration.projectVersion()).isEqualTo(1);
+        assertThat(configuration.workflows()).hasSize(1);
+        assertThat(configuration.workflows()
+            .getFirst()
+            .enabled()).isTrue();
+        assertThat(configuration.workflows()
+            .getFirst()
+            .workflowId()).isEqualTo(
+                projectWorkflowService.getProjectWorkflows(projectId, 1)
+                    .getFirst()
+                    .getWorkflowId());
+
+        automationProjectConfigurationFacade.updateConfiguration(configurationId, CONFIGURATION_NAME, null,
+            2, true, true);
+
+        assertThat(automationProjectConfigurationFacade.getConfigurations(projectId)
+            .getFirst()
+            .workflows()).hasSize(2);
+    }
+
+    @Test
+    void testEnableConfigurationWorkflowIsReflectedInTheListing() {
+        long projectId = createPublishedProject("Workflow Switch", 1);
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+
+        String workflowUuid = automationProjectConfigurationFacade.getConfigurations(projectId)
+            .getFirst()
+            .workflows()
+            .getFirst()
+            .workflowUuid();
+
+        automationProjectConfigurationFacade.enableConfigurationWorkflow(
+            configurationId, workflowUuid, false);
+
+        assertThat(automationProjectConfigurationFacade.getConfigurations(projectId)
+            .getFirst()
+            .workflows()
+            .getFirst()
+            .enabled()).isFalse();
+        assertThat(applicationEvents.stream(AutomationProjectConfigurationUpdatedEvent.class)
+            .count()).isEqualTo(2);
+    }
+
+    @Test
+    void testEnableConfigurationTogglesTheFlag() {
+        long projectId = createPublishedProject("Configuration Switch", 1);
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+
+        applicationEvents.clear();
+
+        automationProjectConfigurationFacade.enableConfiguration(configurationId, false);
+
+        assertThat(automationProjectConfigurationService.getConfiguration(configurationId)
+            .isEnabled()).isFalse();
+
+        automationProjectConfigurationFacade.enableConfiguration(configurationId, true);
+
+        assertThat(automationProjectConfigurationService.getConfiguration(configurationId)
+            .isEnabled()).isTrue();
+        assertThat(applicationEvents.stream(AutomationProjectConfigurationUpdatedEvent.class)
+            .toList())
+                .containsExactly(
+                    new AutomationProjectConfigurationUpdatedEvent(projectId, ENVIRONMENT_ID, configurationId),
+                    new AutomationProjectConfigurationUpdatedEvent(projectId, ENVIRONMENT_ID, configurationId));
+    }
+
+    @Test
+    void testEnableConfigurationWorkflowRefusesAnEmptyRequiredInternalOnlyInput() {
+        long projectId = createProject("Enable Internal Only");
+
+        String workflowUuid = addWorkflow(
+            projectId, withLabel(CHANNEL_AND_REQUIRED_INTERNAL_ONLY_DEFINITION, "Sync Accounts"));
+
+        publish(projectId);
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+
+        automationProjectConfigurationFacade.enableConfigurationWorkflow(configurationId, workflowUuid, false);
+
+        automationProjectConfigurationFacade.updateConfigurationWorkflow(
+            configurationId, workflowUuid, Map.of(), Map.of("accountId", " "));
+
+        assertInternalOnlyInputMissing(
+            () -> automationProjectConfigurationFacade.enableConfigurationWorkflow(
+                configurationId, workflowUuid, true),
+            "Workflow Sync Accounts needs a value for the internal-only input accountId");
+
+        assertThat(automationProjectConfigurationService.getConfiguration(configurationId)
+            .isWorkflowEnabled(UUID.fromString(workflowUuid))).isFalse();
+    }
+
+    @Test
+    void testEnableConfigurationRefusesAnEnabledWorkflowWithAnEmptyRequiredInternalOnlyInput() {
+        long projectId = createProject("Enable Configuration Internal Only");
+
+        String workflowUuid = addWorkflow(
+            projectId, withLabel(CHANNEL_AND_REQUIRED_INTERNAL_ONLY_DEFINITION, "Sync Accounts"));
+
+        publish(projectId);
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+
+        automationProjectConfigurationFacade.enableConfiguration(configurationId, false);
+
+        assertInternalOnlyInputMissing(
+            () -> automationProjectConfigurationFacade.enableConfiguration(configurationId, true),
+            "Workflow Sync Accounts needs a value for the internal-only input accountId");
+
+        assertThat(automationProjectConfigurationService.getConfiguration(configurationId)
+            .isEnabled()).isFalse();
+
+        automationProjectConfigurationFacade.enableConfigurationWorkflow(configurationId, workflowUuid, false);
+
+        automationProjectConfigurationFacade.enableConfiguration(configurationId, true);
+
+        assertThat(automationProjectConfigurationService.getConfiguration(configurationId)
+            .isEnabled()).isTrue();
+    }
+
+    @Test
+    void testUpdateConfigurationRefusesEnablingAnEnabledWorkflowWithAnEmptyRequiredInternalOnlyInput() {
+        long projectId = createProject("Update Configuration Internal Only");
+
+        String workflowUuid = addWorkflow(
+            projectId, withLabel(CHANNEL_AND_REQUIRED_INTERNAL_ONLY_DEFINITION, "Sync Accounts"));
+
+        publish(projectId);
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+
+        automationProjectConfigurationFacade.enableConfiguration(configurationId, false);
+
+        assertInternalOnlyInputMissing(
+            () -> automationProjectConfigurationFacade.updateConfiguration(
+                configurationId, CONFIGURATION_NAME, null, 1, true, true),
+            "Workflow Sync Accounts needs a value for the internal-only input accountId");
+
+        assertThat(automationProjectConfigurationService.getConfiguration(configurationId)
+            .isEnabled()).isFalse();
+
+        automationProjectConfigurationFacade.enableConfigurationWorkflow(configurationId, workflowUuid, false);
+
+        automationProjectConfigurationFacade.updateConfiguration(
+            configurationId, CONFIGURATION_NAME, null, 1, true, true);
+
+        assertThat(automationProjectConfigurationService.getConfiguration(configurationId)
+            .isEnabled()).isTrue();
+    }
+
+    @Test
+    void testEnableConfigurationWorkflowAllowsAnEmptyOptionalInternalOnlyInput() {
+        long projectId = createProject("Enable Optional Internal Only");
+
+        String workflowUuid = addWorkflow(
+            projectId, withLabel(CHANNEL_AND_OPTIONAL_INTERNAL_ONLY_DEFINITION, "Sync Accounts"));
+
+        publish(projectId);
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+
+        automationProjectConfigurationFacade.enableConfigurationWorkflow(configurationId, workflowUuid, false);
+
+        automationProjectConfigurationFacade.enableConfigurationWorkflow(configurationId, workflowUuid, true);
+
+        assertThat(automationProjectConfigurationService.getConfiguration(configurationId)
+            .isWorkflowEnabled(UUID.fromString(workflowUuid))).isTrue();
+    }
+
+    @Test
+    void testUpdateConfigurationWorkflowRefusesClearingARequiredInternalOnlyInputOfAnEnabledWorkflow() {
+        long projectId = createProject("Clear Internal Only");
+
+        String workflowUuid = addWorkflow(
+            projectId, withLabel(CHANNEL_AND_REQUIRED_INTERNAL_ONLY_DEFINITION, "Sync Accounts"));
+
+        publish(projectId);
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+
+        automationProjectConfigurationFacade.updateConfigurationWorkflow(
+            configurationId, workflowUuid, Map.of(), Map.of("accountId", "account-1"));
+
+        assertInternalOnlyInputMissing(
+            () -> automationProjectConfigurationFacade.updateConfigurationWorkflow(
+                configurationId, workflowUuid, Map.of(), Map.of()),
+            "Workflow Sync Accounts needs a value for the internal-only input accountId");
+
+        assertThat(automationProjectConfigurationService.getConfiguration(configurationId)
+            .fetchWorkflow(UUID.fromString(workflowUuid))
+            .orElseThrow()
+            .getProvidedInputs()).isEqualTo(Map.of("accountId", "account-1"));
+    }
+
+    @Test
+    void testUpdateConfigurationWithUnpublishedVersionThrows() {
+        long projectId = createPublishedProject("Update Unpublished Version", 1);
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+
+        assertThatThrownBy(
+            () -> automationProjectConfigurationFacade.updateConfiguration(
+                configurationId, CONFIGURATION_NAME, null, 2, true, true)).isInstanceOf(ConfigurationException.class);
+        assertThat(automationProjectConfigurationService.getConfiguration(configurationId)
+            .getProjectVersion()).isEqualTo(1);
+    }
+
+    @Test
+    void testUpdateConfigurationPublishesUpdatedEvent() {
+        long projectId = createPublishedProject("Updated Event", 2);
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+
+        applicationEvents.clear();
+
+        automationProjectConfigurationFacade.updateConfiguration(configurationId, CONFIGURATION_NAME, null,
+            2, false, false);
+
+        assertThat(applicationEvents.stream(AutomationProjectConfigurationUpdatedEvent.class)
+            .toList())
+                .containsExactly(
+                    new AutomationProjectConfigurationUpdatedEvent(projectId, ENVIRONMENT_ID, configurationId));
+
+        AutomationProjectConfiguration configuration =
+            automationProjectConfigurationService.getConfiguration(configurationId);
+
+        assertThat(configuration.getProjectVersion()).isEqualTo(2);
+        assertThat(configuration.isEnabled()).isFalse();
+        assertThat(configuration.isAutomationHubVisible()).isFalse();
+    }
+
+    @Test
+    void testDeleteConfigurationPublishesDeletedEvent() {
+        long projectId = createPublishedProject("Deleted Event", 1);
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+
+        automationProjectConfigurationFacade.deleteConfiguration(configurationId);
+
+        assertThat(automationProjectConfigurationFacade.getConfigurations(projectId)).isEmpty();
+        assertThat(applicationEvents.stream(AutomationProjectConfigurationDeletedEvent.class)
+            .toList())
+                .containsExactly(
+                    new AutomationProjectConfigurationDeletedEvent(projectId, ENVIRONMENT_ID, configurationId));
+    }
+
+    @Test
+    void testDeleteConfigurationInUseRestoresEnabledConfiguration() {
+        long projectId = createPublishedProject("Delete In Use", 1);
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+
+        doReturn(List.of(new ConnectedUserProjectConfiguration(Long.MAX_VALUE, projectId, configurationId)))
+            .when(connectedUserProjectConfigurationService)
+            .getAssignments(configurationId);
+
+        applicationEvents.clear();
+
+        assertThatThrownBy(() -> automationProjectConfigurationFacade.deleteConfiguration(configurationId))
+            .isInstanceOfSatisfying(ConfigurationException.class, configurationException -> assertThat(
+                configurationException.getErrorKey()).isEqualTo(
+                    AutomationProjectConfigurationErrorType.CONFIGURATION_IN_USE.getErrorKey()));
+
+        assertThat(automationProjectConfigurationFacade.getConfiguration(configurationId)
+            .enabled()).isTrue();
+        assertThat(applicationEvents.stream(AutomationProjectConfigurationUpdatedEvent.class)
+            .toList())
+                .containsExactly(
+                    new AutomationProjectConfigurationUpdatedEvent(projectId, ENVIRONMENT_ID, configurationId));
+        assertThat(applicationEvents.stream(AutomationProjectConfigurationDeletedEvent.class)).isEmpty();
+    }
+
+    @Test
+    void testUpdateConfigurationRejectsOlderVersionLackingReferencedWorkflow() {
+        long projectId = createPublishedProject("Rollback Blocked", 1);
+
+        String workflowUuid = addWorkflowAndPublish(projectId, "Rollback Blocked Workflow");
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 2, true, true);
+
+        givenReferences(configurationId,
+            newReference(workflowUuid, Environment.values()[(int) ENVIRONMENT_ID].name(), false));
+
+        assertThatThrownBy(
+            () -> automationProjectConfigurationFacade.updateConfiguration(
+                configurationId, CONFIGURATION_NAME, null, 1, true, true))
+                    .isInstanceOfSatisfying(ConfigurationException.class, configurationException -> {
+                        assertThat(configurationException.getMessage())
+                            .contains("Version 1 lacks workflows connected users still use: Rollback Blocked Workflow")
+                            .contains("Turn them off in this configuration or remove them from those users first.");
+                        assertThat(configurationException.getErrorKey())
+                            .isEqualTo(
+                                AutomationProjectConfigurationErrorType.VERSION_LACKS_REFERENCED_WORKFLOWS
+                                    .getErrorKey());
+                    });
+        assertThat(automationProjectConfigurationService.getConfiguration(configurationId)
+            .getProjectVersion()).isEqualTo(2);
+    }
+
+    @Test
+    void testUpdateConfigurationAllowsOlderVersionContainingReferencedWorkflows() {
+        long projectId = createPublishedProject("Rollback Allowed", 1);
+
+        addWorkflowAndPublish(projectId, "Rollback Allowed Workflow");
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 2, true, true);
+
+        String firstWorkflowUuid = projectWorkflowService.getProjectWorkflows(projectId, 1)
+            .getFirst()
+            .getUuidAsString();
+
+        givenReferences(configurationId,
+            newReference(firstWorkflowUuid, Environment.values()[(int) ENVIRONMENT_ID].name(), false));
+
+        automationProjectConfigurationFacade.updateConfiguration(configurationId, CONFIGURATION_NAME, null,
+            1, true, true);
+
+        assertThat(automationProjectConfigurationService.getConfiguration(configurationId)
+            .getProjectVersion()).isEqualTo(1);
+    }
+
+    @Test
+    void testUpdateConfigurationIgnoresDanglingAndOtherEnvironmentReferences() {
+        long projectId = createPublishedProject("Rollback Ignored References", 1);
+
+        String workflowUuid = addWorkflowAndPublish(projectId, "Rollback Ignored Workflow");
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 2, true, true);
+
+        Environment otherEnvironment = Environment.values()[(int) ENVIRONMENT_ID + 1];
+
+        givenReferences(configurationId,
+            newReference(workflowUuid, Environment.values()[(int) ENVIRONMENT_ID].name(), true),
+            newReference(workflowUuid, otherEnvironment.name(), false));
+
+        automationProjectConfigurationFacade.updateConfiguration(configurationId, CONFIGURATION_NAME, null,
+            1, true, true);
+
+        assertThat(automationProjectConfigurationService.getConfiguration(configurationId)
+            .getProjectVersion()).isEqualTo(1);
+    }
+
+    @Test
+    void testUpdateConfigurationStillBlocksWhenWorkflowIsTurnedOff() {
+        long projectId = createPublishedProject("Rollback Turned Off", 1);
+
+        String workflowUuid = addWorkflowAndPublish(projectId, "Rollback Turned Off Workflow");
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 2, true, true);
+
+        automationProjectConfigurationFacade.enableConfigurationWorkflow(
+            configurationId, workflowUuid, false);
+
+        givenReferences(configurationId,
+            newReference(workflowUuid, Environment.values()[(int) ENVIRONMENT_ID].name(), false));
+
+        assertThatThrownBy(
+            () -> automationProjectConfigurationFacade.updateConfiguration(
+                configurationId, CONFIGURATION_NAME, null, 1, true, true))
+                    .isInstanceOfSatisfying(ConfigurationException.class, configurationException -> assertThat(
+                        configurationException.getErrorKey())
+                            .isEqualTo(
+                                AutomationProjectConfigurationErrorType.VERSION_LACKS_REFERENCED_WORKFLOWS
+                                    .getErrorKey()));
+        assertThat(automationProjectConfigurationService.getConfiguration(configurationId)
+            .getProjectVersion()).isEqualTo(2);
+    }
+
+    @Test
+    void testUpdateConfigurationAllowsNewerVersionRemovingReferencedWorkflow() {
+        long projectId = createPublishedProject("Roll Forward", 1);
+
+        String workflowUuid = addWorkflowAndPublish(projectId, "Roll Forward Workflow");
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 2, true, true);
+
+        automationProjectFacade.deleteProjectWorkflow(workflowUuid);
+        automationProjectFacade.publishProject(projectId);
+
+        givenReferences(configurationId,
+            newReference(workflowUuid, Environment.values()[(int) ENVIRONMENT_ID].name(), false));
+
+        automationProjectConfigurationFacade.updateConfiguration(configurationId, CONFIGURATION_NAME, null,
+            3, true, true);
+
+        assertThat(automationProjectConfigurationService.getConfiguration(configurationId)
+            .getProjectVersion()).isEqualTo(3);
+    }
+
+    @Test
+    void testGetVersionImpactCountsOnlyReferencesLackingTheNewRequiredInput() {
+        long projectId = createProject("Impact New Input");
+
+        String workflowUuid = addWorkflow(projectId, withLabel(NO_INPUT_DEFINITION, "Notify Slack"));
+
+        publish(projectId);
+        redefineDraftWorkflow(workflowUuid, withLabel(CHANNEL_REQUIRED_DEFINITION, "Notify Slack"));
+        publish(projectId);
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+
+        String environmentName = Environment.values()[(int) ENVIRONMENT_ID].name();
+
+        givenStoredInputs(101L, projectId, 1, workflowUuid, Map.of("channel", "general"));
+        givenStoredInputs(102L, projectId, 1, workflowUuid, Map.of());
+        givenStoredInputs(103L, projectId, 1, workflowUuid, Map.of("channel", "  "));
+        givenReferences(configurationId,
+            newReference(workflowUuid, environmentName, false, 101L),
+            newReference(workflowUuid, environmentName, false, 102L),
+            newReference(workflowUuid, environmentName, false, 103L));
+
+        AutomationProjectConfigurationVersionImpactDTO versionImpact =
+            automationProjectConfigurationFacade.getVersionImpact(configurationId, 2);
+
+        assertThat(versionImpact.workflows()).containsExactly(
+            new AutomationProjectConfigurationVersionImpactDTO.Workflow(
+                workflowUuid, "Notify Slack", List.of("channel"), List.of(), 2, false));
+    }
+
+    @Test
+    void testGetVersionImpactReportsAnOptionalInputThatBecameRequired() {
+        long projectId = createProject("Impact Optional To Required");
+
+        String workflowUuid = addWorkflow(projectId, withLabel(CHANNEL_OPTIONAL_DEFINITION, "Optional Flow"));
+
+        publish(projectId);
+        redefineDraftWorkflow(workflowUuid, withLabel(CHANNEL_REQUIRED_DEFINITION, "Optional Flow"));
+        publish(projectId);
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+
+        givenStoredInputs(101L, projectId, 1, workflowUuid, Map.of());
+        givenReferences(configurationId,
+            newReference(workflowUuid, Environment.values()[(int) ENVIRONMENT_ID].name(), false, 101L));
+
+        AutomationProjectConfigurationVersionImpactDTO versionImpact =
+            automationProjectConfigurationFacade.getVersionImpact(configurationId, 2);
+
+        assertThat(versionImpact.workflows()).containsExactly(
+            new AutomationProjectConfigurationVersionImpactDTO.Workflow(
+                workflowUuid, "Optional Flow", List.of("channel"), List.of(), 1, false));
+    }
+
+    @Test
+    void testGetVersionImpactOmitsWorkflowsWithoutNewRequirements() {
+        long projectId = createProject("Impact No Change");
+
+        String relaxedWorkflowUuid = addWorkflow(projectId, withLabel(CHANNEL_REQUIRED_DEFINITION, "Relaxed"));
+        String unchangedWorkflowUuid = addWorkflow(projectId, withLabel(CHANNEL_REQUIRED_DEFINITION, "Unchanged"));
+
+        publish(projectId);
+        redefineDraftWorkflow(relaxedWorkflowUuid, withLabel(CHANNEL_OPTIONAL_DEFINITION, "Relaxed"));
+        addWorkflow(projectId, withLabel(CHANNEL_REQUIRED_DEFINITION, "Only In New Version"));
+        publish(projectId);
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+
+        String environmentName = Environment.values()[(int) ENVIRONMENT_ID].name();
+
+        givenStoredInputs(101L, projectId, 1, relaxedWorkflowUuid, Map.of());
+        givenStoredInputs(101L, projectId, 1, unchangedWorkflowUuid, Map.of());
+        givenReferences(configurationId,
+            newReference(relaxedWorkflowUuid, environmentName, false, 101L),
+            newReference(unchangedWorkflowUuid, environmentName, false, 101L));
+
+        assertThat(automationProjectConfigurationFacade.getVersionImpact(configurationId, 2)
+            .workflows()).isEmpty();
+    }
+
+    @Test
+    void testGetVersionImpactReportsANewRequiredConnectionAndCountsEveryReference() {
+        long projectId = createProject("Impact New Connection");
+
+        String workflowUuid = addWorkflow(projectId, withLabel(SLACK_DEFINITION, "Sync Issues"));
+
+        publish(projectId);
+        redefineDraftWorkflow(workflowUuid, withLabel(SLACK_AND_JIRA_DEFINITION, "Sync Issues"));
+        publish(projectId);
+
+        when(componentConnectionFacade.getComponentConnections(any(WorkflowTask.class)))
+            .thenAnswer(invocation -> switch (invocation.<WorkflowTask>getArgument(0)
+                .getName()) {
+                case "postMessage1" -> List.of(new ComponentConnection("slack", 1, "postMessage1", "slack", true));
+                case "createIssue1" -> List.of(new ComponentConnection("jira", 1, "createIssue1", "jira", true));
+                default -> List.of();
+            });
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+
+        String environmentName = Environment.values()[(int) ENVIRONMENT_ID].name();
+
+        givenStoredInputs(101L, projectId, 1, workflowUuid, Map.of());
+        givenStoredInputs(102L, projectId, 1, workflowUuid, Map.of());
+        givenReferences(configurationId,
+            newReference(workflowUuid, environmentName, false, 101L),
+            newReference(workflowUuid, environmentName, false, 102L));
+
+        assertThat(automationProjectConfigurationFacade.getVersionImpact(configurationId, 2)
+            .workflows()).containsExactly(
+                new AutomationProjectConfigurationVersionImpactDTO.Workflow(
+                    workflowUuid, "Sync Issues", List.of(), List.of("jira"), 2, false));
+    }
+
+    @Test
+    void testGetVersionImpactIgnoresDanglingAndOtherEnvironmentReferences() {
+        long projectId = createProject("Impact Ignored References");
+
+        String workflowUuid = addWorkflow(projectId, withLabel(NO_INPUT_DEFINITION, "Ignored References"));
+
+        publish(projectId);
+        redefineDraftWorkflow(workflowUuid, withLabel(CHANNEL_REQUIRED_DEFINITION, "Ignored References"));
+        publish(projectId);
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+
+        String environmentName = Environment.values()[(int) ENVIRONMENT_ID].name();
+        Environment otherEnvironment = Environment.values()[(int) ENVIRONMENT_ID + 1];
+
+        givenStoredInputs(101L, projectId, 1, workflowUuid, Map.of());
+        givenStoredInputs(102L, projectId, 1, workflowUuid, Map.of());
+        givenStoredInputs(103L, projectId, 1, workflowUuid, Map.of());
+        givenReferences(configurationId,
+            newReference(workflowUuid, environmentName, false, 101L),
+            newReference(workflowUuid, environmentName, true, 102L),
+            newReference(workflowUuid, otherEnvironment.name(), false, 103L));
+
+        assertThat(automationProjectConfigurationFacade.getVersionImpact(configurationId, 2)
+            .workflows()
+            .getFirst()
+            .affectedConnectedUserCount()).isEqualTo(1);
+    }
+
+    @Test
+    void testGetVersionImpactCountsOnlyReferencesWhoseUserTurnedTheWorkflowOn() {
+        long projectId = createProject("Impact Turned Off References");
+
+        String workflowUuid = addWorkflow(projectId, withLabel(NO_INPUT_DEFINITION, "Turned Off References"));
+
+        publish(projectId);
+        redefineDraftWorkflow(workflowUuid, withLabel(CHANNEL_REQUIRED_DEFINITION, "Turned Off References"));
+        publish(projectId);
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+
+        String environmentName = Environment.values()[(int) ENVIRONMENT_ID].name();
+
+        givenStoredInputs(101L, projectId, 1, workflowUuid, Map.of());
+        givenStoredInputs(102L, projectId, 1, workflowUuid, Map.of());
+        givenReferences(configurationId,
+            newReference(workflowUuid, environmentName, true, false, 101L),
+            newReference(workflowUuid, environmentName, false, false, 102L));
+
+        assertThat(automationProjectConfigurationFacade.getVersionImpact(configurationId, 2)
+            .workflows()
+            .getFirst()
+            .affectedConnectedUserCount()).isEqualTo(1);
+    }
+
+    @Test
+    void testGetVersionImpactLeavesOutInternalOnlyInputs() {
+        long projectId = createProject("Impact Internal Only");
+
+        String workflowUuid = addWorkflow(projectId, withLabel(NO_INPUT_DEFINITION, "Sync Accounts"));
+
+        publish(projectId);
+        redefineDraftWorkflow(workflowUuid, withLabel(CHANNEL_AND_REQUIRED_INTERNAL_ONLY_DEFINITION, "Sync Accounts"));
+        publish(projectId);
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+
+        givenStoredInputs(101L, projectId, 1, workflowUuid, Map.of("channel", "general"));
+        givenReferences(configurationId,
+            newReference(workflowUuid, Environment.values()[(int) ENVIRONMENT_ID].name(), false, 101L));
+
+        assertThat(automationProjectConfigurationFacade.getVersionImpact(configurationId, 2)
+            .workflows()).containsExactly(
+                new AutomationProjectConfigurationVersionImpactDTO.Workflow(
+                    workflowUuid, "Sync Accounts", List.of("channel"), List.of(), 1, true));
+    }
+
+    @Test
+    void testGetVersionImpactNamesAWorkflowThatStaysDisabledWithoutItsRequiredInternalOnlyValue() {
+        long projectId = createProject("Impact Awaits Configuration");
+
+        String workflowUuid = addWorkflow(projectId, withLabel(NO_INPUT_DEFINITION, "Sync Accounts"));
+
+        publish(projectId);
+        redefineDraftWorkflow(workflowUuid, withLabel(REQUIRED_INTERNAL_ONLY_DEFINITION, "Sync Accounts"));
+        publish(projectId);
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+
+        givenStoredInputs(101L, projectId, 1, workflowUuid, Map.of());
+        givenReferences(configurationId,
+            newReference(workflowUuid, Environment.values()[(int) ENVIRONMENT_ID].name(), false, 101L));
+
+        assertThat(automationProjectConfigurationFacade.getVersionImpact(configurationId, 2)
+            .workflows()).containsExactly(
+                new AutomationProjectConfigurationVersionImpactDTO.Workflow(
+                    workflowUuid, "Sync Accounts", List.of(), List.of(), 1, true));
+
+        automationProjectConfigurationService.updateWorkflowProvidedValues(
+            configurationId, UUID.fromString(workflowUuid), Map.of(), Map.of("accountId", "account-1"));
+
+        assertThat(automationProjectConfigurationFacade.getVersionImpact(configurationId, 2)
+            .workflows()).isEmpty();
+    }
+
+    @Test
+    void testGetMoveImpactNamesAWorkflowThatStaysDisabledWithoutTheTargetsRequiredInternalOnlyValue() {
+        long projectId = createProject("Move Impact Awaits Configuration");
+
+        String workflowUuid = addWorkflow(projectId, withLabel(NO_INPUT_DEFINITION, "Sync Accounts"));
+
+        publish(projectId);
+        redefineDraftWorkflow(workflowUuid, withLabel(REQUIRED_INTERNAL_ONLY_DEFINITION, "Sync Accounts"));
+        publish(projectId);
+
+        long sourceConfigurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+        long targetConfigurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, "Version 2", null, 2, false, true);
+
+        automationProjectConfigurationService.updateWorkflowProvidedValues(
+            sourceConfigurationId, UUID.fromString(workflowUuid), Map.of(), Map.of("accountId", "account-1"));
+
+        givenStoredInputs(101L, projectId, 1, workflowUuid, Map.of());
+        givenReferences(sourceConfigurationId,
+            newReference(workflowUuid, Environment.values()[(int) ENVIRONMENT_ID].name(), false, 101L));
+
+        assertThat(automationProjectConfigurationFacade.getMoveImpact(
+            sourceConfigurationId, targetConfigurationId, List.of(101L))
+            .workflows()).containsExactly(
+                new AutomationProjectConfigurationVersionImpactDTO.Workflow(
+                    workflowUuid, "Sync Accounts", List.of(), List.of(), 1, true));
+
+        automationProjectConfigurationService.updateWorkflowProvidedValues(
+            targetConfigurationId, UUID.fromString(workflowUuid), Map.of(), Map.of("accountId", "account-2"));
+
+        assertThat(automationProjectConfigurationFacade.getMoveImpact(
+            sourceConfigurationId, targetConfigurationId, List.of(101L))
+            .workflows()).isEmpty();
+    }
+
+    @Test
+    void testGetMoveImpactLeavesOutAWorkflowTheTargetTurnedOff() {
+        long projectId = createProject("Move Impact Turned Off Workflow");
+
+        String workflowUuid = addWorkflow(projectId, withLabel(NO_INPUT_DEFINITION, "Sync Accounts"));
+
+        publish(projectId);
+        redefineDraftWorkflow(workflowUuid, withLabel(REQUIRED_INTERNAL_ONLY_DEFINITION, "Sync Accounts"));
+        publish(projectId);
+
+        long sourceConfigurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+        long targetConfigurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, "Version 2", null, 2, false, true);
+
+        automationProjectConfigurationService.updateWorkflowEnabled(
+            targetConfigurationId, UUID.fromString(workflowUuid), false);
+
+        givenStoredInputs(101L, projectId, 1, workflowUuid, Map.of());
+        givenReferences(sourceConfigurationId,
+            newReference(workflowUuid, Environment.values()[(int) ENVIRONMENT_ID].name(), false, 101L));
+
+        assertThat(automationProjectConfigurationFacade.getMoveImpact(
+            sourceConfigurationId, targetConfigurationId, List.of(101L))
+            .workflows()).isEmpty();
+    }
+
+    @Test
+    void testProvidableValuesListOnlyInternalOnlyInputs() {
+        long projectId = createProject("Providable Internal Only");
+
+        String workflowUuid = addWorkflow(
+            projectId, withLabel(CHANNEL_AND_OPTIONAL_INTERNAL_ONLY_DEFINITION, "Sync Accounts"));
+
+        publish(projectId);
+
+        givenSlots();
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+
+        assertThat(automationProjectConfigurationFacade
+            .getConfigurationWorkflowProvidableValues(configurationId, workflowUuid, null)
+            .inputs()).containsExactly(
+                new AutomationProjectConfigurationWorkflowProvidableValuesDTO.Input(
+                    "accountId", "Account", "string", false, true));
+    }
+
+    @Test
+    void testGetVersionImpactLabelsAWorkflowWithoutALabelByItsUuid() {
+        long projectId = createProject("Impact Without Label");
+
+        String workflowUuid = addWorkflow(projectId, withLabel(NO_INPUT_DEFINITION, ""));
+
+        publish(projectId);
+        redefineDraftWorkflow(workflowUuid, withLabel(CHANNEL_REQUIRED_DEFINITION, ""));
+        publish(projectId);
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+
+        givenReferences(configurationId);
+
+        assertThat(automationProjectConfigurationFacade.getVersionImpact(configurationId, 2)
+            .workflows()).containsExactly(
+                new AutomationProjectConfigurationVersionImpactDTO.Workflow(
+                    workflowUuid, workflowUuid, List.of("channel"), List.of(), 0, false));
+    }
+
+    @Test
+    void testGetProvidableValuesExposesTheSlotsAndInputsOfThePinnedVersionNotTheDraft() {
+        long projectId = createProject("Pinned Slots");
+
+        String workflowUuid =
+            addWorkflow(projectId, withLabel(SLACK_WITH_INTERNAL_ONLY_CHANNEL_DEFINITION, "Pinned Slots"));
+
+        publish(projectId);
+        redefineDraftWorkflow(workflowUuid, withLabel(NO_INPUT_DEFINITION, "Pinned Slots"));
+
+        givenSlots(new ComponentConnection("slack", 1, "postMessage1", "slack", true));
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+
+        AutomationProjectConfigurationWorkflowProvidableValuesDTO providableValues =
+            automationProjectConfigurationFacade.getConfigurationWorkflowProvidableValues(
+                configurationId, workflowUuid, null);
+
+        assertThat(providableValues.connectionSlots()).extracting(
+            AutomationProjectConfigurationWorkflowProvidableValuesDTO.ConnectionSlot::componentName)
+            .containsExactly("slack");
+        assertThat(providableValues.inputs()).containsExactly(
+            new AutomationProjectConfigurationWorkflowProvidableValuesDTO.Input(
+                "channel", "Channel", "string", false, true));
+    }
+
+    @Test
+    void testGetProjectWorkflowProvidableValuesNeedsNoConfiguration() {
+        long projectId = createProject("Before Configuration");
+
+        String workflowUuid = addWorkflow(
+            projectId, withLabel(SLACK_WITH_INTERNAL_ONLY_CHANNEL_DEFINITION, "Before Configuration"));
+
+        publish(projectId);
+        redefineDraftWorkflow(workflowUuid, withLabel(NO_INPUT_DEFINITION, "Before Configuration"));
+
+        givenSlots(new ComponentConnection("slack", 1, "postMessage1", "slack", true));
+
+        AutomationProjectConfigurationWorkflowProvidableValuesDTO providableValues =
+            automationProjectConfigurationFacade.getProjectWorkflowProvidableValues(
+                projectId, ENVIRONMENT_ID, 1, workflowUuid);
+
+        assertThat(providableValues.connectionSlots()).extracting(
+            AutomationProjectConfigurationWorkflowProvidableValuesDTO.ConnectionSlot::componentName)
+            .containsExactly("slack");
+        assertThat(providableValues.inputs()).containsExactly(
+            new AutomationProjectConfigurationWorkflowProvidableValuesDTO.Input(
+                "channel", "Channel", "string", false, true));
+        assertThat(providableValues.providedConnections()).isEmpty();
+        assertThat(providableValues.providedInputs()).isEmpty();
+    }
+
+    @Test
+    void testGetProjectWorkflowProvidableValuesRejectsAnUnpublishedVersion() {
+        long projectId = createProject("Unpublished Version");
+
+        String workflowUuid = addWorkflow(projectId, withLabel(NO_INPUT_DEFINITION, "Unpublished Version"));
+
+        publish(projectId);
+
+        assertThatThrownBy(
+            () -> automationProjectConfigurationFacade.getProjectWorkflowProvidableValues(
+                projectId, ENVIRONMENT_ID, 2, workflowUuid))
+                    .isInstanceOf(ConfigurationException.class)
+                    .hasMessageContaining("is not a published version");
+    }
+
+    @Test
+    void testGetProvidableValuesReadsAWorkflowOfTheGivenVersionTheConfigurationIsNotOnYet() {
+        long projectId = createProject("Target Version Slots");
+
+        addWorkflow(projectId, withLabel(NO_INPUT_DEFINITION, "Existing"));
+
+        publish(projectId);
+
+        String addedWorkflowUuid =
+            addWorkflow(projectId, withLabel(SLACK_WITH_INTERNAL_ONLY_CHANNEL_DEFINITION, "Added"));
+
+        publish(projectId);
+
+        givenSlots(new ComponentConnection("slack", 1, "postMessage1", "slack", true));
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+
+        assertThatThrownBy(
+            () -> automationProjectConfigurationFacade.getConfigurationWorkflowProvidableValues(
+                configurationId, addedWorkflowUuid, null))
+                    .isInstanceOf(ConfigurationException.class)
+                    .hasMessageContaining("is not part of version 1");
+
+        AutomationProjectConfigurationWorkflowProvidableValuesDTO providableValues =
+            automationProjectConfigurationFacade.getConfigurationWorkflowProvidableValues(
+                configurationId, addedWorkflowUuid, 2);
+
+        assertThat(providableValues.connectionSlots()).extracting(
+            AutomationProjectConfigurationWorkflowProvidableValuesDTO.ConnectionSlot::componentName)
+            .containsExactly("slack");
+        assertThat(providableValues.inputs()).extracting(
+            AutomationProjectConfigurationWorkflowProvidableValuesDTO.Input::name)
+            .containsExactly("channel");
+    }
+
+    @Test
+    void testGetProvidableValuesExposesAClusterElementSlotOnceWithItsRequiredFlag() {
+        long projectId = createProject("Cluster Slots");
+
+        String workflowUuid = addWorkflow(projectId, withLabel(SLACK_DEFINITION, "Cluster Slots"));
+
+        publish(projectId);
+
+        givenSlots(
+            new ComponentConnection("slack", 1, "postMessage1", "slack", false),
+            new ComponentConnection("openai", 1, "postMessage1", "openai", true),
+            new ComponentConnection("slack", 1, "postMessage1", "slack2", true));
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+
+        List<AutomationProjectConfigurationWorkflowProvidableValuesDTO.ConnectionSlot> connectionSlots =
+            automationProjectConfigurationFacade
+                .getConfigurationWorkflowProvidableValues(configurationId, workflowUuid, null)
+                .connectionSlots();
+
+        assertThat(connectionSlots).extracting(
+            AutomationProjectConfigurationWorkflowProvidableValuesDTO.ConnectionSlot::componentName)
+            .containsExactly("slack", "openai");
+        assertThat(connectionSlots)
+            .extracting(AutomationProjectConfigurationWorkflowProvidableValuesDTO.ConnectionSlot::required)
+            .containsExactly(true, true);
+    }
+
+    @Test
+    void testGetProvidableValuesExcludesConnectedUserAndOtherEnvironmentConnectionsFromTheProvidableOnes() {
+        ProvidedValuesFixture fixture = createProvidedValuesFixture("Providable Connections");
+
+        givenConnections(
+            "slack", newConnection(21L, "slack", ENVIRONMENT_ID, "Company Slack"),
+            newConnection(22L, "slack", ENVIRONMENT_ID, "Customer Slack"),
+            newConnection(23L, "slack", ENVIRONMENT_ID + 1, "Production Slack"));
+
+        connectedUserConnectionService.create(9002L, 22L);
+
+        try {
+            List<AutomationProjectConfigurationWorkflowProvidableValuesDTO.ProvidableConnection> providable =
+                automationProjectConfigurationFacade
+                    .getConfigurationWorkflowProvidableValues(fixture.configurationId(), fixture.workflowUuid(), null)
+                    .connectionSlots()
+                    .getFirst()
+                    .providableConnections();
+
+            assertThat(providable).containsExactly(
+                new AutomationProjectConfigurationWorkflowProvidableValuesDTO.ProvidableConnection(
+                    21L, "Company Slack"));
+        } finally {
+            connectedUserConnectionService.deleteByConnectionId(22L);
+        }
+    }
+
+    @Test
+    void testGetProvidableValuesExposesTheComponentReferenceAndOptionConnectionsOfAnInput() {
+        long projectId = createProject("Input Option Connections");
+
+        String workflowUuid = addWorkflow(
+            projectId, withLabel(SLACK_CHANNEL_REFERENCE_DEFINITION, "Input Option Connections"));
+
+        publish(projectId);
+
+        givenSlots();
+        givenConnections(
+            "slack", newConnection(31L, "slack", ENVIRONMENT_ID, "Company Slack"),
+            newConnection(32L, "slack", ENVIRONMENT_ID, "Customer Slack"),
+            newConnection(33L, "slack", ENVIRONMENT_ID + 1, "Production Slack"));
+
+        connectedUserConnectionService.create(9003L, 32L);
+
+        try {
+            long configurationId = automationProjectConfigurationFacade.createConfiguration(
+                projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+
+            assertThat(
+                automationProjectConfigurationFacade
+                    .getConfigurationWorkflowProvidableValues(configurationId, workflowUuid, null)
+                    .inputs())
+                        .containsExactly(
+                            new AutomationProjectConfigurationWorkflowProvidableValuesDTO.Input(
+                                "channel", "Slack Channel", "STRING", true, true, "slack", 1, "channel",
+                                List.of(
+                                    new AutomationProjectConfigurationWorkflowProvidableValuesDTO.ProvidableConnection(
+                                        31L, "Company Slack"))));
+        } finally {
+            connectedUserConnectionService.deleteByConnectionId(32L);
+        }
+    }
+
+    @Test
+    void testGetConfigurationWorkflowInputOptionsLoadsTheOptionsWithTheAdministratorConnection() {
+        InputOptionsFixture fixture = createInputOptionsFixture("Input Options");
+
+        givenConnection(41L, "slack", ENVIRONMENT_ID);
+
+        Option generalOption = mock(Option.class);
+
+        when(generalOption.getLabel()).thenReturn("general");
+        when(generalOption.getValue()).thenReturn("C123");
+        when(generalOption.getDescription()).thenReturn("Company-wide");
+        when(componentDefinitionFacade.executeWorkflowInputOptions(
+            "slack", 1, "channel", "channel", Map.of("workspace", "acme"), List.of("workspace"), "gen", 41L))
+                .thenReturn(List.of(generalOption));
+
+        assertThat(
+            automationProjectConfigurationFacade.getConfigurationWorkflowInputOptions(
+                fixture.configurationId(), fixture.workflowUuid(), null, "channel", "channel", 41L,
+                Map.of("workspace", "acme"), "gen"))
+                    .containsExactly(
+                        new AutomationProjectConfigurationWorkflowProvidableValuesDTO.InputOption(
+                            "general", "C123", "Company-wide"));
+    }
+
+    @Test
+    void testGetConfigurationWorkflowInputOptionsRejectsAConnectedUserConnection() {
+        InputOptionsFixture fixture = createInputOptionsFixture("Input Options Connected User");
+
+        givenConnection(42L, "slack", ENVIRONMENT_ID);
+
+        connectedUserConnectionService.create(9004L, 42L);
+
+        try {
+            assertThatThrownBy(
+                () -> automationProjectConfigurationFacade.getConfigurationWorkflowInputOptions(
+                    fixture.configurationId(), fixture.workflowUuid(), null, "channel", "channel", 42L, Map.of(), null))
+                        .isInstanceOf(ConfigurationException.class)
+                        .hasMessageContaining("Connection id=42 for component slack belongs to a connected user");
+        } finally {
+            connectedUserConnectionService.deleteByConnectionId(42L);
+        }
+    }
+
+    @Test
+    void testGetConfigurationWorkflowInputOptionsRejectsAConnectionOfAnotherComponent() {
+        InputOptionsFixture fixture = createInputOptionsFixture("Input Options Other Component");
+
+        givenConnection(43L, "jira", ENVIRONMENT_ID);
+
+        assertThatThrownBy(
+            () -> automationProjectConfigurationFacade.getConfigurationWorkflowInputOptions(
+                fixture.configurationId(), fixture.workflowUuid(), null, "channel", "channel", 43L, Map.of(), null))
+                    .isInstanceOf(ConfigurationException.class)
+                    .hasMessageContaining("Connection id=43 belongs to component jira, not slack");
+    }
+
+    @Test
+    void testGetConfigurationWorkflowInputOptionsRejectsAnInputWithoutAComponentReference() {
+        InputOptionsFixture fixture = createInputOptionsFixture("Input Options Plain Input");
+
+        givenConnection(44L, "slack", ENVIRONMENT_ID);
+
+        assertThatThrownBy(
+            () -> automationProjectConfigurationFacade.getConfigurationWorkflowInputOptions(
+                fixture.configurationId(), fixture.workflowUuid(), null, "topic", "topic", 44L, Map.of(), null))
+                    .isInstanceOf(ConfigurationException.class)
+                    .hasMessageContaining("Input topic of workflow uuid=");
+    }
+
+    @Test
+    void testGetProvidableValuesReturnsTheStoredProvidedValues() {
+        ProvidedValuesFixture fixture = createProvidedValuesFixture("Providable Stored Values");
+
+        givenConnection(11L, "slack", ENVIRONMENT_ID);
+
+        automationProjectConfigurationFacade.updateConfigurationWorkflow(
+            fixture.configurationId(), fixture.workflowUuid(), Map.of("slack", 11L), Map.of("channel", "general"));
+
+        AutomationProjectConfigurationWorkflowProvidableValuesDTO providableValues =
+            automationProjectConfigurationFacade.getConfigurationWorkflowProvidableValues(
+                fixture.configurationId(), fixture.workflowUuid(), null);
+
+        assertThat(providableValues.providedConnections()).isEqualTo(Map.of("slack", 11L));
+        assertThat(providableValues.providedInputs()).isEqualTo(Map.of("channel", "general"));
+    }
+
+    @Test
+    void testUpdateConfigurationWorkflowProvidesValuesVisibleInTheListing() {
+        ProvidedValuesFixture fixture = createProvidedValuesFixture("Provided Values");
+
+        givenConnection(11L, "slack", ENVIRONMENT_ID);
+
+        applicationEvents.clear();
+
+        automationProjectConfigurationFacade.updateConfigurationWorkflow(
+            fixture.configurationId(), fixture.workflowUuid(), Map.of("slack", 11L), Map.of("channel", "general"));
+
+        AutomationProjectConfigurationDTO.Workflow workflow =
+            automationProjectConfigurationFacade.getConfigurations(fixture.projectId())
+                .getFirst()
+                .workflows()
+                .getFirst();
+
+        assertThat(workflow.providedConnections()).isEqualTo(Map.of("slack", 11L));
+        assertThat(workflow.providedInputs()).isEqualTo(Map.of("channel", "general"));
+        assertThat(workflow.enabled()).isTrue();
+        assertThat(applicationEvents.stream(AutomationProjectConfigurationUpdatedEvent.class)
+            .toList())
+                .containsExactly(
+                    new AutomationProjectConfigurationUpdatedEvent(
+                        fixture.projectId(), ENVIRONMENT_ID, fixture.configurationId()));
+    }
+
+    @Test
+    void testUpdateConfigurationWorkflowNamesTheInputsItStopsProvidingInTheUpdatedEvent() {
+        ProvidedValuesFixture fixture = createProvidedValuesFixture("Provided Input Removed");
+
+        automationProjectConfigurationFacade.updateConfigurationWorkflow(
+            fixture.configurationId(), fixture.workflowUuid(), Map.of(), Map.of("channel", "general"));
+
+        applicationEvents.clear();
+
+        automationProjectConfigurationFacade.updateConfigurationWorkflow(
+            fixture.configurationId(), fixture.workflowUuid(), Map.of(), Map.of("channel", "general"));
+        automationProjectConfigurationFacade.updateConfigurationWorkflow(
+            fixture.configurationId(), fixture.workflowUuid(), Map.of(), Map.of());
+
+        assertThat(applicationEvents.stream(AutomationProjectConfigurationUpdatedEvent.class)
+            .toList())
+                .containsExactly(
+                    new AutomationProjectConfigurationUpdatedEvent(
+                        fixture.projectId(), ENVIRONMENT_ID, fixture.configurationId()),
+                    new AutomationProjectConfigurationUpdatedEvent(
+                        fixture.projectId(), ENVIRONMENT_ID, fixture.configurationId(),
+                        Map.of(fixture.workflowUuid(), Set.of("channel"))));
+    }
+
+    @Test
+    void testDeleteConfigurationNamesEveryProvidedInputInTheDeletedEvent() {
+        ProvidedValuesFixture fixture = createProvidedValuesFixture("Provided Input Deleted");
+
+        automationProjectConfigurationFacade.updateConfigurationWorkflow(
+            fixture.configurationId(), fixture.workflowUuid(), Map.of(), Map.of("channel", "general"));
+
+        applicationEvents.clear();
+
+        automationProjectConfigurationFacade.deleteConfiguration(fixture.configurationId());
+
+        assertThat(applicationEvents.stream(AutomationProjectConfigurationDeletedEvent.class)
+            .toList())
+                .containsExactly(
+                    new AutomationProjectConfigurationDeletedEvent(
+                        fixture.projectId(), ENVIRONMENT_ID, fixture.configurationId(),
+                        Map.of(fixture.workflowUuid(), Set.of("channel"))));
+    }
+
+    @Test
+    void testUpdateConfigurationWorkflowWithEmptyMapsClearsTheValues() {
+        ProvidedValuesFixture fixture = createProvidedValuesFixture("Provided Values Cleared");
+
+        givenConnection(11L, "slack", ENVIRONMENT_ID);
+
+        automationProjectConfigurationFacade.updateConfigurationWorkflow(
+            fixture.configurationId(), fixture.workflowUuid(), Map.of("slack", 11L), Map.of("channel", "general"));
+        automationProjectConfigurationFacade.updateConfigurationWorkflow(
+            fixture.configurationId(), fixture.workflowUuid(), Map.of(), Map.of());
+
+        AutomationProjectConfigurationDTO.Workflow workflow =
+            automationProjectConfigurationFacade.getConfigurations(fixture.projectId())
+                .getFirst()
+                .workflows()
+                .getFirst();
+
+        assertThat(workflow.providedConnections()).isEmpty();
+        assertThat(workflow.providedInputs()).isEmpty();
+    }
+
+    @Test
+    void testUpdateConfigurationWorkflowRejectsAComponentThatIsNotAConnectionSlot() {
+        ProvidedValuesFixture fixture = createProvidedValuesFixture("Provided Unknown Slot");
+
+        givenConnection(11L, "jira", ENVIRONMENT_ID);
+
+        assertInvalidProvidedValue(fixture, Map.of("jira", 11L), Map.of(), "jira");
+    }
+
+    @Test
+    void testUpdateConfigurationWorkflowRejectsAConnectionOfAnotherComponent() {
+        ProvidedValuesFixture fixture = createProvidedValuesFixture("Provided Other Component");
+
+        givenConnection(12L, "jira", ENVIRONMENT_ID);
+
+        assertInvalidProvidedValue(fixture, Map.of("slack", 12L), Map.of(),
+            "Connection id=12 belongs to component jira");
+    }
+
+    @Test
+    void testUpdateConfigurationWorkflowRejectsAConnectionOfAnotherEnvironment() {
+        ProvidedValuesFixture fixture = createProvidedValuesFixture("Provided Other Environment");
+
+        givenConnection(13L, "slack", ENVIRONMENT_ID + 1);
+
+        assertInvalidProvidedValue(
+            fixture, Map.of("slack", 13L), Map.of(), "Connection id=13 for component slack belongs to environment");
+    }
+
+    @Test
+    void testUpdateConfigurationWorkflowRejectsAMissingConnection() {
+        ProvidedValuesFixture fixture = createProvidedValuesFixture("Provided Missing Connection");
+
+        when(connectionService.fetchConnection(14L)).thenReturn(Optional.empty());
+
+        assertInvalidProvidedValue(
+            fixture, Map.of("slack", 14L), Map.of(), "Connection id=14 for component slack does not exist");
+    }
+
+    @Test
+    void testUpdateConfigurationWorkflowRejectsAnInputThatIsNotInternalOnly() {
+        ProvidedValuesFixture fixture = createProvidedValuesFixture("Provided Ordinary Input");
+
+        assertInvalidProvidedValue(
+            fixture, Map.of(), Map.of("topic", "news"), "Input topic is not an internal-only input");
+    }
+
+    @Test
+    void testGetProvidableValuesListsOnlyInternalOnlyInputsAndLeavesOutAStoredValueOfAnOrdinaryInput() {
+        ProvidedValuesFixture fixture = createProvidedValuesFixture("Providable Leftover Value");
+
+        automationProjectConfigurationService.updateWorkflowProvidedValues(
+            fixture.configurationId(), UUID.fromString(fixture.workflowUuid()), Map.of(),
+            Map.of("channel", "general", "topic", "news"));
+
+        AutomationProjectConfigurationWorkflowProvidableValuesDTO providableValues =
+            automationProjectConfigurationFacade.getConfigurationWorkflowProvidableValues(
+                fixture.configurationId(), fixture.workflowUuid(), null);
+
+        assertThat(providableValues.inputs())
+            .extracting(AutomationProjectConfigurationWorkflowProvidableValuesDTO.Input::name)
+            .containsExactly("channel");
+        assertThat(providableValues.providedInputs()).isEqualTo(Map.of("channel", "general"));
+        assertThat(automationProjectConfigurationFacade.getConfigurations(fixture.projectId())
+            .getFirst()
+            .workflows()
+            .getFirst()
+            .providedInputs()).isEqualTo(Map.of("channel", "general"));
+    }
+
+    @Test
+    void testUpdateConfigurationWorkflowRejectsAnUnknownInput() {
+        ProvidedValuesFixture fixture = createProvidedValuesFixture("Provided Unknown Input");
+
+        assertInvalidProvidedValue(
+            fixture, Map.of(), Map.of("unknown", "news"), "Input unknown is not an input of the workflow");
+    }
+
+    @Test
+    void testUpdateConfigurationWorkflowRejectsAnAutomationConnection() {
+        ProvidedValuesFixture fixture = createProvidedValuesFixture("Provided Automation Connection");
+
+        givenConnection(16L, "slack", ENVIRONMENT_ID, PlatformType.AUTOMATION);
+
+        assertInvalidProvidedValue(
+            fixture, Map.of("slack", 16L), Map.of(),
+            "Connection id=16 for component slack is not an embedded connection");
+    }
+
+    @Test
+    void testUpdateConfigurationWorkflowRejectsAConnectionOwnedByAConnectedUser() {
+        ProvidedValuesFixture fixture = createProvidedValuesFixture("Provided Connected User Connection");
+
+        givenConnection(15L, "slack", ENVIRONMENT_ID);
+
+        connectedUserConnectionService.create(9001L, 15L);
+
+        try {
+            assertInvalidProvidedValue(
+                fixture, Map.of("slack", 15L), Map.of(),
+                "Connection id=15 for component slack belongs to a connected user");
+        } finally {
+            connectedUserConnectionService.deleteByConnectionId(15L);
+        }
+    }
+
+    @Test
+    void testUpdateConfigurationWorkflowRejectsANullConnectionId() {
+        ProvidedValuesFixture fixture = createProvidedValuesFixture("Provided Null Connection");
+
+        Map<String, Long> providedConnections = new HashMap<>();
+
+        providedConnections.put("slack", null);
+
+        assertInvalidProvidedValue(fixture, providedConnections, Map.of(), "Component slack has no connection id");
+    }
+
+    @Test
+    void testUpdateConfigurationWorkflowRejectsAWorkflowOutsideThePinnedVersion() {
+        ProvidedValuesFixture fixture = createProvidedValuesFixture("Provided Unpinned Workflow");
+
+        String unpinnedWorkflowUuid = addWorkflow(
+            fixture.projectId(), withLabel(SLACK_WITH_CHANNEL_DEFINITION, "Provided Unpinned Workflow Draft"));
+
+        publish(fixture.projectId());
+
+        ProvidedValuesFixture unpinnedFixture = new ProvidedValuesFixture(
+            fixture.projectId(), fixture.configurationId(), unpinnedWorkflowUuid);
+
+        assertInvalidProvidedValue(
+            unpinnedFixture, Map.of(), Map.of("channel", "general"),
+            "Workflow uuid=%s is not part of version 1".formatted(unpinnedWorkflowUuid));
+    }
+
+    @Test
+    void testChangeConnectedUserVersionMovesToAnEnabledConfigurationOnTheVersion() {
+        VersionedProjectFixture fixture = createVersionedProjectFixture("Change Version Existing", 1);
+
+        long otherConfigurationId = automationProjectConfigurationFacade.createConfiguration(
+            fixture.projectId(), ENVIRONMENT_ID, "Other", null, 2, true, true);
+
+        long connectedUserId = createConnectedUser(fixture.projectId(), fixture.sourceConfigurationId());
+
+        ConfigurationMoveResultDTO moveResult = automationProjectConfigurationFacade.changeConnectedUserVersion(
+            fixture.sourceConfigurationId(), connectedUserId, 2, null);
+
+        assertThat(moveResult.movedConnectedUserIds()).containsExactly(connectedUserId);
+        assertThat(moveResult.targetConfigurationId()).isEqualTo(otherConfigurationId);
+        assertThat(getAssignedConfigurationId(connectedUserId, fixture.projectId()))
+            .isEqualTo(otherConfigurationId);
+        assertThat(automationProjectConfigurationService.getConfigurations(fixture.projectId()))
+            .extracting(AutomationProjectConfiguration::getId)
+            .containsExactlyInAnyOrder(fixture.sourceConfigurationId(), otherConfigurationId);
+    }
+
+    @Test
+    void testChangeConnectedUserVersionPicksTheLowestIdWhenNoConfigurationSharesTheName() {
+        VersionedProjectFixture fixture = createVersionedProjectFixture("Change Version Lowest Id", 1);
+
+        long firstConfigurationId = automationProjectConfigurationFacade.createConfiguration(
+            fixture.projectId(), ENVIRONMENT_ID, "First", null, 2, true, true);
+
+        automationProjectConfigurationFacade.createConfiguration(
+            fixture.projectId(), ENVIRONMENT_ID, "Second", null, 2, true, true);
+
+        long connectedUserId = createConnectedUser(fixture.projectId(), fixture.sourceConfigurationId());
+
+        automationProjectConfigurationFacade.changeConnectedUserVersion(
+            fixture.sourceConfigurationId(), connectedUserId, 2, null);
+
+        assertThat(getAssignedConfigurationId(connectedUserId, fixture.projectId())).isEqualTo(firstConfigurationId);
+    }
+
+    @Test
+    void testChangeConnectedUserVersionMovesToTheGivenTarget() {
+        VersionedProjectFixture fixture = createVersionedProjectFixture("Change Version Given Target", 1);
+
+        automationProjectConfigurationFacade.createConfiguration(
+            fixture.projectId(), ENVIRONMENT_ID, "First", null, 2, true, true);
+
+        long targetConfigurationId = automationProjectConfigurationFacade.createConfiguration(
+            fixture.projectId(), ENVIRONMENT_ID, "Second", null, 2, true, true);
+
+        long connectedUserId = createConnectedUser(fixture.projectId(), fixture.sourceConfigurationId());
+
+        ConfigurationMoveResultDTO moveResult = automationProjectConfigurationFacade.changeConnectedUserVersion(
+            fixture.sourceConfigurationId(), connectedUserId, 2, targetConfigurationId);
+
+        assertThat(moveResult.movedConnectedUserIds()).containsExactly(connectedUserId);
+        assertThat(getAssignedConfigurationId(connectedUserId, fixture.projectId()))
+            .isEqualTo(targetConfigurationId);
+    }
+
+    @Test
+    void testChangeConnectedUserVersionCopiesTheSourceWhenNoConfigurationIsOnTheVersion() {
+        VersionedProjectFixture fixture = createVersionedProjectFixture("Change Version Copy", 1);
+
+        automationProjectConfigurationService.update(
+            fixture.sourceConfigurationId(), CONFIGURATION_NAME, "hasRole('ADMIN')", 1, true, false);
+        automationProjectConfigurationService.updateWorkflowProvidedValues(
+            fixture.sourceConfigurationId(), UUID.fromString(fixture.firstWorkflowUuid()), Map.of("slack", 11L),
+            Map.of("channel", "general"));
+        automationProjectConfigurationService.updateWorkflowEnabled(
+            fixture.sourceConfigurationId(), UUID.fromString(fixture.firstWorkflowUuid()), false);
+
+        automationProjectConfigurationFacade.createConfiguration(
+            fixture.projectId(), ENVIRONMENT_ID, "Disabled On Version 2", null, 2, false, true);
+
+        long connectedUserId = createConnectedUser(fixture.projectId(), fixture.sourceConfigurationId());
+        long otherConnectedUserId = createConnectedUser(fixture.projectId(), fixture.sourceConfigurationId());
+
+        ConfigurationMoveResultDTO moveResult = automationProjectConfigurationFacade.changeConnectedUserVersion(
+            fixture.sourceConfigurationId(), connectedUserId, 2, null);
+
+        assertThat(moveResult.movedConnectedUserIds()).containsExactly(connectedUserId);
+
+        long copyConfigurationId = getAssignedConfigurationId(connectedUserId, fixture.projectId());
+
+        assertThat(copyConfigurationId).isNotEqualTo(fixture.sourceConfigurationId());
+        assertThat(moveResult.targetConfigurationId()).isEqualTo(copyConfigurationId);
+        assertThat(getAssignedConfigurationId(otherConnectedUserId, fixture.projectId()))
+            .isEqualTo(fixture.sourceConfigurationId());
+
+        AutomationProjectConfiguration copyConfiguration =
+            automationProjectConfigurationService.getConfiguration(copyConfigurationId);
+
+        assertThat(copyConfiguration.getName()).isEqualTo(CONFIGURATION_NAME + " · V2");
+        assertThat(copyConfiguration.getProjectVersion()).isEqualTo(2);
+        assertThat(copyConfiguration.getEnvironmentId()).isEqualTo(ENVIRONMENT_ID);
+        assertThat(copyConfiguration.isEnabled()).isTrue();
+        assertThat(copyConfiguration.getPermissionExpression()).isEqualTo("false");
+        assertThat(copyConfiguration.isAutomationHubVisible()).isFalse();
+        assertThat(copyConfiguration.fetchWorkflow(UUID.fromString(fixture.firstWorkflowUuid())))
+            .hasValueSatisfying(copyWorkflow -> {
+                assertThat(copyWorkflow.getProvidedConnections()).isEqualTo(Map.of("slack", 11L));
+                assertThat(copyWorkflow.getProvidedInputs()).isEqualTo(Map.of("channel", "general"));
+                assertThat(copyWorkflow.isEnabled()).isFalse();
+            });
+    }
+
+    @Test
+    void testChangeConnectedUserVersionLeavesAWorkflowWithANewRequiredInternalOnlyInputDisabled() {
+        long projectId = createProject("Change Version Internal Only");
+
+        String syncWorkflowUuid = addWorkflow(projectId, withLabel(CHANNEL_OPTIONAL_DEFINITION, "Sync Accounts"));
+        String notifyWorkflowUuid = addWorkflow(projectId, withLabel(CHANNEL_OPTIONAL_DEFINITION, "Notify"));
+        String reportWorkflowUuid = addWorkflow(projectId, withLabel(CHANNEL_OPTIONAL_DEFINITION, "Report"));
+
+        publish(projectId);
+        redefineDraftWorkflow(
+            syncWorkflowUuid, withLabel(CHANNEL_AND_REQUIRED_INTERNAL_ONLY_DEFINITION, "Sync Accounts"));
+
+        String auditWorkflowUuid = addWorkflow(
+            projectId, withLabel(CHANNEL_AND_REQUIRED_INTERNAL_ONLY_DEFINITION, "Audit"));
+
+        publish(projectId);
+
+        long sourceConfigurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+
+        automationProjectConfigurationService.updateWorkflowProvidedValues(
+            sourceConfigurationId, UUID.fromString(syncWorkflowUuid), Map.of(), Map.of("channel", "general"));
+        automationProjectConfigurationService.updateWorkflowEnabled(
+            sourceConfigurationId, UUID.fromString(notifyWorkflowUuid), false);
+        automationProjectConfigurationService.updateWorkflowEnabled(
+            sourceConfigurationId, UUID.fromString(reportWorkflowUuid), true);
+
+        long connectedUserId = createConnectedUser(projectId, sourceConfigurationId);
+
+        ConfigurationMoveResultDTO moveResult = automationProjectConfigurationFacade.changeConnectedUserVersion(
+            sourceConfigurationId, connectedUserId, 2, null);
+
+        assertThat(moveResult.movedConnectedUserIds()).containsExactly(connectedUserId);
+
+        long copyConfigurationId = getAssignedConfigurationId(connectedUserId, projectId);
+
+        assertThat(copyConfigurationId).isNotEqualTo(sourceConfigurationId);
+
+        AutomationProjectConfiguration copyConfiguration =
+            automationProjectConfigurationService.getConfiguration(copyConfigurationId);
+
+        assertThat(copyConfiguration.isEnabled()).isTrue();
+        assertThat(copyConfiguration.isWorkflowEnabled(UUID.fromString(syncWorkflowUuid))).isFalse();
+        assertThat(copyConfiguration.isWorkflowEnabled(UUID.fromString(auditWorkflowUuid))).isFalse();
+        assertThat(copyConfiguration.isWorkflowEnabled(UUID.fromString(notifyWorkflowUuid))).isFalse();
+        assertThat(copyConfiguration.isWorkflowEnabled(UUID.fromString(reportWorkflowUuid))).isTrue();
+        assertThat(copyConfiguration.fetchWorkflow(UUID.fromString(syncWorkflowUuid)))
+            .hasValueSatisfying(copyWorkflow -> assertThat(copyWorkflow.getProvidedInputs()).isEmpty());
+    }
+
+    @Test
+    void testChangeConnectedUserVersionDropsAProvidedInputWhoseTypeChanged() {
+        long projectId = createProject("Change Version Input Type");
+
+        String workflowUuid = addWorkflow(projectId, withLabel(STRING_TYPED_INPUTS_DEFINITION, "Sync Accounts"));
+
+        publish(projectId);
+        redefineDraftWorkflow(workflowUuid, withLabel(RETYPED_INPUTS_DEFINITION, "Sync Accounts"));
+        publish(projectId);
+
+        long sourceConfigurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+
+        automationProjectConfigurationService.updateWorkflowProvidedValues(
+            sourceConfigurationId, UUID.fromString(workflowUuid), Map.of(),
+            Map.of("accountId", "account-1", "channel", "general", "region", "eu", "removed", "value"));
+
+        long connectedUserId = createConnectedUser(projectId, sourceConfigurationId);
+
+        ConfigurationMoveResultDTO moveResult = automationProjectConfigurationFacade.changeConnectedUserVersion(
+            sourceConfigurationId, connectedUserId, 2, null);
+
+        assertThat(moveResult.movedConnectedUserIds()).containsExactly(connectedUserId);
+
+        AutomationProjectConfiguration copyConfiguration = automationProjectConfigurationService.getConfiguration(
+            getAssignedConfigurationId(connectedUserId, projectId));
+
+        assertThat(copyConfiguration.fetchWorkflow(UUID.fromString(workflowUuid)))
+            .hasValueSatisfying(copyWorkflow -> {
+                assertThat(copyWorkflow.getProvidedInputs()).isEqualTo(Map.of("region", "eu"));
+                assertThat(copyWorkflow.isEnabled()).isFalse();
+            });
+    }
+
+    @Test
+    void testUpdateConfigurationToAnotherVersionDropsAProvidedInputWhoseTypeChanged() {
+        long projectId = createProject("Update Version Input Type");
+
+        String workflowUuid = addWorkflow(projectId, withLabel(STRING_TYPED_INPUTS_DEFINITION, "Sync Accounts"));
+
+        publish(projectId);
+        redefineDraftWorkflow(workflowUuid, withLabel(RETYPED_INPUTS_DEFINITION, "Sync Accounts"));
+        publish(projectId);
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, false, true);
+
+        automationProjectConfigurationService.updateWorkflowProvidedValues(
+            configurationId, UUID.fromString(workflowUuid), Map.of(),
+            Map.of("accountId", "account-1", "channel", "general", "region", "eu", "removed", "value"));
+
+        automationProjectConfigurationFacade.updateConfiguration(
+            configurationId, CONFIGURATION_NAME, null, 2, false, true);
+
+        AutomationProjectConfiguration configuration =
+            automationProjectConfigurationService.getConfiguration(configurationId);
+
+        assertThat(configuration.fetchWorkflow(UUID.fromString(workflowUuid)))
+            .hasValueSatisfying(
+                configurationWorkflow -> assertThat(configurationWorkflow.getProvidedInputs())
+                    .isEqualTo(Map.of("region", "eu")));
+    }
+
+    @Test
+    void testChangeConnectedUserVersionKeepsTheCopyOutOfSelfServe() {
+        VersionedProjectFixture fixture = createVersionedProjectFixture("Change Version Self Serve", 1);
+
+        EmbeddedPermissionEvaluator realEmbeddedPermissionEvaluator =
+            new EmbeddedPermissionEvaluator(SpelEvaluator.create());
+
+        when(embeddedPermissionEvaluator.evaluate(any(), any()))
+            .thenAnswer(invocation -> realEmbeddedPermissionEvaluator.evaluate(
+                invocation.getArgument(0), invocation.getArgument(1)));
+
+        long movedConnectedUserId = createConnectedUser(fixture.projectId(), fixture.sourceConfigurationId());
+
+        ConfigurationMoveResultDTO moveResult = automationProjectConfigurationFacade.changeConnectedUserVersion(
+            fixture.sourceConfigurationId(), movedConnectedUserId, 2, null);
+
+        long copyConfigurationId = Objects.requireNonNull(moveResult.targetConfigurationId());
+
+        AutomationProjectConfiguration copyConfiguration =
+            automationProjectConfigurationService.getConfiguration(copyConfigurationId);
+
+        assertThat(copyConfiguration.isEnabled()).isTrue();
+        assertThat(copyConfiguration.getPermissionExpression()).isEqualTo("false");
+
+        ConnectedUser unassignedConnectedUser = createUnassignedConnectedUser();
+
+        Optional<AutomationProjectConfiguration> selfServeConfigurationOptional =
+            automationProjectConfigurationResolver.resolveAndAssign(unassignedConnectedUser, fixture.projectId());
+
+        assertThat(selfServeConfigurationOptional)
+            .map(AutomationProjectConfiguration::getId)
+            .hasValue(fixture.sourceConfigurationId());
+        assertThat(getAssignedConfigurationId(unassignedConnectedUser.getId(), fixture.projectId()))
+            .isEqualTo(fixture.sourceConfigurationId());
+
+        ConnectedUser movedConnectedUser = new ConnectedUser(
+            Map.of(), null, true, "moved-user", movedConnectedUserId, null, 0);
+
+        movedConnectedUser.setEnvironment(Environment.values()[(int) ENVIRONMENT_ID]);
+
+        Optional<AutomationProjectConfiguration> movedConfigurationOptional =
+            automationProjectConfigurationResolver.resolve(movedConnectedUser, fixture.projectId());
+
+        assertThat(movedConfigurationOptional)
+            .map(AutomationProjectConfiguration::getId)
+            .hasValue(copyConfigurationId);
+        assertThat(getAssignedConfigurationId(movedConnectedUserId, fixture.projectId()))
+            .isEqualTo(copyConfigurationId);
+    }
+
+    @Test
+    void testChangeConnectedUserVersionDowngradesAndCopiesOnlyTheWorkflowsOfTheOlderVersion() {
+        VersionedProjectFixture fixture = createVersionedProjectFixture("Change Version Downgrade", 2);
+
+        automationProjectConfigurationService.updateWorkflowProvidedValues(
+            fixture.sourceConfigurationId(), UUID.fromString(fixture.firstWorkflowUuid()), Map.of(),
+            Map.of("channel", "first"));
+        automationProjectConfigurationService.updateWorkflowProvidedValues(
+            fixture.sourceConfigurationId(), UUID.fromString(fixture.secondWorkflowUuid()), Map.of(),
+            Map.of("channel", "second"));
+
+        long connectedUserId = createConnectedUser(fixture.projectId(), fixture.sourceConfigurationId());
+
+        ConfigurationMoveResultDTO moveResult = automationProjectConfigurationFacade.changeConnectedUserVersion(
+            fixture.sourceConfigurationId(), connectedUserId, 1, null);
+
+        assertThat(moveResult.movedConnectedUserIds()).containsExactly(connectedUserId);
+
+        AutomationProjectConfiguration copyConfiguration = automationProjectConfigurationService.getConfiguration(
+            getAssignedConfigurationId(connectedUserId, fixture.projectId()));
+
+        assertThat(copyConfiguration.getName()).isEqualTo(CONFIGURATION_NAME + " · V1");
+        assertThat(copyConfiguration.getProjectVersion()).isEqualTo(1);
+        assertThat(copyConfiguration.getWorkflows())
+            .extracting(
+                configurationWorkflow -> String.valueOf(configurationWorkflow.getWorkflowUuid()),
+                AutomationProjectConfigurationWorkflow::getProvidedInputs)
+            .containsExactly(tuple(fixture.firstWorkflowUuid(), Map.of("channel", "first")));
+    }
+
+    @Test
+    void testChangeConnectedUserVersionSuffixesACollidingCopyName() {
+        VersionedProjectFixture fixture = createVersionedProjectFixture("Change Version Colliding Name", 1);
+
+        automationProjectConfigurationFacade.createConfiguration(
+            fixture.projectId(), ENVIRONMENT_ID, "default · v2", null, 2, false, true);
+
+        long connectedUserId = createConnectedUser(fixture.projectId(), fixture.sourceConfigurationId());
+
+        automationProjectConfigurationFacade.changeConnectedUserVersion(
+            fixture.sourceConfigurationId(), connectedUserId, 2, null);
+
+        AutomationProjectConfiguration copyConfiguration = automationProjectConfigurationService.getConfiguration(
+            getAssignedConfigurationId(connectedUserId, fixture.projectId()));
+
+        assertThat(copyConfiguration.getName()).isEqualTo(CONFIGURATION_NAME + " · V2 (2)");
+    }
+
+    @Test
+    void testChangeConnectedUserVersionDeletesTheCopyWhenTheMoveSkipsTheUser() {
+        VersionedProjectFixture fixture = createVersionedProjectFixture("Change Version Skipped", 2);
+
+        long connectedUserId = createConnectedUser(fixture.projectId(), fixture.sourceConfigurationId());
+
+        when(connectedUserWorkflowReferenceFacade.getReferences(anySet()))
+            .thenReturn(List.of(
+                new ConnectedUserWorkflowReferenceDTO(
+                    fixture.secondWorkflowUuid(), connectedUserId, "user-" + connectedUserId,
+                    Environment.values()[(int) ENVIRONMENT_ID].name(), true, false, null, null, null)));
+
+        ConfigurationMoveResultDTO moveResult = automationProjectConfigurationFacade.changeConnectedUserVersion(
+            fixture.sourceConfigurationId(), connectedUserId, 1, null);
+
+        assertThat(moveResult.movedConnectedUserIds()).isEmpty();
+        assertThat(moveResult.targetConfigurationId()).isNull();
+        assertThat(moveResult.skipped())
+            .extracting(ConfigurationMoveResultDTO.Skipped::connectedUserId, ConfigurationMoveResultDTO.Skipped::reason)
+            .containsExactly(
+                tuple(connectedUserId, ConfigurationMoveResultDTO.Skipped.TARGET_LACKS_REFERENCED_WORKFLOWS));
+        assertThat(getAssignedConfigurationId(connectedUserId, fixture.projectId()))
+            .isEqualTo(fixture.sourceConfigurationId());
+        assertThat(automationProjectConfigurationService.getConfigurations(fixture.projectId()))
+            .extracting(AutomationProjectConfiguration::getId)
+            .containsExactly(fixture.sourceConfigurationId());
+    }
+
+    @Test
+    void testChangeConnectedUserVersionRejectsTheCurrentVersion() {
+        VersionedProjectFixture fixture = createVersionedProjectFixture("Change Version Current", 1);
+
+        long connectedUserId = createConnectedUser(fixture.projectId(), fixture.sourceConfigurationId());
+
+        List<Long> configurationIdsBefore = getConfigurationIds(fixture.projectId());
+
+        assertThatThrownBy(() -> automationProjectConfigurationFacade.changeConnectedUserVersion(
+            fixture.sourceConfigurationId(), connectedUserId, 1, null))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        assertThat(getConfigurationIds(fixture.projectId())).isEqualTo(configurationIdsBefore);
+        assertThat(getAssignedConfigurationId(connectedUserId, fixture.projectId()))
+            .isEqualTo(fixture.sourceConfigurationId());
+    }
+
+    @Test
+    void testChangeConnectedUserVersionRejectsAnUnpublishedVersion() {
+        VersionedProjectFixture fixture = createVersionedProjectFixture("Change Version Unpublished", 1);
+
+        long connectedUserId = createConnectedUser(fixture.projectId(), fixture.sourceConfigurationId());
+
+        List<Long> configurationIdsBefore = getConfigurationIds(fixture.projectId());
+
+        assertThatThrownBy(() -> automationProjectConfigurationFacade.changeConnectedUserVersion(
+            fixture.sourceConfigurationId(), connectedUserId, 3, null))
+                .isInstanceOfSatisfying(ConfigurationException.class, configurationException -> assertThat(
+                    configurationException.getErrorKey()).isEqualTo(
+                        AutomationProjectConfigurationErrorType.PROJECT_VERSION_NOT_PUBLISHED.getErrorKey()));
+
+        assertThat(getConfigurationIds(fixture.projectId())).isEqualTo(configurationIdsBefore);
+        assertThat(getAssignedConfigurationId(connectedUserId, fixture.projectId()))
+            .isEqualTo(fixture.sourceConfigurationId());
+    }
+
+    @Test
+    void testChangeConnectedUserVersionRejectsADisabledTarget() {
+        VersionedProjectFixture fixture = createVersionedProjectFixture("Change Version Disabled Target", 1);
+
+        long targetConfigurationId = automationProjectConfigurationFacade.createConfiguration(
+            fixture.projectId(), ENVIRONMENT_ID, "Disabled", null, 2, false, true);
+
+        long connectedUserId = createConnectedUser(fixture.projectId(), fixture.sourceConfigurationId());
+
+        List<Long> configurationIdsBefore = getConfigurationIds(fixture.projectId());
+
+        assertThatThrownBy(() -> automationProjectConfigurationFacade.changeConnectedUserVersion(
+            fixture.sourceConfigurationId(), connectedUserId, 2, targetConfigurationId))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        assertThat(getConfigurationIds(fixture.projectId())).isEqualTo(configurationIdsBefore);
+        assertThat(getAssignedConfigurationId(connectedUserId, fixture.projectId()))
+            .isEqualTo(fixture.sourceConfigurationId());
+    }
+
+    @Test
+    void testChangeConnectedUserVersionRejectsATargetOnAnotherVersion() {
+        VersionedProjectFixture fixture = createVersionedProjectFixture("Change Version Target Version", 1);
+
+        long targetConfigurationId = automationProjectConfigurationFacade.createConfiguration(
+            fixture.projectId(), ENVIRONMENT_ID, "Same Version", null, 1, true, true);
+
+        long connectedUserId = createConnectedUser(fixture.projectId(), fixture.sourceConfigurationId());
+
+        List<Long> configurationIdsBefore = getConfigurationIds(fixture.projectId());
+
+        assertThatThrownBy(() -> automationProjectConfigurationFacade.changeConnectedUserVersion(
+            fixture.sourceConfigurationId(), connectedUserId, 2, targetConfigurationId))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        assertThat(getConfigurationIds(fixture.projectId())).isEqualTo(configurationIdsBefore);
+        assertThat(getAssignedConfigurationId(connectedUserId, fixture.projectId()))
+            .isEqualTo(fixture.sourceConfigurationId());
+    }
+
+    @Test
+    void testChangeConnectedUserVersionRejectsATargetOfAnotherEnvironment() {
+        VersionedProjectFixture fixture = createVersionedProjectFixture("Change Version Other Environment", 1);
+
+        long targetConfigurationId = automationProjectConfigurationFacade.createConfiguration(
+            fixture.projectId(), STAGING_ENVIRONMENT_ID, "Staging", null, 2, true, true);
+
+        long connectedUserId = createConnectedUser(fixture.projectId(), fixture.sourceConfigurationId());
+
+        List<Long> configurationIdsBefore = getConfigurationIds(fixture.projectId());
+
+        assertThatThrownBy(() -> automationProjectConfigurationFacade.changeConnectedUserVersion(
+            fixture.sourceConfigurationId(), connectedUserId, 2, targetConfigurationId))
+                .isInstanceOfSatisfying(ConfigurationException.class, configurationException -> assertThat(
+                    configurationException.getErrorKey()).isEqualTo(
+                        AutomationProjectConfigurationErrorType.CONFIGURATION_PROJECT_MISMATCH.getErrorKey()));
+
+        assertThat(getConfigurationIds(fixture.projectId())).isEqualTo(configurationIdsBefore);
+    }
+
+    @Test
+    void testChangeConnectedUserVersionDeletesTheCopyWhenTheMoveThrows() {
+        VersionedProjectFixture fixture = createVersionedProjectFixture("Change Version Move Throws", 1);
+
+        long connectedUserId = createConnectedUser(fixture.projectId(), fixture.sourceConfigurationId());
+
+        IllegalStateException moveFailure = new IllegalStateException("move failed");
+        AtomicBoolean moveFailed = new AtomicBoolean();
+        List<List<Long>> configurationIdsAtFailure = new ArrayList<>();
+
+        doAnswer(invocation -> {
+            AutomationProjectConfiguration configuration = (AutomationProjectConfiguration) invocation
+                .callRealMethod();
+
+            boolean copyFetchedForMove = configuration.isEnabled() &&
+                !Objects.equals(configuration.getId(), fixture.sourceConfigurationId());
+
+            if (copyFetchedForMove && moveFailed.compareAndSet(false, true)) {
+                configurationIdsAtFailure.add(getConfigurationIds(fixture.projectId()));
+
+                throw moveFailure;
+            }
+
+            return configuration;
+        }).when(automationProjectConfigurationService)
+            .getConfiguration(anyLong());
+
+        assertThatThrownBy(() -> automationProjectConfigurationFacade.changeConnectedUserVersion(
+            fixture.sourceConfigurationId(), connectedUserId, 2, null))
+                .isSameAs(moveFailure);
+
+        assertThat(configurationIdsAtFailure).hasSize(1);
+        assertThat(configurationIdsAtFailure.getFirst()).hasSize(2);
+        assertThat(getConfigurationIds(fixture.projectId())).containsExactly(fixture.sourceConfigurationId());
+        assertThat(getAssignedConfigurationId(connectedUserId, fixture.projectId()))
+            .isEqualTo(fixture.sourceConfigurationId());
+    }
+
+    @Test
+    void testChangeConnectedUserVersionIsDeniedToNonAdmins() {
+        VersionedProjectFixture fixture = createVersionedProjectFixture("Change Version Non Admin", 1);
+
+        long connectedUserId = createConnectedUser(fixture.projectId(), fixture.sourceConfigurationId());
+
+        List<Long> configurationIdsBefore = getConfigurationIds(fixture.projectId());
+
+        authenticate(nonAdmin());
+
+        assertThatThrownBy(() -> automationProjectConfigurationFacade.changeConnectedUserVersion(
+            fixture.sourceConfigurationId(), connectedUserId, 2, null))
+                .isInstanceOf(AccessDeniedException.class);
+
+        assertThat(getConfigurationIds(fixture.projectId())).isEqualTo(configurationIdsBefore);
+        assertThat(getAssignedConfigurationId(connectedUserId, fixture.projectId()))
+            .isEqualTo(fixture.sourceConfigurationId());
+    }
+
+    private VersionedProjectFixture createVersionedProjectFixture(String name, int sourceProjectVersion) {
+        long projectId = createProject(name);
+
+        String firstWorkflowUuid = addWorkflow(
+            projectId, withLabel(INTERNAL_ONLY_CHANNEL_OPTIONAL_DEFINITION, name + " First"));
+
+        publish(projectId);
+
+        String secondWorkflowUuid = addWorkflow(
+            projectId, withLabel(INTERNAL_ONLY_CHANNEL_OPTIONAL_DEFINITION, name + " Second"));
+
+        publish(projectId);
+
+        long sourceConfigurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, sourceProjectVersion, true, true);
+
+        return new VersionedProjectFixture(projectId, sourceConfigurationId, firstWorkflowUuid, secondWorkflowUuid);
+    }
+
+    private long createConnectedUser(long projectId, long configurationId) {
+        ConnectedUser connectedUser = createUnassignedConnectedUser();
+
+        long connectedUserId = Objects.requireNonNull(connectedUser.getId());
+
+        connectedUserProjectConfigurationService.assign(connectedUserId, projectId, configurationId);
+
+        return connectedUserId;
+    }
+
+    private ConnectedUser createUnassignedConnectedUser() {
+        String externalId = "user-" + UUID.randomUUID();
+        Environment environment = Environment.values()[(int) ENVIRONMENT_ID];
+
+        Long connectedUserId = jdbcTemplate.queryForObject(
+            """
+                INSERT INTO connected_user (external_id, enabled, environment, created_date, created_by,
+                    last_modified_date, last_modified_by, version)
+                VALUES (?, true, ?, now(), 'test', now(), 'test', 0)
+                RETURNING id
+                """,
+            Long.class, externalId, environment.ordinal());
+
+        Objects.requireNonNull(connectedUserId);
+
+        ConnectedUser connectedUser = new ConnectedUser(Map.of(), null, true, externalId, connectedUserId, null, 0);
+
+        connectedUser.setEnvironment(environment);
+
+        when(connectedUserService.fetchConnectedUser(connectedUserId.longValue()))
+            .thenReturn(Optional.of(connectedUser));
+
+        return connectedUser;
+    }
+
+    private long getAssignedConfigurationId(long connectedUserId, long projectId) {
+        Optional<ConnectedUserProjectConfiguration> assignmentOptional =
+            connectedUserProjectConfigurationService.fetchAssignment(connectedUserId, projectId);
+
+        ConnectedUserProjectConfiguration assignment = assignmentOptional.orElseThrow();
+
+        return assignment.getConfigurationId();
+    }
+
+    private List<Long> getConfigurationIds(long projectId) {
+        return automationProjectConfigurationService.getConfigurations(projectId)
+            .stream()
+            .map(AutomationProjectConfiguration::getId)
+            .toList();
+    }
+
+    private void assertInvalidProvidedValue(
+        ProvidedValuesFixture fixture, Map<String, Long> providedConnections, Map<String, Object> providedInputs,
+        String expectedMessage) {
+
+        applicationEvents.clear();
+
+        assertThatThrownBy(
+            () -> automationProjectConfigurationFacade.updateConfigurationWorkflow(
+                fixture.configurationId(), fixture.workflowUuid(), providedConnections, providedInputs))
+                    .isInstanceOfSatisfying(ConfigurationException.class, configurationException -> {
+                        assertThat(configurationException.getMessage()).contains(expectedMessage);
+                        assertThat(configurationException.getErrorKey()).isEqualTo(
+                            AutomationProjectConfigurationErrorType.INVALID_PROVIDED_VALUE.getErrorKey());
+                    });
+
+        AutomationProjectConfigurationDTO.Workflow workflow =
+            automationProjectConfigurationFacade.getConfigurations(fixture.projectId())
+                .getFirst()
+                .workflows()
+                .getFirst();
+
+        assertThat(workflow.providedConnections()).isEmpty();
+        assertThat(workflow.providedInputs()).isEmpty();
+        assertThat(automationProjectConfigurationService.getConfiguration(fixture.configurationId())
+            .fetchWorkflow(UUID.fromString(fixture.workflowUuid()))).isEmpty();
+        assertThat(applicationEvents.stream(AutomationProjectConfigurationUpdatedEvent.class)
+            .count()).isZero();
+    }
+
+    private static void assertInternalOnlyInputMissing(ThrowingCallable throwingCallable, String expectedMessage) {
+        assertThatThrownBy(throwingCallable)
+            .isInstanceOfSatisfying(ConfigurationException.class, configurationException -> {
+                assertThat(configurationException.getMessage()).isEqualTo(expectedMessage);
+                assertThat(configurationException.getErrorKey()).isEqualTo(
+                    AutomationProjectConfigurationErrorType.INTERNAL_ONLY_INPUT_MISSING.getErrorKey());
+            });
+    }
+
+    private InputOptionsFixture createInputOptionsFixture(String name) {
+        long projectId = createProject(name);
+
+        String workflowUuid = addWorkflow(projectId, withLabel(SLACK_CHANNEL_REFERENCE_DEFINITION, name));
+
+        publish(projectId);
+
+        givenSlots();
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+
+        return new InputOptionsFixture(configurationId, workflowUuid);
+    }
+
+    private ProvidedValuesFixture createProvidedValuesFixture(String name) {
+        long projectId = createProject(name);
+
+        String workflowUuid = addWorkflow(projectId, withLabel(SLACK_WITH_INTERNAL_ONLY_CHANNEL_DEFINITION, name));
+
+        publish(projectId);
+
+        when(componentConnectionFacade.getComponentConnections(any(WorkflowTask.class)))
+            .thenReturn(List.of(new ComponentConnection("slack", 1, "postMessage1", "slack", true)));
+
+        long configurationId = automationProjectConfigurationFacade.createConfiguration(
+            projectId, ENVIRONMENT_ID, CONFIGURATION_NAME, null, 1, true, true);
+
+        return new ProvidedValuesFixture(projectId, configurationId, workflowUuid);
+    }
+
+    private void givenSlots(ComponentConnection... componentConnections) {
+        when(componentConnectionFacade.getComponentConnections(any(WorkflowTask.class)))
+            .thenReturn(List.of(componentConnections));
+    }
+
+    private static Connection newConnection(long id, String componentName, long environmentId, String name) {
+        Connection connection = new Connection();
+
+        connection.setId(id);
+        connection.setComponentName(componentName);
+        connection.setEnvironmentId((int) environmentId);
+        connection.setName(name);
+        connection.setType(PlatformType.EMBEDDED);
+
+        return connection;
+    }
+
+    private void givenConnections(String componentName, Connection... connections) {
+        when(connectionService.getConnections(eq(componentName), any(), any(), any(), any()))
+            .thenAnswer(invocation -> List.of(connections)
+                .stream()
+                .filter(connection -> Long.valueOf(connection.getEnvironmentId())
+                    .equals(invocation.getArgument(3)))
+                .toList());
+    }
+
+    private void givenConnection(long connectionId, String componentName, long environmentId) {
+        givenConnection(connectionId, componentName, environmentId, PlatformType.EMBEDDED);
+    }
+
+    private void givenConnection(long connectionId, String componentName, long environmentId, PlatformType type) {
+        Connection connection = new Connection();
+
+        connection.setId(connectionId);
+        connection.setComponentName(componentName);
+        connection.setEnvironmentId((int) environmentId);
+        connection.setType(type);
+
+        when(connectionService.fetchConnection(connectionId)).thenReturn(Optional.of(connection));
+    }
+
+    private String addWorkflow(long projectId, String definition) {
+        return automationProjectFacade.createProjectWorkflow(projectId, definition, null);
+    }
+
+    private long createProject(String name) {
+        return automationProjectFacade.createProject(name + " " + UUID.randomUUID(), "", null, List.of(), null);
+    }
+
+    private void givenStoredInputs(
+        long projectDeploymentId, long projectId, int projectVersion, String workflowUuid, Map<String, ?> inputs) {
+
+        ProjectDeployment projectDeployment = new ProjectDeployment();
+
+        projectDeployment.setId(projectDeploymentId);
+        projectDeployment.setProjectId(projectId);
+        projectDeployment.setProjectVersion(projectVersion);
+
+        when(projectDeploymentService.fetchProjectDeployment(projectDeploymentId))
+            .thenReturn(Optional.of(projectDeployment));
+
+        ProjectDeploymentWorkflow projectDeploymentWorkflow = new ProjectDeploymentWorkflow();
+
+        projectDeploymentWorkflow.setInputs(inputs);
+
+        String workflowId = projectWorkflowService.fetchProjectWorkflow(projectId, projectVersion, workflowUuid)
+            .orElseThrow()
+            .getWorkflowId();
+
+        when(projectDeploymentWorkflowService.fetchProjectDeploymentWorkflow(projectDeploymentId, workflowId))
+            .thenReturn(Optional.of(projectDeploymentWorkflow));
+    }
+
+    private static String withLabel(String definitionTemplate, String label) {
+        return definitionTemplate.replace("%s", label);
+    }
+
+    private void publish(long projectId) {
+        automationProjectFacade.publishProject(projectId);
+    }
+
+    private void redefineDraftWorkflow(String workflowUuid, String definition) {
+        String draftWorkflowId = projectWorkflowService.getLastWorkflowId(workflowUuid);
+        Workflow draftWorkflow = workflowService.getWorkflow(draftWorkflowId);
+
+        workflowService.update(draftWorkflowId, definition, draftWorkflow.getVersion());
+    }
+
+    private String addWorkflowAndPublish(long projectId, String label) {
+        String workflowUuid = automationProjectFacade.createProjectWorkflow(
+            projectId, "{\"label\": \"" + label + "\", \"description\": \"\", \"tasks\": []}", null);
+
+        automationProjectFacade.publishProject(projectId);
+
+        return workflowUuid;
+    }
+
+    private void givenReferences(long configurationId, ConnectedUserWorkflowReferenceDTO... references) {
+        AutomationProjectConfiguration configuration =
+            automationProjectConfigurationService.getConfiguration(configurationId);
+
+        for (ConnectedUserWorkflowReferenceDTO reference : references) {
+            connectedUserProjectConfigurationService.assign(
+                reference.connectedUserId(), configuration.getProjectId(), configurationId);
+        }
+
+        when(connectedUserWorkflowReferenceFacade.getReferences(anySet()))
+            .thenReturn(List.of(references));
+    }
+
+    private static ConnectedUserWorkflowReferenceDTO newReference(
+        String automationUuid, String environment, boolean dangling) {
+
+        return newReference(automationUuid, environment, dangling, null);
+    }
+
+    private static ConnectedUserWorkflowReferenceDTO newReference(
+        String automationUuid, String environment, boolean dangling, Long projectDeploymentId) {
+
+        return newReference(automationUuid, environment, true, dangling, projectDeploymentId);
+    }
+
+    private static ConnectedUserWorkflowReferenceDTO newReference(
+        String automationUuid, String environment, boolean enabled, boolean dangling,
+        Long projectDeploymentId) {
+
+        long connectedUserId = projectDeploymentId == null
+            ? CONNECTED_USER_ID_SEQUENCE.incrementAndGet() : projectDeploymentId;
+
+        return new ConnectedUserWorkflowReferenceDTO(
+            automationUuid, connectedUserId, "user-" + UUID.randomUUID(), environment, enabled, dangling, null,
+            null, projectDeploymentId);
+    }
+
+    private static int getConfigurationCount(List<AutomationProjectDTO> projects, long projectId) {
+        return projects.stream()
+            .filter(project -> project.id() == projectId)
+            .findFirst()
+            .orElseThrow()
+            .configurationCount();
+    }
+
+    private long createPublishedProject(String name, int publishedVersionCount) {
+        long projectId = automationProjectFacade.createProject(
+            name + " " + UUID.randomUUID(), "", null, List.of(), null);
+
+        automationProjectFacade.createProjectWorkflow(projectId, null, null);
+
+        for (int i = 0; i < publishedVersionCount; i++) {
+            automationProjectFacade.publishProject(projectId);
+        }
+
+        return projectId;
+    }
+
+    private record InputOptionsFixture(long configurationId, String workflowUuid) {
+    }
+
+    private record ProvidedValuesFixture(long projectId, long configurationId, String workflowUuid) {
+    }
+
+    private record VersionedProjectFixture(
+        long projectId, long sourceConfigurationId, String firstWorkflowUuid, String secondWorkflowUuid) {
+    }
+
+    private static Authentication admin() {
+        return new UsernamePasswordAuthenticationToken(
+            "admin", "n/a",
+            List.of(
+                new SimpleGrantedAuthority(AuthorityConstants.ADMIN),
+                new SimpleGrantedAuthority(AuthorityConstants.USER)));
+    }
+
+    private static void authenticate(Authentication authentication) {
+        SecurityContextHolder.setContext(new SecurityContextImpl(authentication));
+    }
+
+    private static Authentication nonAdmin() {
+        return new UsernamePasswordAuthenticationToken(
+            "user", "n/a", List.of(new SimpleGrantedAuthority(AuthorityConstants.USER)));
+    }
+
+    @Configuration
+    @EnableMethodSecurity
+    static class MethodSecurityConfiguration {
+
+        @Bean
+        static MethodSecurityExpressionHandler methodSecurityExpressionHandler(
+            @Lazy PermissionService permissionService,
+            ObjectProvider<MethodSecurityExpressionContributor> methodSecurityExpressionContributorProvider) {
+
+            AutomationMethodSecurityExpressionHandler methodSecurityExpressionHandler =
+                new AutomationMethodSecurityExpressionHandler(
+                    permissionService, methodSecurityExpressionContributorProvider);
+
+            methodSecurityExpressionHandler.setPermissionEvaluator(
+                new AutomationPermissionEvaluator(permissionService));
+
+            return methodSecurityExpressionHandler;
+        }
+
+        @Bean("permissionService")
+        PermissionService permissionService() {
+            return mock(PermissionService.class, invocation -> {
+                Method method = invocation.getMethod();
+
+                if (method.getReturnType() == boolean.class) {
+                    return SecurityUtils.hasCurrentUserThisAuthority(AuthorityConstants.ADMIN);
+                }
+
+                return RETURNS_DEFAULTS.answer(invocation);
+            });
+        }
+    }
+}

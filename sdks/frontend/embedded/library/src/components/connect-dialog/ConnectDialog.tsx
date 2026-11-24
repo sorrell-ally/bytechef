@@ -3,6 +3,7 @@ import XIcon from './assets/x.svg';
 import SquareArrowOutUpRightIcon from './assets/square-arrow-out-up-right.svg';
 import styles from '../shared/dialog.module.css';
 import DialogPoweredBy from '../shared/DialogPoweredBy';
+import WebhookUrl from '../shared/WebhookUrl';
 import {
     ApiFetch,
     BoundFieldMappingIntegrationFieldArgsType,
@@ -95,6 +96,7 @@ interface DialogProps {
     properties?: PropertyType[];
     registerFormSubmit?: RegisterFormSubmitFunction;
     saveError?: string;
+    toolsOnly?: boolean;
 }
 
 const ConnectDialog = ({
@@ -125,6 +127,7 @@ const ConnectDialog = ({
     registerFormSubmit,
     saveError,
     title,
+    toolsOnly = false,
 }: DialogProps) => {
     // Option reset on integration switch is handled inside useWorkflowInputOptions (keyed on integrationInstanceId),
     // which resets during render — before the new fields load — instead of in an effect that would race the fetch.
@@ -187,6 +190,7 @@ const ConnectDialog = ({
                         mergedWorkflows={mergedWorkflows}
                         properties={properties}
                         registerFormSubmit={registerFormSubmit}
+                        toolsOnly={toolsOnly}
                         workflowInputOptions={optionsByKey}
                     />
                 ) : (
@@ -271,7 +275,7 @@ const DialogWorkflowsContainer = ({
 
             <ul className={styles.workflowsList}>
                 {mergedWorkflows.map((mergedWorkflow) => {
-                    const {enabled = false, inputs, workflowUuid, label} = mergedWorkflow;
+                    const {enabled = false, inputs, label, staticWebhookUrl, workflowUuid} = mergedWorkflow;
 
                     return (
                         <li key={workflowUuid}>
@@ -284,6 +288,8 @@ const DialogWorkflowsContainer = ({
                                     onPressedChange={(pressed) => handleWorkflowToggle(workflowUuid, pressed)}
                                 />
                             </div>
+
+                            {enabled && staticWebhookUrl && <WebhookUrl webhookUrl={staticWebhookUrl} />}
 
                             {enabled && (
                                 <div className={styles.workflowInputsContainer}>
@@ -442,6 +448,7 @@ interface DialogContentProps {
     mergedWorkflows: MergedWorkflowType[];
     properties?: PropertyType[];
     registerFormSubmit?: RegisterFormSubmitFunction;
+    toolsOnly?: boolean;
     workflowInputOptions?: Record<string, OptionType[]>;
 }
 
@@ -466,12 +473,13 @@ const DialogContent = ({
     mergedWorkflows,
     properties,
     registerFormSubmit,
+    toolsOnly = false,
     workflowInputOptions = {},
 }: DialogContentProps) => {
     const [activeTab, setActiveTab] = useState<TabType>('workflows');
 
     const hasMcpContent = mergedMcpTools.length > 0 || mergedMcpWorkflows.length > 0;
-    const showTabs = mergedWorkflows.length > 0 && hasMcpContent;
+    const showTabs = !toolsOnly && mergedWorkflows.length > 0 && hasMcpContent;
 
     // Register the form's submit handler when the component mounts
     useEffect(() => {
@@ -536,7 +544,7 @@ const DialogContent = ({
                 </div>
             )}
 
-            {workflowsView && (!showTabs || activeTab === 'workflows') && (
+            {workflowsView && !toolsOnly && (!showTabs || activeTab === 'workflows') && (
                 <DialogWorkflowsContainer
                     executeAction={executeAction}
                     handleWorkflowToggle={handleWorkflowToggle}
@@ -549,7 +557,7 @@ const DialogContent = ({
                 />
             )}
 
-            {workflowsView && (!showTabs || activeTab === 'tools') && hasMcpContent && (
+            {workflowsView && (!showTabs || activeTab === 'tools') && (toolsOnly || hasMcpContent) && (
                 <DialogToolsContainer
                     handleMcpToolToggle={handleMcpToolToggle}
                     handleMcpWorkflowToggle={handleMcpWorkflowToggle}
@@ -794,7 +802,7 @@ const renderWorkflowInput = ({
     workflowInputOptions,
     workflowUuid,
 }: RenderWorkflowInputArgs) => {
-    if (input.type === 'field_mapping') {
+    if (input.type === 'FIELD_MAPPING') {
         const objectName = input.objectName ?? input.name;
         const rawConfig = mapObjectFields?.[objectName];
 

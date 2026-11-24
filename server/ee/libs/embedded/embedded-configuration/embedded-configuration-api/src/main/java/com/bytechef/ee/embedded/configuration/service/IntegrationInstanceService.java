@@ -47,6 +47,8 @@ public interface IntegrationInstanceService {
     Optional<IntegrationInstance> fetchIntegrationInstance(
         long connectedUserId, long integrationInstanceConfigurationId);
 
+    Optional<IntegrationInstance> fetchFirstRunnableIntegrationInstance(Environment environment);
+
     Optional<IntegrationInstance> fetchIntegrationInstanceByIntegrationId(
         long connectedUserId, long integrationId, Environment environment);
 
@@ -81,6 +83,8 @@ public interface IntegrationInstanceService {
     List<IntegrationInstance> getIntegrationInstances(long integrationInstanceConfigurationId);
 
     IntegrationInstance updateIntegrationInstanceConfigurationId(long id, long integrationInstanceConfigurationId);
+
+    void updateConnectionId(long id, long connectionId);
 
     void updateEnabled(long id, boolean enable);
 }

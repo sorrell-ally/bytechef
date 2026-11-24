@@ -20,10 +20,10 @@ billing:
     product-growth-id: prod_UQl6ZIubWx3VS4
     meter-event-name: tenant_task_executions
     webhook-secret:
-    success-url: ${bytechef.public-url}/automation/settings/billing?checkout=success
-    cancel-url: ${bytechef.public-url}/automation/settings/billing
+    success-url: ${bytechef.public-url}/settings/billing?checkout=success
+    cancel-url: ${bytechef.public-url}/settings/billing
     product-job-executions-package-id: prod_VWDpTTcwJTsej8
-    job-executions-package-success-url: ${bytechef.public-url}/automation/settings/billing?package=success
+    job-executions-package-success-url: ${bytechef.public-url}/settings/billing?package=success
 
 docs:
   changelog-url: https://github.com/bytechefhq/bytechef/releases
@@ -33,6 +33,8 @@ docs:
 
 github-proxy:
   baseUrl: https://github-proxy.bytechef.io/
+  oauth-apps:
+    api-key: ${GITHUB_PROXY_OAUTH_APPS_API_KEY:}
 
 info:
   ai:
@@ -45,6 +47,7 @@ info:
     postHog:
       apiKey: ${post-hog.api-key:}
       host: ${post-hog.host:}
+      uiHost: ${post-hog.ui-host:}
   billing:
     enabled: ${billing.enabled}
     customerPortalUrl: ${billing.stripe.customer-portal-url:}
@@ -52,6 +55,9 @@ info:
     edition: ${bytechef.edition:}
   audit:
     enabled: ${bytechef.audit.enabled:false}
+  component:
+    customComponent:
+      javaEnabled: ${bytechef.component.custom-component.java.enabled}
   docs:
     changelogUrl: ${docs.changelog-url:}
     communitySupportUrl: ${docs.community-support-url:}
@@ -65,11 +71,16 @@ info:
   signUp:
     activationRequired: ${bytechef.sign-up.activation-required}
     enabled: ${bytechef.sign-up.enabled}
+  script:
+    injectConnections: ${bytechef.script.inject-connections:false}
   socialLogin:
     enabled: ${bytechef.security.social-login.enabled}
   userGuiding:
     containerId: ${bytechef.user-guiding.container-id:}
     enabled: ${bytechef.user-guiding.enabled}
+  workflow:
+    codeWorkflow:
+      javaEnabled: ${bytechef.workflow.code-workflow.java.enabled:true}
 
 logging:
   level:
@@ -289,6 +300,10 @@ spring:
     password: ${bytechef.rabbitmq.password}
     port: ${bytechef.rabbitmq.port}
     username: ${bytechef.rabbitmq.username}
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
   shell:
     interactive:
       enabled: false

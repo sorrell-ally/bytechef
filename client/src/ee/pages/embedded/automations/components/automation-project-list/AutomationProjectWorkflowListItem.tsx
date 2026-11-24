@@ -1,21 +1,19 @@
-import Button from '@/components/Button/Button';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '@/components/DropdownMenu/DropdownMenu';
+import {DropdownMenuItem} from '@/components/DropdownMenu/DropdownMenu';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip';
 import {WorkflowComponentIconDefinitionType} from '@/pages/automation/project/components/projects-sidebar/components/WorkflowComponentsIcon';
+import WorkflowListRowDropdownMenu from '@/shared/components/workflow/WorkflowListRowDropdownMenu';
 import WorkflowTriggerAndComponentsRow from '@/shared/components/workflow/WorkflowTriggerAndComponentsRow';
-import {AutomationProjectsQuery} from '@/shared/middleware/graphql';
-import {EllipsisVerticalIcon, PencilIcon, Trash2Icon} from 'lucide-react';
+import {AutomationProjectsQuery, useDuplicateAutomationProjectWorkflowMutation} from '@/shared/middleware/graphql';
+import {useQueryClient} from '@tanstack/react-query';
+import {CopyIcon} from 'lucide-react';
 import {MouseEvent, useMemo} from 'react';
+import {toast} from 'sonner';
 
 type AutomationProjectWorkflowTemplateType =
     AutomationProjectsQuery['automationProjects'][number]['workflowTemplates'][number];
 
 interface AutomationProjectWorkflowListItemProps {
+    codeWorkflowProject?: boolean;
     onDeleteWorkflow: (workflowUuid: string) => void;
     onEditWorkflow: (workflow: AutomationProjectWorkflowTemplateType) => void;
     onSelectWorkflow: (workflowUuid: string) => void;
@@ -23,11 +21,22 @@ interface AutomationProjectWorkflowListItemProps {
 }
 
 const AutomationProjectWorkflowListItem = ({
+    codeWorkflowProject = false,
     onDeleteWorkflow,
     onEditWorkflow,
     onSelectWorkflow,
     workflow,
 }: AutomationProjectWorkflowListItemProps) => {
+    const queryClient = useQueryClient();
+
+    const duplicateWorkflowMutation = useDuplicateAutomationProjectWorkflowMutation({
+        onSuccess: () => {
+            void queryClient.invalidateQueries({queryKey: ['automationProjects']});
+
+            toast('Workflow duplicated successfully.');
+        },
+    });
+
     const filteredComponentNames = useMemo(() => {
         const componentNames = [...workflow.triggers, ...workflow.components].map((component) => component.name);
 
@@ -74,7 +83,7 @@ const AutomationProjectWorkflowListItem = ({
 
     return (
         <li
-            className="group/row flex cursor-pointer items-center justify-between rounded-md px-3 py-1 hover:bg-surface-neutral-primary-hover"
+            className="group/row flex cursor-pointer items-center justify-between rounded-md py-1 pl-3 hover:bg-surface-neutral-primary-hover"
             onClick={handleWorkflowListItemClick}
             role="presentation"
         >
@@ -123,42 +132,23 @@ const AutomationProjectWorkflowListItem = ({
                     </Tooltip>
                 )}
 
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button
-                            aria-label="Workflow Actions"
-                            icon={<EllipsisVerticalIcon />}
-                            onClick={(event) => event.stopPropagation()}
-                            size="icon"
-                            variant="ghost"
-                        />
-                    </DropdownMenuTrigger>
-
-                    <DropdownMenuContent align="end">
+                {codeWorkflowProject ? (
+                    <div aria-hidden className="size-9 shrink-0" />
+                ) : (
+                    <WorkflowListRowDropdownMenu
+                        exportUrl={`/api/automation/internal/workflows/${workflow.workflowId}/export`}
+                        onDeleteClick={() => onDeleteWorkflow(workflow.workflowUuid)}
+                        onEditClick={() => onEditWorkflow(workflow)}
+                        workflowLabel={workflow.label || workflow.workflowUuid}
+                        workflowUuid={workflow.workflowUuid}
+                    >
                         <DropdownMenuItem
-                            aria-label="Edit Workflow"
-                            icon={<PencilIcon />}
-                            label="Edit"
-                            onClick={(event) => {
-                                event.stopPropagation();
-
-                                onEditWorkflow(workflow);
-                            }}
+                            icon={<CopyIcon />}
+                            label="Duplicate"
+                            onClick={() => duplicateWorkflowMutation.mutate({workflowUuid: workflow.workflowUuid})}
                         />
-
-                        <DropdownMenuItem
-                            aria-label="Delete Workflow"
-                            icon={<Trash2Icon />}
-                            label="Delete"
-                            onClick={(event) => {
-                                event.stopPropagation();
-
-                                onDeleteWorkflow(workflow.workflowUuid);
-                            }}
-                            variant="destructive"
-                        />
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                    </WorkflowListRowDropdownMenu>
+                )}
             </div>
         </li>
     );

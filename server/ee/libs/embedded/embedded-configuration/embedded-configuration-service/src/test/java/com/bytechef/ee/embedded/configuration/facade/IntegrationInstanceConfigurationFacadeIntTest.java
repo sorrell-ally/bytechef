@@ -9,6 +9,7 @@ package com.bytechef.ee.embedded.configuration.facade;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -25,12 +26,15 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.bytechef.atlas.configuration.domain.Workflow;
+import com.bytechef.atlas.configuration.domain.WorkflowTask;
 import com.bytechef.atlas.configuration.service.WorkflowService;
 import com.bytechef.automation.configuration.security.AutomationMethodSecurityConfiguration;
 import com.bytechef.automation.configuration.service.PermissionService;
 import com.bytechef.component.definition.Authorization.AuthorizationType;
 import com.bytechef.component.definition.ComponentDsl;
+import com.bytechef.component.definition.ComponentDsl.ModifiableAuthorization;
 import com.bytechef.ee.embedded.ai.mcp.domain.McpIntegrationInstanceConfiguration;
+import com.bytechef.ee.embedded.ai.mcp.facade.McpIntegrationInstanceRowFacade;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceConfigurationService;
 import com.bytechef.ee.embedded.configuration.config.IntegrationIntTestConfiguration;
 import com.bytechef.ee.embedded.configuration.config.IntegrationIntTestConfigurationSharedMocks;
@@ -46,6 +50,7 @@ import com.bytechef.ee.embedded.configuration.dto.ConfigurationMoveImpactDTO;
 import com.bytechef.ee.embedded.configuration.dto.ConfigurationMoveResultDTO;
 import com.bytechef.ee.embedded.configuration.dto.IntegrationInstanceConfigurationConnectedUserDTO;
 import com.bytechef.ee.embedded.configuration.dto.IntegrationInstanceConfigurationDTO;
+import com.bytechef.ee.embedded.configuration.exception.IntegrationInstanceConfigurationErrorType;
 import com.bytechef.ee.embedded.configuration.repository.IntegrationInstanceConfigurationRepository;
 import com.bytechef.ee.embedded.configuration.repository.IntegrationInstanceConfigurationWorkflowRepository;
 import com.bytechef.ee.embedded.configuration.repository.IntegrationInstanceRepository;
@@ -62,6 +67,7 @@ import com.bytechef.ee.embedded.configuration.service.IntegrationWorkflowService
 import com.bytechef.ee.embedded.connected.user.domain.ConnectedUser;
 import com.bytechef.ee.embedded.connected.user.service.ConnectedUserService;
 import com.bytechef.ee.embedded.security.web.authentication.EmbeddedApiKeyAuthenticationToken;
+import com.bytechef.evaluator.SpelEvaluator;
 import com.bytechef.exception.ConfigurationException;
 import com.bytechef.platform.component.domain.ComponentDefinition;
 import com.bytechef.platform.component.domain.ConnectionDefinition;
@@ -73,6 +79,7 @@ import com.bytechef.platform.configuration.domain.WorkflowTrigger;
 import com.bytechef.platform.configuration.facade.ComponentConnectionFacade;
 import com.bytechef.platform.connection.domain.Connection;
 import com.bytechef.platform.connection.service.ConnectionService;
+import com.bytechef.platform.oauth2.service.OAuth2Service;
 import com.bytechef.platform.security.constant.AuthorityConstants;
 import com.bytechef.platform.security.util.SecurityUtils;
 import com.bytechef.platform.workflow.WorkflowExecutionId;
@@ -84,12 +91,16 @@ import java.lang.reflect.Method;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -111,6 +122,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextImpl;
 import org.springframework.security.core.userdetails.User;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 /**
  * @version ee
@@ -147,13 +159,77 @@ class IntegrationInstanceConfigurationFacadeIntTest {
             "tasks": []
         }""";
 
+    private static final String INTERNAL_ONLY_OPTIONAL_WORKFLOW_DEFINITION = """
+        {
+            "label": "Optional Internal Only Workflow",
+            "inputs": [
+                {"name": "note", "label": "Note", "type": "string", "required": false, "internalOnly": true}
+            ],
+            "triggers": [],
+            "tasks": []
+        }""";
+
+    private static final String STRING_TYPED_INPUTS_WORKFLOW_DEFINITION = """
+        {
+            "label": "String Typed Inputs Workflow",
+            "inputs": [
+                {"name": "accountId", "label": "Account", "type": "string", "required": true, "internalOnly": true},
+                {"name": "channel", "label": "Channel", "type": "string", "required": false},
+                {"name": "region", "label": "Region", "type": "string", "required": false},
+                {"name": "removed", "label": "Removed", "type": "string", "required": false}
+            ],
+            "triggers": [],
+            "tasks": []
+        }
+        """;
+
+    private static final String RETYPED_INPUTS_WORKFLOW_DEFINITION = """
+        {
+            "label": "Retyped Inputs Workflow",
+            "inputs": [
+                {"name": "accountId", "label": "Account", "type": "integer", "required": true, "internalOnly": true},
+                {"name": "channel", "label": "Channel", "type": "integer", "required": false},
+                {"name": "region", "label": "Region", "type": "STRING", "required": false}
+            ],
+            "triggers": [],
+            "tasks": []
+        }
+        """;
+
+    private static final String INTERNAL_ONLY_REQUIRED_WORKFLOW_DEFINITION = """
+        {
+            "label": "Required Internal Only Workflow",
+            "inputs": [
+                {"name": "accountId", "label": "Account", "type": "string", "required": true, "internalOnly": true},
+                {"name": "region", "label": "Region", "type": "string", "required": true}
+            ],
+            "triggers": [],
+            "tasks": []
+        }""";
+
+    private static final String SLACK_TRIGGER_WORKFLOW_DEFINITION = """
+        {
+            "label": "Slack Workflow",
+            "triggers": [
+                {
+                    "label": "New message",
+                    "name": "slack_trigger_1",
+                    "type": "slack/v1/newMessage",
+                    "parameters": {}
+                }
+            ],
+            "tasks": []
+        }""";
+
     private static final long CONNECTED_USER_ID = 1L;
     private static final long FIRST_UPGRADE_USER_ID = 11L;
     private static final String NEW_CRON_EXPRESSION = "5/5 16 * * ?";
     private static final String OLD_CRON_EXPRESSION = "0/5 15 * * ?";
+    private static final long OTHER_CONNECTED_USER_ID = 21L;
     private static final long SECOND_UPGRADE_USER_ID = 12L;
     private static final long STAGING_UPGRADE_USER_ID = 15L;
     private static final long TARGET_UPGRADE_USER_ID = 13L;
+    private static final long UNASSIGNED_CONNECTED_USER_ID = 31L;
     private static final long UNKNOWN_UPGRADE_USER_ID = 14L;
 
     @Autowired
@@ -192,7 +268,7 @@ class IntegrationInstanceConfigurationFacadeIntTest {
     @Autowired
     private IntegrationInstanceRepository integrationInstanceRepository;
 
-    @Autowired
+    @MockitoSpyBean
     private IntegrationInstanceService integrationInstanceService;
 
     @Autowired
@@ -217,6 +293,12 @@ class IntegrationInstanceConfigurationFacadeIntTest {
     private McpIntegrationInstanceConfigurationService mcpIntegrationInstanceConfigurationService;
 
     @Autowired
+    private McpIntegrationInstanceRowFacade mcpIntegrationInstanceRowFacade;
+
+    @Autowired
+    private OAuth2Service oAuth2Service;
+
+    @Autowired
     private TriggerLifecycleFacade triggerLifecycleFacade;
 
     @Autowired
@@ -228,6 +310,8 @@ class IntegrationInstanceConfigurationFacadeIntTest {
             .thenReturn(new ComponentDefinition("componentName"));
         when(connectionDefinitionService.getConnectionDefinition(anyString(), any()))
             .thenReturn(new ConnectionDefinition(ComponentDsl.connection(), "componentName", "componentTitle", null));
+        when(workflowService.getWorkflow(anyString()))
+            .thenReturn(new Workflow("{\"tasks\":[]}", Workflow.Format.JSON));
     }
 
     @AfterEach
@@ -239,25 +323,28 @@ class IntegrationInstanceConfigurationFacadeIntTest {
         integrationInstanceConfigurationWorkflowRepository.deleteAll();
         integrationWorkflowRepository.deleteAll();
         integrationInstanceConfigurationRepository.deleteAll();
+        integrationWorkflowRepository.deleteAll();
         integrationRepository.deleteAll();
     }
 
     @Test
-    void testCreateIntegrationInstanceConfigurationRefusesASecondConfigurationOfTheSameVersion() {
+    void testCreateIntegrationInstanceConfigurationAllowsASecondConfigurationOfTheSameVersion() {
         authenticate(admin());
 
         Integration integration = createPublishedIntegration();
 
         long integrationInstanceConfigurationId = createIntegrationInstanceConfiguration(integration.getId());
 
-        bumpLockVersionPast(integrationInstanceConfigurationId, 1);
+        long secondIntegrationInstanceConfigurationId =
+            integrationInstanceConfigurationFacade.createIntegrationInstanceConfiguration(
+                newIntegrationInstanceConfigurationDTO(integration.getId(), 1));
 
-        assertThatThrownBy(
-            () -> integrationInstanceConfigurationFacade.createIntegrationInstanceConfiguration(
-                newIntegrationInstanceConfigurationDTO(integration.getId(), 1)))
-                    .isInstanceOf(ConfigurationException.class)
-                    .satisfies(throwable -> assertThat(((ConfigurationException) throwable).getErrorKey())
-                        .isEqualTo(104));
+        assertThat(secondIntegrationInstanceConfigurationId).isNotEqualTo(integrationInstanceConfigurationId);
+        assertThat(
+            integrationInstanceConfigurationService.getIntegrationInstanceConfiguration(
+                secondIntegrationInstanceConfigurationId)
+                .getIntegrationVersion())
+                    .isEqualTo(1);
     }
 
     @Test
@@ -389,6 +476,82 @@ class IntegrationInstanceConfigurationFacadeIntTest {
                     .isInstanceOf(AccessDeniedException.class);
 
         verify(connectionService, never()).updateConnectionParameters(anyLong(), any());
+    }
+
+    @Test
+    void testCreateIntegrationInstanceConfigurationPublishesAnIntegrationWithoutWorkflows() {
+        authenticate(admin());
+
+        Integration integration = createIntegration();
+
+        long integrationInstanceConfigurationId =
+            integrationInstanceConfigurationFacade.createIntegrationInstanceConfiguration(
+                newIntegrationInstanceConfigurationDTO(integration.getId(), 1));
+
+        Integration publishedIntegration = integrationService.getIntegration(integration.getId());
+
+        assertThat(publishedIntegration.isPublished()).isTrue();
+        assertThat(publishedIntegration.getLastIntegrationVersion()).isEqualTo(2);
+        assertThat(
+            integrationInstanceConfigurationService.getIntegrationInstanceConfiguration(
+                integrationInstanceConfigurationId)
+                .getIntegrationVersion())
+                    .isEqualTo(1);
+    }
+
+    @Test
+    void testCreateIntegrationInstanceConfigurationEnablesAConfigurationWithoutWorkflows() {
+        authenticate(admin());
+
+        Integration integration = createIntegration();
+
+        long integrationInstanceConfigurationId =
+            integrationInstanceConfigurationFacade.createIntegrationInstanceConfiguration(
+                newIntegrationInstanceConfigurationDTO(integration.getId(), 1));
+
+        assertThat(
+            integrationInstanceConfigurationService.getIntegrationInstanceConfiguration(
+                integrationInstanceConfigurationId)
+                .isEnabled())
+                    .isTrue();
+    }
+
+    @Test
+    void testCreateIntegrationInstanceConfigurationLeavesAConfigurationWithWorkflowsDisabled() {
+        authenticate(admin());
+
+        Integration integration = createPublishedIntegration();
+
+        addCronWorkflow(integration.getId(), 1, UUID.randomUUID());
+
+        long integrationInstanceConfigurationId =
+            integrationInstanceConfigurationFacade.createIntegrationInstanceConfiguration(
+                newIntegrationInstanceConfigurationDTO(integration.getId(), 1));
+
+        assertThat(
+            integrationInstanceConfigurationService.getIntegrationInstanceConfiguration(
+                integrationInstanceConfigurationId)
+                .isEnabled())
+                    .isFalse();
+    }
+
+    @Test
+    void testCreateIntegrationInstanceConfigurationRefusesAnUnpublishedIntegrationWithWorkflows() {
+        authenticate(admin());
+
+        Integration integration = createIntegration();
+
+        addCronWorkflow(integration.getId(), 1, UUID.randomUUID());
+
+        assertThatThrownBy(
+            () -> integrationInstanceConfigurationFacade.createIntegrationInstanceConfiguration(
+                newIntegrationInstanceConfigurationDTO(integration.getId(), 1)))
+                    .isInstanceOf(ConfigurationException.class)
+                    .satisfies(throwable -> assertThat(((ConfigurationException) throwable).getErrorKey())
+                        .isEqualTo(IntegrationInstanceConfigurationErrorType.INTEGRATION_NOT_PUBLISHED.getErrorKey()));
+
+        assertThat(integrationService.getIntegration(integration.getId())
+            .isPublished()).isFalse();
     }
 
     @Test
@@ -686,6 +849,358 @@ class IntegrationInstanceConfigurationFacadeIntTest {
     }
 
     @Test
+    void testEnableIntegrationVersionCreatesAnEnabledInstanceConfiguration() {
+        authenticate(admin());
+
+        Integration integration = createPublishedIntegration("workflow-a");
+
+        long integrationInstanceConfigurationId = integrationInstanceConfigurationFacade.enableIntegrationVersion(
+            integration.getId(), 1, Environment.STAGING);
+
+        IntegrationInstanceConfiguration integrationInstanceConfiguration = integrationInstanceConfigurationService
+            .getIntegrationInstanceConfiguration(integrationInstanceConfigurationId);
+
+        assertThat(integrationInstanceConfiguration.getEnvironment()).isEqualTo(Environment.STAGING);
+        assertThat(integrationInstanceConfiguration.getIntegrationVersion()).isEqualTo(1);
+        assertThat(integrationInstanceConfiguration.isEnabled()).isTrue();
+        assertThat(integrationInstanceConfiguration.getAuthorizationType()).isEqualTo(AuthorizationType.API_KEY);
+        assertThat(
+            integrationInstanceConfigurationWorkflowService.getIntegrationInstanceConfigurationWorkflows(
+                integrationInstanceConfigurationId))
+                    .singleElement()
+                    .satisfies(integrationInstanceConfigurationWorkflow -> {
+                        assertThat(integrationInstanceConfigurationWorkflow.getWorkflowId()).isEqualTo("workflow-a");
+                        assertThat(integrationInstanceConfigurationWorkflow.isEnabled()).isTrue();
+                    });
+    }
+
+    @Test
+    void testEnableIntegrationVersionCreatesWithAWorkflowNeedingAnAdminConnectionLeftDisabled() {
+        authenticate(admin());
+
+        stubWorkflowNeedingAnAdminConnection("workflow-slack");
+
+        Integration integration = createPublishedIntegration("workflow-slack");
+
+        long integrationInstanceConfigurationId = integrationInstanceConfigurationFacade.enableIntegrationVersion(
+            integration.getId(), 1, Environment.STAGING);
+
+        assertThat(
+            integrationInstanceConfigurationService.getIntegrationInstanceConfiguration(
+                integrationInstanceConfigurationId)
+                .isEnabled())
+                    .isTrue();
+        assertThat(
+            integrationInstanceConfigurationWorkflowService.getIntegrationInstanceConfigurationWorkflows(
+                integrationInstanceConfigurationId))
+                    .singleElement()
+                    .satisfies(integrationInstanceConfigurationWorkflow -> assertThat(
+                        integrationInstanceConfigurationWorkflow.isEnabled()).isFalse());
+    }
+
+    @Test
+    void testEnableIntegrationVersionMovesWithANewWorkflowNeedingAnAdminConnectionLeftDisabled() {
+        authenticate(admin());
+
+        Integration integration = createPublishedIntegration("workflow-a");
+
+        long integrationInstanceConfigurationId = createIntegrationInstanceConfiguration(
+            integration.getId(), Environment.STAGING, true);
+
+        stubWorkflowNeedingAnAdminConnection("workflow-slack");
+
+        integrationWorkflowService.addWorkflow(integration.getId(), 2, "workflow-b");
+        integrationWorkflowService.addWorkflow(integration.getId(), 2, "workflow-slack");
+
+        integrationService.publishIntegration(integration.getId(), null);
+
+        integrationInstanceConfigurationFacade.enableIntegrationVersion(integration.getId(), 2, Environment.STAGING);
+
+        Map<String, Boolean> enabledByWorkflowId = integrationInstanceConfigurationWorkflowService
+            .getIntegrationInstanceConfigurationWorkflows(integrationInstanceConfigurationId)
+            .stream()
+            .collect(
+                Collectors.toMap(
+                    IntegrationInstanceConfigurationWorkflow::getWorkflowId,
+                    IntegrationInstanceConfigurationWorkflow::isEnabled));
+
+        assertThat(enabledByWorkflowId).containsOnly(Map.entry("workflow-b", true), Map.entry("workflow-slack", false));
+    }
+
+    @Test
+    void testEnableIntegrationVersionCreatesWithAWorkflowNeedingAnInternalOnlyInputLeftDisabled() {
+        authenticate(admin());
+
+        stubWorkflowNeedingAnInternalOnlyInput("workflow-internal");
+
+        Integration integration = createPublishedIntegration("workflow-internal");
+
+        long integrationInstanceConfigurationId = integrationInstanceConfigurationFacade.enableIntegrationVersion(
+            integration.getId(), 1, Environment.STAGING);
+
+        assertThat(
+            integrationInstanceConfigurationService.getIntegrationInstanceConfiguration(
+                integrationInstanceConfigurationId)
+                .isEnabled())
+                    .isTrue();
+        assertThat(getEnabledByWorkflowId(integrationInstanceConfigurationId))
+            .containsOnly(Map.entry("workflow-internal", false));
+    }
+
+    @Test
+    void testEnableIntegrationVersionMovesWithANewWorkflowNeedingAnInternalOnlyInputLeftDisabled() {
+        authenticate(admin());
+
+        Integration integration = createPublishedIntegration("workflow-a");
+
+        long integrationInstanceConfigurationId = createIntegrationInstanceConfiguration(
+            integration.getId(), Environment.STAGING, true);
+
+        stubWorkflowNeedingAnInternalOnlyInput("workflow-internal");
+
+        integrationWorkflowService.addWorkflow(integration.getId(), 2, "workflow-b");
+        integrationWorkflowService.addWorkflow(integration.getId(), 2, "workflow-internal");
+
+        integrationService.publishIntegration(integration.getId(), null);
+
+        integrationInstanceConfigurationFacade.enableIntegrationVersion(integration.getId(), 2, Environment.STAGING);
+
+        assertThat(getEnabledByWorkflowId(integrationInstanceConfigurationId))
+            .containsOnly(Map.entry("workflow-b", true), Map.entry("workflow-internal", false));
+    }
+
+    @Test
+    void testEnableIntegrationVersionMovesAnEnabledWorkflowWhoseNewVersionNeedsAnAdminConnectionLeftDisabled() {
+        authenticate(admin());
+
+        Integration integration = createPublishedIntegration("workflow-a");
+
+        long integrationInstanceConfigurationId = createEnabledConfigurationWithAnEnabledWorkflowAddedToVersion2(
+            integration, "workflow-a", "workflow-a-v2");
+
+        stubWorkflowNeedingAnAdminConnection("workflow-a-v2");
+
+        integrationInstanceConfigurationFacade.enableIntegrationVersion(integration.getId(), 2, Environment.STAGING);
+
+        assertThat(getEnabledByWorkflowId(integrationInstanceConfigurationId))
+            .containsOnly(Map.entry("workflow-a-v2", false));
+    }
+
+    @Test
+    void testEnableIntegrationVersionMovesAnEnabledWorkflowWhoseNewVersionNeedsAnInternalOnlyInputLeftDisabled() {
+        authenticate(admin());
+
+        Integration integration = createPublishedIntegration("workflow-a");
+
+        long integrationInstanceConfigurationId = createEnabledConfigurationWithAnEnabledWorkflowAddedToVersion2(
+            integration, "workflow-a", "workflow-a-v2");
+
+        stubWorkflowNeedingAnInternalOnlyInput("workflow-a-v2");
+
+        integrationInstanceConfigurationFacade.enableIntegrationVersion(integration.getId(), 2, Environment.STAGING);
+
+        assertThat(getEnabledByWorkflowId(integrationInstanceConfigurationId))
+            .containsOnly(Map.entry("workflow-a-v2", false));
+    }
+
+    @Test
+    void testEnableIntegrationVersionMovesAnEnabledWorkflowKeepingItEnabledWhenTheNewVersionNeedsNoSetup() {
+        authenticate(admin());
+
+        Integration integration = createPublishedIntegration("workflow-a");
+
+        long integrationInstanceConfigurationId = createEnabledConfigurationWithAnEnabledWorkflowAddedToVersion2(
+            integration, "workflow-a", "workflow-a-v2");
+
+        integrationInstanceConfigurationFacade.enableIntegrationVersion(integration.getId(), 2, Environment.STAGING);
+
+        assertThat(getEnabledByWorkflowId(integrationInstanceConfigurationId))
+            .containsOnly(Map.entry("workflow-a-v2", true));
+    }
+
+    @Test
+    void testEnableIntegrationVersionCreatesWithAnAuthorizationTheConnectedUserCompletes() {
+        authenticate(admin());
+
+        stubConnection(AuthorizationType.OAUTH2_AUTHORIZATION_CODE, AuthorizationType.API_KEY);
+
+        Integration integration = createPublishedIntegration("workflow-a");
+
+        long integrationInstanceConfigurationId = integrationInstanceConfigurationFacade.enableIntegrationVersion(
+            integration.getId(), 1, Environment.PRODUCTION);
+
+        assertThat(
+            integrationInstanceConfigurationService.getIntegrationInstanceConfiguration(
+                integrationInstanceConfigurationId)
+                .getAuthorizationType())
+                    .isEqualTo(AuthorizationType.API_KEY);
+    }
+
+    @Test
+    void testEnableIntegrationVersionCreatesWithAPredefinedOAuth2App() {
+        authenticate(admin());
+
+        stubConnection(AuthorizationType.OAUTH2_AUTHORIZATION_CODE);
+
+        when(oAuth2Service.getPredefinedApps()).thenReturn(List.of("componentName"));
+        when(oAuth2Service.checkPredefinedParameters(anyString(), any()))
+            .thenAnswer(invocation -> Map.of("clientId", "predefined-client-id"));
+
+        Integration integration = createPublishedIntegration("workflow-a");
+
+        long integrationInstanceConfigurationId = integrationInstanceConfigurationFacade.enableIntegrationVersion(
+            integration.getId(), 1, Environment.PRODUCTION);
+
+        IntegrationInstanceConfiguration integrationInstanceConfiguration = integrationInstanceConfigurationService
+            .getIntegrationInstanceConfiguration(integrationInstanceConfigurationId);
+
+        assertThat(integrationInstanceConfiguration.getAuthorizationType())
+            .isEqualTo(AuthorizationType.OAUTH2_AUTHORIZATION_CODE);
+        Map<String, ?> connectionParameters = integrationInstanceConfiguration.getConnectionParameters();
+
+        assertThat(connectionParameters.get("clientId")).isEqualTo("predefined-client-id");
+    }
+
+    @Test
+    void testEnableIntegrationVersionRefusesCreationWhenAnAdminMustRegisterAnOAuth2App() {
+        authenticate(admin());
+
+        stubConnection(AuthorizationType.OAUTH2_AUTHORIZATION_CODE_PKCE);
+
+        when(oAuth2Service.getPredefinedApps()).thenReturn(List.of());
+
+        Integration integration = createPublishedIntegration("workflow-a");
+
+        assertThatThrownBy(
+            () -> integrationInstanceConfigurationFacade.enableIntegrationVersion(
+                integration.getId(), 1, Environment.PRODUCTION))
+                    .isInstanceOf(ConfigurationException.class)
+                    .satisfies(throwable -> assertThat(((ConfigurationException) throwable).getErrorKey())
+                        .isEqualTo(109));
+
+        assertThat(integrationInstanceConfigurationService.getIntegrationInstanceConfigurations(integration.getId()))
+            .isEmpty();
+    }
+
+    @Test
+    void testEnableIntegrationVersionMovesTheExistingInstanceConfigurationToTheVersion() {
+        authenticate(admin());
+
+        Integration integration = createPublishedIntegration("workflow-a");
+
+        long integrationInstanceConfigurationId = createIntegrationInstanceConfiguration(
+            integration.getId(), Environment.STAGING, false);
+
+        long carriedIntegrationInstanceConfigurationWorkflowId = createIntegrationInstanceConfigurationWorkflow(
+            integrationInstanceConfigurationId, "workflow-a");
+
+        IntegrationWorkflow integrationWorkflow = integrationWorkflowService.getWorkflowIntegrationWorkflow(
+            "workflow-a");
+
+        integrationWorkflowRepository.save(
+            new IntegrationWorkflow(
+                integration.getId(), 2, "workflow-a-v2", UUID.fromString(integrationWorkflow.getUuidAsString())));
+        integrationWorkflowService.addWorkflow(integration.getId(), 2, "workflow-b");
+
+        integrationService.publishIntegration(integration.getId(), null);
+
+        assertThat(
+            integrationInstanceConfigurationFacade.enableIntegrationVersion(
+                integration.getId(), 2, Environment.STAGING))
+                    .isEqualTo(integrationInstanceConfigurationId);
+
+        IntegrationInstanceConfiguration integrationInstanceConfiguration = integrationInstanceConfigurationService
+            .getIntegrationInstanceConfiguration(integrationInstanceConfigurationId);
+
+        assertThat(integrationInstanceConfiguration.getIntegrationVersion()).isEqualTo(2);
+        assertThat(integrationInstanceConfiguration.isEnabled()).isTrue();
+        assertThat(integrationInstanceConfiguration.getAuthorizationType()).isEqualTo(AuthorizationType.API_KEY);
+
+        Map<String, ?> connectionParameters = integrationInstanceConfiguration.getConnectionParameters();
+
+        assertThat(connectionParameters.get("key")).isEqualTo("admin-value");
+
+        assertThat(integrationInstanceConfigurationService.getIntegrationInstanceConfigurations(integration.getId()))
+            .hasSize(1);
+
+        Map<String, IntegrationInstanceConfigurationWorkflow> integrationInstanceConfigurationWorkflows =
+            integrationInstanceConfigurationWorkflowService
+                .getIntegrationInstanceConfigurationWorkflows(integrationInstanceConfigurationId)
+                .stream()
+                .collect(
+                    Collectors.toMap(
+                        IntegrationInstanceConfigurationWorkflow::getWorkflowId, Function.identity()));
+
+        assertThat(integrationInstanceConfigurationWorkflows).containsOnlyKeys("workflow-a-v2", "workflow-b");
+
+        IntegrationInstanceConfigurationWorkflow carriedIntegrationInstanceConfigurationWorkflow =
+            integrationInstanceConfigurationWorkflows.get("workflow-a-v2");
+
+        assertThat(carriedIntegrationInstanceConfigurationWorkflow.getId())
+            .isEqualTo(carriedIntegrationInstanceConfigurationWorkflowId);
+        assertThat(carriedIntegrationInstanceConfigurationWorkflow.isEnabled()).isFalse();
+
+        Map<String, ?> inputs = carriedIntegrationInstanceConfigurationWorkflow.getInputs();
+
+        assertThat(inputs.get("channel")).isEqualTo("general");
+
+        assertThat(integrationInstanceConfigurationWorkflows.get("workflow-b")
+            .isEnabled()).isTrue();
+    }
+
+    @Test
+    void testEnableIntegrationVersionMovesTheOnlyEnabledOfSeveralInstanceConfigurations() {
+        authenticate(admin());
+
+        Integration integration = createPublishedIntegration("workflow-a");
+
+        long disabledIntegrationInstanceConfigurationId = createIntegrationInstanceConfiguration(
+            integration.getId(), Environment.STAGING, false);
+        long enabledIntegrationInstanceConfigurationId = createIntegrationInstanceConfiguration(
+            integration.getId(), Environment.STAGING, true);
+
+        integrationWorkflowService.addWorkflow(integration.getId(), 2, "workflow-b");
+
+        integrationService.publishIntegration(integration.getId(), null);
+
+        assertThat(
+            integrationInstanceConfigurationFacade.enableIntegrationVersion(
+                integration.getId(), 2, Environment.STAGING))
+                    .isEqualTo(enabledIntegrationInstanceConfigurationId);
+        assertThat(
+            integrationInstanceConfigurationService.getIntegrationInstanceConfiguration(
+                disabledIntegrationInstanceConfigurationId)
+                .getIntegrationVersion())
+                    .isEqualTo(1);
+    }
+
+    @Test
+    void testEnableIntegrationVersionRefusesWhenSeveralInstanceConfigurationsAreEquallyCandidates() {
+        authenticate(admin());
+
+        Integration integration = createPublishedIntegration("workflow-a");
+
+        createIntegrationInstanceConfiguration(integration.getId(), Environment.STAGING, false);
+        createIntegrationInstanceConfiguration(integration.getId(), Environment.STAGING, false);
+
+        assertThatThrownBy(
+            () -> integrationInstanceConfigurationFacade.enableIntegrationVersion(
+                integration.getId(), 1, Environment.STAGING))
+                    .isInstanceOf(ConfigurationException.class)
+                    .satisfies(throwable -> assertThat(((ConfigurationException) throwable).getErrorKey())
+                        .isEqualTo(110));
+    }
+
+    @Test
+    void testEnableIntegrationVersionIsAdminOnly() {
+        authenticate(nonAdmin());
+
+        assertThatThrownBy(
+            () -> integrationInstanceConfigurationFacade.enableIntegrationVersion(1L, 1, Environment.STAGING))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
     void testMoveRemapsInstanceWorkflowsByUuidKeepingInputs() {
         MoveFixture moveFixture = createMoveFixture(true, AuthorizationType.API_KEY);
 
@@ -723,6 +1238,99 @@ class IntegrationInstanceConfigurationFacadeIntTest {
             .executeTriggerEnable(
                 eq(moveFixture.targetWorkflowId()), any(), any(),
                 argThat(parameters -> hasExpression(parameters, NEW_CRON_EXPRESSION)), any(), any(), anyLong());
+    }
+
+    @Test
+    void testEnabledConfigurationWorkflowReachesUsersWithItsMcpServers() {
+        CronFixture cronFixture = createCronFixture(List.of());
+
+        authenticate(admin());
+
+        IntegrationInstanceConfigurationWorkflow integrationInstanceConfigurationWorkflow =
+            getConfigurationWorkflow(cronFixture);
+
+        integrationInstanceConfigurationFacade.enableIntegrationInstanceConfigurationWorkflow(
+            cronFixture.integrationInstanceConfigurationId(), integrationInstanceConfigurationWorkflow.getWorkflowId(),
+            false);
+
+        verify(mcpIntegrationInstanceRowFacade, never()).addMissingRowsForIntegrationInstanceConfiguration(anyLong());
+
+        integrationInstanceConfigurationFacade.enableIntegrationInstanceConfigurationWorkflow(
+            cronFixture.integrationInstanceConfigurationId(), integrationInstanceConfigurationWorkflow.getWorkflowId(),
+            true);
+
+        verify(mcpIntegrationInstanceRowFacade).addMissingRowsForIntegrationInstanceConfiguration(
+            cronFixture.integrationInstanceConfigurationId());
+    }
+
+    @Test
+    void testEnableConfigurationWorkflowIgnoresConnectionsOfDisabledTasks() {
+        CronFixture cronFixture = createCronFixture(List.of());
+
+        authenticate(admin());
+
+        IntegrationInstanceConfigurationWorkflow integrationInstanceConfigurationWorkflow =
+            getConfigurationWorkflow(cronFixture);
+
+        String workflowId = integrationInstanceConfigurationWorkflow.getWorkflowId();
+
+        integrationInstanceConfigurationFacade.enableIntegrationInstanceConfigurationWorkflow(
+            cronFixture.integrationInstanceConfigurationId(), workflowId, false);
+
+        String definition = CRON_WORKFLOW_DEFINITION.replace(
+            "\"tasks\": []",
+            """
+                "tasks": [
+                    {"name": "postToSlack", "type": "slack/v1/sendChannelMessage", "disabled": true}
+                ]""");
+
+        when(workflowService.getWorkflow(workflowId))
+            .thenReturn(new Workflow(workflowId, definition, Workflow.Format.JSON));
+        when(componentConnectionFacade.getComponentConnections(any(WorkflowTask.class)))
+            .thenReturn(List.of(new ComponentConnection("slack", 1, "postToSlack", "slack", true)));
+
+        integrationInstanceConfigurationFacade.enableIntegrationInstanceConfigurationWorkflow(
+            cronFixture.integrationInstanceConfigurationId(), workflowId, true);
+
+        assertThat(getConfigurationWorkflow(cronFixture).isEnabled()).isTrue();
+    }
+
+    @Test
+    void testUpdatedConfigurationReachesUsersWithItsMcpServers() {
+        CronFixture cronFixture = createCronFixture(List.of());
+
+        authenticate(admin());
+
+        integrationInstanceConfigurationFacade.updateIntegrationInstanceConfiguration(
+            integrationInstanceConfigurationFacade.getIntegrationInstanceConfiguration(
+                cronFixture.integrationInstanceConfigurationId()));
+
+        verify(mcpIntegrationInstanceRowFacade).addMissingRowsForIntegrationInstanceConfiguration(
+            cronFixture.integrationInstanceConfigurationId());
+    }
+
+    @Test
+    void testMoveConnectedUsersRemapsMcpRows() {
+        MoveFixture moveFixture = createMoveFixture(true, AuthorizationType.API_KEY);
+
+        authenticate(admin());
+
+        integrationInstanceConfigurationFacade.moveConnectedUsers(
+            moveFixture.sourceConfigurationId(), moveFixture.targetConfigurationId(), List.of(CONNECTED_USER_ID));
+
+        verify(mcpIntegrationInstanceRowFacade).remapIntegrationInstance(moveFixture.integrationInstanceId());
+    }
+
+    @Test
+    void testSkippedMoveLeavesMcpRowsAlone() {
+        MoveFixture moveFixture = createMoveFixture(false, AuthorizationType.API_KEY);
+
+        authenticate(admin());
+
+        integrationInstanceConfigurationFacade.moveConnectedUsers(
+            moveFixture.sourceConfigurationId(), moveFixture.targetConfigurationId(), List.of(CONNECTED_USER_ID));
+
+        verify(mcpIntegrationInstanceRowFacade, never()).remapIntegrationInstance(anyLong());
     }
 
     @Test
@@ -1001,6 +1609,301 @@ class IntegrationInstanceConfigurationFacadeIntTest {
     }
 
     @Test
+    void testEnableIntegrationInstanceConfigurationWorkflowRefusesAnEmptyRequiredInternalOnlyInput() {
+        IntegrationInstanceConfigurationWorkflow configurationWorkflow = createInternalOnlyConfigurationWorkflow(
+            INTERNAL_ONLY_REQUIRED_WORKFLOW_DEFINITION, false, Map.of("region", "eu"));
+
+        authenticate(admin());
+
+        assertThatThrownBy(
+            () -> integrationInstanceConfigurationFacade.enableIntegrationInstanceConfigurationWorkflow(
+                configurationWorkflow.getIntegrationInstanceConfigurationId(), configurationWorkflow.getWorkflowId(),
+                true))
+                    .isInstanceOf(ConfigurationException.class)
+                    .hasMessageContaining("accountId")
+                    .satisfies(throwable -> assertThat(((ConfigurationException) throwable).getErrorKey())
+                        .isEqualTo(
+                            IntegrationInstanceConfigurationErrorType.INTERNAL_ONLY_INPUT_MISSING.getErrorKey()));
+
+        assertThat(
+            integrationInstanceConfigurationWorkflowService.getIntegrationInstanceConfigurationWorkflow(
+                configurationWorkflow.getId())
+                .isEnabled()).isFalse();
+    }
+
+    @Test
+    void testEnableIntegrationInstanceConfigurationWorkflowAllowsAnEmptyOptionalInternalOnlyInput() {
+        IntegrationInstanceConfigurationWorkflow configurationWorkflow = createInternalOnlyConfigurationWorkflow(
+            INTERNAL_ONLY_OPTIONAL_WORKFLOW_DEFINITION, false, Map.of());
+
+        authenticate(admin());
+
+        integrationInstanceConfigurationFacade.enableIntegrationInstanceConfigurationWorkflow(
+            configurationWorkflow.getIntegrationInstanceConfigurationId(), configurationWorkflow.getWorkflowId(), true);
+
+        assertThat(
+            integrationInstanceConfigurationWorkflowService.getIntegrationInstanceConfigurationWorkflow(
+                configurationWorkflow.getId())
+                .isEnabled()).isTrue();
+    }
+
+    @Test
+    void testUpdateIntegrationInstanceConfigurationWorkflowRefusesClearingARequiredInternalOnlyInputOfAnEnabledWorkflow() {
+        IntegrationInstanceConfigurationWorkflow configurationWorkflow = createInternalOnlyConfigurationWorkflow(
+            INTERNAL_ONLY_REQUIRED_WORKFLOW_DEFINITION, true, Map.of("accountId", "account-1", "region", "eu"));
+
+        authenticate(admin());
+
+        IntegrationInstanceConfigurationWorkflow storedConfigurationWorkflow =
+            integrationInstanceConfigurationWorkflowService.getIntegrationInstanceConfigurationWorkflow(
+                configurationWorkflow.getId());
+
+        storedConfigurationWorkflow.setInputs(Map.of("region", "eu"));
+
+        assertThatThrownBy(
+            () -> integrationInstanceConfigurationFacade.updateIntegrationInstanceConfigurationWorkflow(
+                storedConfigurationWorkflow))
+                    .isInstanceOf(ConfigurationException.class)
+                    .hasMessageContaining("accountId")
+                    .satisfies(throwable -> assertThat(((ConfigurationException) throwable).getErrorKey())
+                        .isEqualTo(
+                            IntegrationInstanceConfigurationErrorType.INTERNAL_ONLY_INPUT_MISSING.getErrorKey()));
+
+        assertThat(
+            integrationInstanceConfigurationWorkflowService.getIntegrationInstanceConfigurationWorkflow(
+                configurationWorkflow.getId())
+                .getInputs()).isEqualTo(Map.of("accountId", "account-1", "region", "eu"));
+    }
+
+    @Test
+    void testUpdateIntegrationInstanceConfigurationWorkflowAllowsAnEmptyRequiredInternalOnlyInputOfADisabledWorkflow() {
+        IntegrationInstanceConfigurationWorkflow configurationWorkflow = createInternalOnlyConfigurationWorkflow(
+            INTERNAL_ONLY_REQUIRED_WORKFLOW_DEFINITION, false, Map.of("accountId", "account-1", "region", "eu"));
+
+        authenticate(admin());
+
+        IntegrationInstanceConfigurationWorkflow storedConfigurationWorkflow =
+            integrationInstanceConfigurationWorkflowService.getIntegrationInstanceConfigurationWorkflow(
+                configurationWorkflow.getId());
+
+        storedConfigurationWorkflow.setInputs(Map.of("region", "eu"));
+
+        integrationInstanceConfigurationFacade.updateIntegrationInstanceConfigurationWorkflow(
+            storedConfigurationWorkflow);
+
+        assertThat(
+            integrationInstanceConfigurationWorkflowService.getIntegrationInstanceConfigurationWorkflow(
+                configurationWorkflow.getId())
+                .getInputs()).isEqualTo(Map.of("region", "eu"));
+    }
+
+    @Test
+    void testChangeConnectedUserVersionCopyLeavesAWorkflowWithAnEmptyRequiredInternalOnlyInputDisabled() {
+        ChangeVersionFixture changeVersionFixture = createChangeVersionFixture(1, true);
+
+        UUID internalOnlyWorkflowUuid = UUID.randomUUID();
+
+        String sourceInternalOnlyWorkflowId = addWorkflow(
+            changeVersionFixture.integrationId(), 1, internalOnlyWorkflowUuid,
+            INTERNAL_ONLY_REQUIRED_WORKFLOW_DEFINITION);
+        String targetInternalOnlyWorkflowId = addWorkflow(
+            changeVersionFixture.integrationId(), 2, internalOnlyWorkflowUuid,
+            INTERNAL_ONLY_REQUIRED_WORKFLOW_DEFINITION);
+
+        IntegrationInstanceConfigurationWorkflow sourceInternalOnlyConfigurationWorkflow =
+            new IntegrationInstanceConfigurationWorkflow();
+
+        sourceInternalOnlyConfigurationWorkflow.setEnabled(true);
+        sourceInternalOnlyConfigurationWorkflow.setInputs(Map.of("region", "eu"));
+        sourceInternalOnlyConfigurationWorkflow.setIntegrationInstanceConfigurationId(
+            changeVersionFixture.sourceConfigurationId());
+        sourceInternalOnlyConfigurationWorkflow.setWorkflowId(sourceInternalOnlyWorkflowId);
+
+        integrationInstanceConfigurationWorkflowService.create(sourceInternalOnlyConfigurationWorkflow);
+
+        authenticate(admin());
+
+        ConfigurationMoveResultDTO configurationMoveResultDTO =
+            integrationInstanceConfigurationFacade.changeConnectedUserVersion(
+                changeVersionFixture.sourceConfigurationId(), CONNECTED_USER_ID, 2, null);
+
+        assertThat(configurationMoveResultDTO.movedConnectedUserIds()).containsExactly(CONNECTED_USER_ID);
+
+        IntegrationInstanceConfiguration copyConfiguration = getCopyConfiguration(
+            changeVersionFixture.integrationId(), List.of(changeVersionFixture.sourceConfigurationId()));
+
+        IntegrationInstanceConfigurationWorkflow copiedInternalOnlyConfigurationWorkflow =
+            integrationInstanceConfigurationWorkflowService.getIntegrationInstanceConfigurationWorkflow(
+                copyConfiguration.getId(), targetInternalOnlyWorkflowId);
+
+        assertThat(copiedInternalOnlyConfigurationWorkflow.isEnabled()).isFalse();
+
+        IntegrationInstanceConfigurationWorkflow carriedConfigurationWorkflow =
+            integrationInstanceConfigurationWorkflowService.getIntegrationInstanceConfigurationWorkflow(
+                copyConfiguration.getId(), changeVersionFixture.otherWorkflowId());
+
+        assertThat(carriedConfigurationWorkflow.isEnabled()).isTrue();
+    }
+
+    @Test
+    void testMoveImpactLeavesOutInternalOnlyInputs() {
+        ConnectedUser connectedUser = new ConnectedUser();
+
+        connectedUser.setEnabled(true);
+
+        when(connectedUserService.getConnectedUser(CONNECTED_USER_ID)).thenReturn(connectedUser);
+
+        Integration integration = createIntegration();
+
+        UUID workflowUuid = UUID.randomUUID();
+
+        String sourceWorkflowId = addWorkflow(
+            integration.getId(), 1, workflowUuid, INTERNAL_ONLY_REQUIRED_WORKFLOW_DEFINITION);
+        String targetWorkflowId = addWorkflow(
+            integration.getId(), 2, workflowUuid, INTERNAL_ONLY_REQUIRED_WORKFLOW_DEFINITION);
+
+        long sourceConfigurationId = createConfiguration(integration.getId(), 1, AuthorizationType.API_KEY);
+        long targetConfigurationId = createConfiguration(integration.getId(), 2, AuthorizationType.API_KEY);
+
+        long sourceConfigurationWorkflowId = createConfigurationWorkflow(
+            sourceConfigurationId, sourceWorkflowId, "unused");
+
+        createConfigurationWorkflow(targetConfigurationId, targetWorkflowId, "unused");
+
+        IntegrationInstance integrationInstance = integrationInstanceService.create(
+            CONNECTED_USER_ID, 41L, sourceConfigurationId);
+
+        IntegrationInstanceWorkflow integrationInstanceWorkflow =
+            integrationInstanceWorkflowService.createIntegrationInstanceWorkflow(
+                integrationInstance.getId(), sourceConfigurationWorkflowId);
+
+        integrationInstanceWorkflow.setEnabled(true);
+
+        integrationInstanceWorkflowService.update(integrationInstanceWorkflow);
+
+        authenticate(admin());
+
+        ConfigurationMoveImpactDTO configurationMoveImpactDTO = integrationInstanceConfigurationFacade.getMoveImpact(
+            sourceConfigurationId, targetConfigurationId, List.of(CONNECTED_USER_ID));
+
+        assertThat(configurationMoveImpactDTO.workflows()).hasSize(1);
+        assertThat(configurationMoveImpactDTO.workflows()
+            .getFirst()
+            .newRequiredInputs()).containsExactly("region");
+        assertThat(configurationMoveImpactDTO.workflows()
+            .getFirst()
+            .awaitsConfiguration()).isTrue();
+    }
+
+    @Test
+    void testMoveImpactLeavesOutAWorkflowWhoseRequiredInternalOnlyValueTheTargetSets() {
+        ConnectedUser connectedUser = new ConnectedUser();
+
+        connectedUser.setEnabled(true);
+
+        when(connectedUserService.getConnectedUser(CONNECTED_USER_ID)).thenReturn(connectedUser);
+
+        Integration integration = createIntegration();
+
+        UUID workflowUuid = UUID.randomUUID();
+
+        String sourceWorkflowId = addWorkflow(
+            integration.getId(), 1, workflowUuid, INTERNAL_ONLY_REQUIRED_WORKFLOW_DEFINITION);
+        String targetWorkflowId = addWorkflow(
+            integration.getId(), 2, workflowUuid, INTERNAL_ONLY_REQUIRED_WORKFLOW_DEFINITION);
+
+        long sourceConfigurationId = createConfiguration(integration.getId(), 1, AuthorizationType.API_KEY);
+        long targetConfigurationId = createConfiguration(integration.getId(), 2, AuthorizationType.API_KEY);
+
+        long sourceConfigurationWorkflowId = createConfigurationWorkflow(
+            sourceConfigurationId, sourceWorkflowId, "unused");
+
+        IntegrationInstanceConfigurationWorkflow targetConfigurationWorkflow =
+            new IntegrationInstanceConfigurationWorkflow();
+
+        targetConfigurationWorkflow.setEnabled(true);
+        targetConfigurationWorkflow.setInputs(Map.of("accountId", "account-1"));
+        targetConfigurationWorkflow.setIntegrationInstanceConfigurationId(targetConfigurationId);
+        targetConfigurationWorkflow.setWorkflowId(targetWorkflowId);
+
+        integrationInstanceConfigurationWorkflowService.create(targetConfigurationWorkflow);
+
+        IntegrationInstance integrationInstance = integrationInstanceService.create(
+            CONNECTED_USER_ID, 41L, sourceConfigurationId);
+
+        IntegrationInstanceWorkflow integrationInstanceWorkflow =
+            integrationInstanceWorkflowService.createIntegrationInstanceWorkflow(
+                integrationInstance.getId(), sourceConfigurationWorkflowId);
+
+        integrationInstanceWorkflow.setEnabled(true);
+        integrationInstanceWorkflow.setInputs(Map.of("region", "eu"));
+
+        integrationInstanceWorkflowService.update(integrationInstanceWorkflow);
+
+        authenticate(admin());
+
+        ConfigurationMoveImpactDTO configurationMoveImpactDTO = integrationInstanceConfigurationFacade.getMoveImpact(
+            sourceConfigurationId, targetConfigurationId, List.of(CONNECTED_USER_ID));
+
+        assertThat(configurationMoveImpactDTO.workflows()).isEmpty();
+    }
+
+    @Test
+    void testMoveImpactSkipsAUserWhoseWorkflowTheTargetTurnedOff() {
+        ConnectedUser connectedUser = new ConnectedUser();
+
+        connectedUser.setEnabled(true);
+
+        when(connectedUserService.getConnectedUser(CONNECTED_USER_ID)).thenReturn(connectedUser);
+
+        Integration integration = createIntegration();
+
+        UUID workflowUuid = UUID.randomUUID();
+
+        String sourceWorkflowId = addWorkflow(
+            integration.getId(), 1, workflowUuid, INTERNAL_ONLY_REQUIRED_WORKFLOW_DEFINITION);
+        String targetWorkflowId = addWorkflow(
+            integration.getId(), 2, workflowUuid, INTERNAL_ONLY_REQUIRED_WORKFLOW_DEFINITION);
+
+        long sourceConfigurationId = createConfiguration(integration.getId(), 1, AuthorizationType.API_KEY);
+        long targetConfigurationId = createConfiguration(integration.getId(), 2, AuthorizationType.API_KEY);
+
+        long sourceConfigurationWorkflowId = createConfigurationWorkflow(
+            sourceConfigurationId, sourceWorkflowId, "unused");
+
+        IntegrationInstanceConfigurationWorkflow targetConfigurationWorkflow =
+            new IntegrationInstanceConfigurationWorkflow();
+
+        targetConfigurationWorkflow.setEnabled(false);
+        targetConfigurationWorkflow.setIntegrationInstanceConfigurationId(targetConfigurationId);
+        targetConfigurationWorkflow.setWorkflowId(targetWorkflowId);
+
+        integrationInstanceConfigurationWorkflowService.create(targetConfigurationWorkflow);
+
+        IntegrationInstance integrationInstance = integrationInstanceService.create(
+            CONNECTED_USER_ID, 41L, sourceConfigurationId);
+
+        IntegrationInstanceWorkflow integrationInstanceWorkflow =
+            integrationInstanceWorkflowService.createIntegrationInstanceWorkflow(
+                integrationInstance.getId(), sourceConfigurationWorkflowId);
+
+        integrationInstanceWorkflow.setEnabled(true);
+        integrationInstanceWorkflow.setInputs(Map.of("region", "eu"));
+
+        integrationInstanceWorkflowService.update(integrationInstanceWorkflow);
+
+        authenticate(admin());
+
+        ConfigurationMoveImpactDTO configurationMoveImpactDTO = integrationInstanceConfigurationFacade.getMoveImpact(
+            sourceConfigurationId, targetConfigurationId, List.of(CONNECTED_USER_ID));
+
+        assertThat(configurationMoveImpactDTO.workflows()).isEmpty();
+        assertThat(configurationMoveImpactDTO.skipped())
+            .extracting(ConfigurationMoveResultDTO.Skipped::reason)
+            .containsExactly(ConfigurationMoveResultDTO.Skipped.TARGET_LACKS_ENABLED_WORKFLOWS);
+    }
+
+    @Test
     void testUpgradeConnectedUsersMovesUsersFromSeveralConfigurations() {
         UpgradeFixture upgradeFixture = createUpgradeFixture();
 
@@ -1197,6 +2100,498 @@ class IntegrationInstanceConfigurationFacadeIntTest {
     }
 
     @Test
+    void testChangeConnectedUserVersionMovesTheUserToAnEnabledConfigurationOnThatVersion() {
+        ChangeVersionFixture changeVersionFixture = createChangeVersionFixture(1, true);
+
+        long targetConfigurationId = createConfiguration(
+            changeVersionFixture.integrationId(), 2, AuthorizationType.API_KEY);
+
+        createConfigurationWorkflow(targetConfigurationId, changeVersionFixture.otherWorkflowId(), NEW_CRON_EXPRESSION);
+
+        authenticate(admin());
+
+        ConfigurationMoveResultDTO configurationMoveResultDTO =
+            integrationInstanceConfigurationFacade.changeConnectedUserVersion(
+                changeVersionFixture.sourceConfigurationId(), CONNECTED_USER_ID, 2, null);
+
+        assertThat(configurationMoveResultDTO.movedConnectedUserIds()).containsExactly(CONNECTED_USER_ID);
+        assertThat(configurationMoveResultDTO.targetConfigurationId()).isEqualTo(targetConfigurationId);
+        assertThat(getConfigurationId(changeVersionFixture.integrationInstanceId())).isEqualTo(targetConfigurationId);
+        assertThat(getConfigurationId(changeVersionFixture.otherIntegrationInstanceId()))
+            .isEqualTo(changeVersionFixture.sourceConfigurationId());
+        assertThat(getIntegrationConfigurationIds(changeVersionFixture.integrationId()))
+            .containsExactlyInAnyOrder(changeVersionFixture.sourceConfigurationId(), targetConfigurationId);
+    }
+
+    @Test
+    void testChangeConnectedUserVersionMovesTheUserToTheGivenTarget() {
+        ChangeVersionFixture changeVersionFixture = createChangeVersionFixture(1, true);
+
+        long firstTargetConfigurationId = createConfiguration(
+            changeVersionFixture.integrationId(), 2, AuthorizationType.API_KEY);
+        long secondTargetConfigurationId = createConfiguration(
+            changeVersionFixture.integrationId(), 2, AuthorizationType.API_KEY);
+
+        createConfigurationWorkflow(
+            firstTargetConfigurationId, changeVersionFixture.otherWorkflowId(), NEW_CRON_EXPRESSION);
+        createConfigurationWorkflow(
+            secondTargetConfigurationId, changeVersionFixture.otherWorkflowId(), NEW_CRON_EXPRESSION);
+
+        authenticate(admin());
+
+        ConfigurationMoveResultDTO configurationMoveResultDTO =
+            integrationInstanceConfigurationFacade.changeConnectedUserVersion(
+                changeVersionFixture.sourceConfigurationId(), CONNECTED_USER_ID, 2, secondTargetConfigurationId);
+
+        assertThat(configurationMoveResultDTO.movedConnectedUserIds()).containsExactly(CONNECTED_USER_ID);
+        assertThat(getConfigurationId(changeVersionFixture.integrationInstanceId()))
+            .isEqualTo(secondTargetConfigurationId);
+    }
+
+    @Test
+    void testChangeConnectedUserVersionCopiesTheSourceWhenNoConfigurationRunsThatVersion() {
+        ChangeVersionFixture changeVersionFixture = createChangeVersionFixture(1, true);
+
+        String newWorkflowId = addCronWorkflow(changeVersionFixture.integrationId(), 2, UUID.randomUUID());
+
+        authenticate(admin());
+
+        ConfigurationMoveResultDTO configurationMoveResultDTO =
+            integrationInstanceConfigurationFacade.changeConnectedUserVersion(
+                changeVersionFixture.sourceConfigurationId(), CONNECTED_USER_ID, 2, null);
+
+        assertThat(configurationMoveResultDTO.movedConnectedUserIds()).containsExactly(CONNECTED_USER_ID);
+
+        IntegrationInstanceConfiguration copyConfiguration = getCopyConfiguration(
+            changeVersionFixture.integrationId(), List.of(changeVersionFixture.sourceConfigurationId()));
+
+        assertThat(copyConfiguration.getName()).isEqualTo(changeVersionFixture.sourceConfigurationName() + " · V2");
+        assertThat(configurationMoveResultDTO.targetConfigurationId()).isEqualTo(copyConfiguration.getId());
+        assertThat(copyConfiguration.getIntegrationVersion()).isEqualTo(2);
+        assertThat(copyConfiguration.isEnabled()).isTrue();
+        assertThat(copyConfiguration.getEnvironment()).isEqualTo(Environment.PRODUCTION);
+        assertThat(copyConfiguration.getAuthorizationType()).isEqualTo(AuthorizationType.API_KEY);
+        assertThat(copyConfiguration.getDescription()).isEqualTo("Source description");
+        assertThat(getConfigurationId(changeVersionFixture.integrationInstanceId()))
+            .isEqualTo(copyConfiguration.getId());
+        assertThat(getConfigurationId(changeVersionFixture.otherIntegrationInstanceId()))
+            .isEqualTo(changeVersionFixture.sourceConfigurationId());
+
+        IntegrationInstanceConfigurationWorkflow carriedConfigurationWorkflow =
+            integrationInstanceConfigurationWorkflowService.getIntegrationInstanceConfigurationWorkflow(
+                copyConfiguration.getId(), changeVersionFixture.otherWorkflowId());
+
+        assertThat(carriedConfigurationWorkflow.isEnabled()).isTrue();
+        assertThat(carriedConfigurationWorkflow.getInputs())
+            .isEqualTo(Map.of("cronExpression", OLD_CRON_EXPRESSION));
+
+        IntegrationInstanceConfigurationWorkflow newConfigurationWorkflow =
+            integrationInstanceConfigurationWorkflowService.getIntegrationInstanceConfigurationWorkflow(
+                copyConfiguration.getId(), newWorkflowId);
+
+        assertThat(newConfigurationWorkflow.isEnabled()).isTrue();
+        assertThat(newConfigurationWorkflow.getInputs()).isEmpty();
+    }
+
+    @Test
+    void testChangeConnectedUserVersionLeavesANewWorkflowNeedingAdminConnectionsDisabled() {
+        ChangeVersionFixture changeVersionFixture = createChangeVersionFixture(1, true);
+
+        String slackWorkflowId = addWorkflow(
+            changeVersionFixture.integrationId(), 2, UUID.randomUUID(), SLACK_TRIGGER_WORKFLOW_DEFINITION);
+
+        when(componentConnectionFacade.getComponentConnections(
+            argThat((WorkflowTrigger workflowTrigger) -> workflowTrigger != null &&
+                Objects.equals(workflowTrigger.getName(), "slack_trigger_1"))))
+                    .thenReturn(List.of(new ComponentConnection("slack", 1, "slack_trigger_1", "slack", true)));
+
+        authenticate(admin());
+
+        ConfigurationMoveResultDTO configurationMoveResultDTO =
+            integrationInstanceConfigurationFacade.changeConnectedUserVersion(
+                changeVersionFixture.sourceConfigurationId(), CONNECTED_USER_ID, 2, null);
+
+        assertThat(configurationMoveResultDTO.movedConnectedUserIds()).containsExactly(CONNECTED_USER_ID);
+
+        IntegrationInstanceConfiguration copyConfiguration = getCopyConfiguration(
+            changeVersionFixture.integrationId(), List.of(changeVersionFixture.sourceConfigurationId()));
+
+        IntegrationInstanceConfigurationWorkflow slackConfigurationWorkflow =
+            integrationInstanceConfigurationWorkflowService.getIntegrationInstanceConfigurationWorkflow(
+                copyConfiguration.getId(), slackWorkflowId);
+
+        assertThat(slackConfigurationWorkflow.isEnabled()).isFalse();
+    }
+
+    @Test
+    void testChangeConnectedUserVersionLeavesANewWorkflowWithARequiredInternalOnlyInputDisabled() {
+        ChangeVersionFixture changeVersionFixture = createChangeVersionFixture(1, true);
+
+        String internalOnlyWorkflowId = addWorkflow(
+            changeVersionFixture.integrationId(), 2, UUID.randomUUID(), INTERNAL_ONLY_REQUIRED_WORKFLOW_DEFINITION);
+
+        authenticate(admin());
+
+        ConfigurationMoveResultDTO configurationMoveResultDTO =
+            integrationInstanceConfigurationFacade.changeConnectedUserVersion(
+                changeVersionFixture.sourceConfigurationId(), CONNECTED_USER_ID, 2, null);
+
+        assertThat(configurationMoveResultDTO.movedConnectedUserIds()).containsExactly(CONNECTED_USER_ID);
+
+        IntegrationInstanceConfiguration copyConfiguration = getCopyConfiguration(
+            changeVersionFixture.integrationId(), List.of(changeVersionFixture.sourceConfigurationId()));
+
+        IntegrationInstanceConfigurationWorkflow internalOnlyConfigurationWorkflow =
+            integrationInstanceConfigurationWorkflowService.getIntegrationInstanceConfigurationWorkflow(
+                copyConfiguration.getId(), internalOnlyWorkflowId);
+
+        assertThat(internalOnlyConfigurationWorkflow.isEnabled()).isFalse();
+
+        IntegrationInstanceConfigurationWorkflow carriedConfigurationWorkflow =
+            integrationInstanceConfigurationWorkflowService.getIntegrationInstanceConfigurationWorkflow(
+                copyConfiguration.getId(), changeVersionFixture.otherWorkflowId());
+
+        assertThat(carriedConfigurationWorkflow.isEnabled()).isTrue();
+    }
+
+    @Test
+    void testChangeConnectedUserVersionDropsAProvidedInputWhoseTypeChanged() {
+        ChangeVersionFixture changeVersionFixture = createChangeVersionFixture(1, true);
+
+        UUID workflowUuid = UUID.randomUUID();
+
+        String sourceWorkflowId = addWorkflow(
+            changeVersionFixture.integrationId(), 1, workflowUuid, STRING_TYPED_INPUTS_WORKFLOW_DEFINITION);
+        String targetWorkflowId = addWorkflow(
+            changeVersionFixture.integrationId(), 2, workflowUuid, RETYPED_INPUTS_WORKFLOW_DEFINITION);
+
+        IntegrationInstanceConfigurationWorkflow sourceConfigurationWorkflow =
+            new IntegrationInstanceConfigurationWorkflow();
+
+        sourceConfigurationWorkflow.setEnabled(true);
+        sourceConfigurationWorkflow.setInputs(
+            Map.of("accountId", "account-1", "channel", "general", "region", "eu", "removed", "value"));
+        sourceConfigurationWorkflow.setIntegrationInstanceConfigurationId(
+            changeVersionFixture.sourceConfigurationId());
+        sourceConfigurationWorkflow.setWorkflowId(sourceWorkflowId);
+
+        integrationInstanceConfigurationWorkflowService.create(sourceConfigurationWorkflow);
+
+        authenticate(admin());
+
+        ConfigurationMoveResultDTO configurationMoveResultDTO =
+            integrationInstanceConfigurationFacade.changeConnectedUserVersion(
+                changeVersionFixture.sourceConfigurationId(), CONNECTED_USER_ID, 2, null);
+
+        assertThat(configurationMoveResultDTO.movedConnectedUserIds()).containsExactly(CONNECTED_USER_ID);
+
+        IntegrationInstanceConfiguration copyConfiguration = getCopyConfiguration(
+            changeVersionFixture.integrationId(), List.of(changeVersionFixture.sourceConfigurationId()));
+
+        IntegrationInstanceConfigurationWorkflow copiedConfigurationWorkflow =
+            integrationInstanceConfigurationWorkflowService.getIntegrationInstanceConfigurationWorkflow(
+                copyConfiguration.getId(), targetWorkflowId);
+
+        assertThat(copiedConfigurationWorkflow.getInputs()).isEqualTo(Map.of("region", "eu"));
+        assertThat(copiedConfigurationWorkflow.isEnabled()).isFalse();
+    }
+
+    @Test
+    void testChangeConnectedUserVersionKeepsTheCopyOutOfSelfServe() {
+        ChangeVersionFixture changeVersionFixture = createChangeVersionFixture(1, true);
+
+        EmbeddedPermissionEvaluator realEmbeddedPermissionEvaluator =
+            new EmbeddedPermissionEvaluator(SpelEvaluator.create());
+
+        when(embeddedPermissionEvaluator.evaluate(any(), any()))
+            .thenAnswer(invocation -> realEmbeddedPermissionEvaluator.evaluate(
+                invocation.getArgument(0), invocation.getArgument(1)));
+
+        authenticate(admin());
+
+        ConfigurationMoveResultDTO configurationMoveResultDTO =
+            integrationInstanceConfigurationFacade.changeConnectedUserVersion(
+                changeVersionFixture.sourceConfigurationId(), CONNECTED_USER_ID, 2, null);
+
+        long copyConfigurationId = Objects.requireNonNull(configurationMoveResultDTO.targetConfigurationId());
+
+        IntegrationInstanceConfiguration copyConfiguration =
+            integrationInstanceConfigurationService.getIntegrationInstanceConfiguration(copyConfigurationId);
+
+        assertThat(copyConfiguration.isEnabled()).isTrue();
+        assertThat(copyConfiguration.getIntegrationVersion()).isEqualTo(2);
+        assertThat(copyConfiguration.getPermissionExpression()).isEqualTo("false");
+
+        ConnectedUser unassignedConnectedUser = new ConnectedUser(
+            Map.of(), null, true, "unassigned-user-" + UUID.randomUUID(), UNASSIGNED_CONNECTED_USER_ID, null, 0);
+
+        unassignedConnectedUser.setEnvironment(Environment.PRODUCTION);
+
+        List<IntegrationInstanceConfigurationDTO> selfServeConfigurations =
+            integrationInstanceConfigurationFacade.getIntegrationInstanceConfigurationIntegrations(
+                true, Environment.PRODUCTION, unassignedConnectedUser);
+
+        assertThat(selfServeConfigurations)
+            .filteredOn(integrationInstanceConfigurationDTO -> Objects.equals(
+                integrationInstanceConfigurationDTO.integrationId(), changeVersionFixture.integrationId()))
+            .extracting(IntegrationInstanceConfigurationDTO::id)
+            .containsExactly(changeVersionFixture.sourceConfigurationId());
+        assertThat(getConfigurationId(changeVersionFixture.integrationInstanceId())).isEqualTo(copyConfigurationId);
+        assertThat(getConfigurationId(changeVersionFixture.otherIntegrationInstanceId()))
+            .isEqualTo(changeVersionFixture.sourceConfigurationId());
+    }
+
+    @Test
+    void testChangeConnectedUserVersionDowngrades() {
+        ChangeVersionFixture changeVersionFixture = createChangeVersionFixture(2, true);
+
+        authenticate(admin());
+
+        ConfigurationMoveResultDTO configurationMoveResultDTO =
+            integrationInstanceConfigurationFacade.changeConnectedUserVersion(
+                changeVersionFixture.sourceConfigurationId(), CONNECTED_USER_ID, 1, null);
+
+        assertThat(configurationMoveResultDTO.movedConnectedUserIds()).containsExactly(CONNECTED_USER_ID);
+
+        IntegrationInstanceConfiguration copyConfiguration = getCopyConfiguration(
+            changeVersionFixture.integrationId(), List.of(changeVersionFixture.sourceConfigurationId()));
+
+        assertThat(copyConfiguration.getName()).isEqualTo(changeVersionFixture.sourceConfigurationName() + " · V1");
+        assertThat(copyConfiguration.getIntegrationVersion()).isEqualTo(1);
+        assertThat(getConfigurationId(changeVersionFixture.integrationInstanceId()))
+            .isEqualTo(copyConfiguration.getId());
+    }
+
+    @Test
+    void testChangeConnectedUserVersionRejectsTheCurrentVersion() {
+        ChangeVersionFixture changeVersionFixture = createChangeVersionFixture(1, true);
+
+        authenticate(admin());
+
+        assertThatThrownBy(
+            () -> integrationInstanceConfigurationFacade.changeConnectedUserVersion(
+                changeVersionFixture.sourceConfigurationId(), CONNECTED_USER_ID, 1, null))
+                    .isInstanceOf(IllegalArgumentException.class);
+
+        assertNothingChanged(changeVersionFixture);
+    }
+
+    @Test
+    void testChangeConnectedUserVersionRejectsAnUnpublishedVersion() {
+        ChangeVersionFixture changeVersionFixture = createChangeVersionFixture(1, true);
+
+        addCronWorkflow(changeVersionFixture.integrationId(), 3, UUID.randomUUID());
+
+        authenticate(admin());
+
+        assertThatThrownBy(
+            () -> integrationInstanceConfigurationFacade.changeConnectedUserVersion(
+                changeVersionFixture.sourceConfigurationId(), CONNECTED_USER_ID, 3, null))
+                    .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(
+            () -> integrationInstanceConfigurationFacade.changeConnectedUserVersion(
+                changeVersionFixture.sourceConfigurationId(), CONNECTED_USER_ID, 7, null))
+                    .isInstanceOf(IllegalArgumentException.class);
+
+        assertNothingChanged(changeVersionFixture);
+    }
+
+    @Test
+    void testChangeConnectedUserVersionRejectsAnInvalidTarget() {
+        ChangeVersionFixture changeVersionFixture = createChangeVersionFixture(1, true);
+
+        long stagingConfigurationId = createConfiguration(
+            changeVersionFixture.integrationId(), 2, AuthorizationType.API_KEY, Environment.STAGING);
+        long disabledConfigurationId = createConfiguration(
+            changeVersionFixture.integrationId(), 2, AuthorizationType.API_KEY);
+        long otherVersionConfigurationId = createConfiguration(
+            changeVersionFixture.integrationId(), 1, AuthorizationType.API_KEY);
+
+        integrationInstanceConfigurationService.updateEnabled(disabledConfigurationId, false);
+
+        authenticate(admin());
+
+        for (long targetConfigurationId : List.of(
+            stagingConfigurationId, disabledConfigurationId, otherVersionConfigurationId)) {
+
+            assertThatThrownBy(
+                () -> integrationInstanceConfigurationFacade.changeConnectedUserVersion(
+                    changeVersionFixture.sourceConfigurationId(), CONNECTED_USER_ID, 2, targetConfigurationId))
+                        .isInstanceOf(IllegalArgumentException.class);
+        }
+
+        assertThat(getConfigurationId(changeVersionFixture.integrationInstanceId()))
+            .isEqualTo(changeVersionFixture.sourceConfigurationId());
+        assertThat(getIntegrationConfigurationIds(changeVersionFixture.integrationId()))
+            .containsExactlyInAnyOrder(
+                changeVersionFixture.sourceConfigurationId(), stagingConfigurationId, disabledConfigurationId,
+                otherVersionConfigurationId);
+    }
+
+    @Test
+    void testChangeConnectedUserVersionDeletesTheCopyWhenTheMoveSkipsTheUser() {
+        ChangeVersionFixture changeVersionFixture = createChangeVersionFixture(1, false);
+
+        authenticate(admin());
+
+        ConfigurationMoveResultDTO configurationMoveResultDTO =
+            integrationInstanceConfigurationFacade.changeConnectedUserVersion(
+                changeVersionFixture.sourceConfigurationId(), CONNECTED_USER_ID, 2, null);
+
+        assertThat(configurationMoveResultDTO.movedConnectedUserIds()).isEmpty();
+        assertThat(configurationMoveResultDTO.targetConfigurationId()).isNull();
+        assertThat(configurationMoveResultDTO.skipped())
+            .extracting(ConfigurationMoveResultDTO.Skipped::reason)
+            .containsExactly(ConfigurationMoveResultDTO.Skipped.TARGET_LACKS_ENABLED_WORKFLOWS);
+
+        assertNothingChanged(changeVersionFixture);
+    }
+
+    @Test
+    void testChangeConnectedUserVersionSuffixesACollidingCopyName() {
+        ChangeVersionFixture changeVersionFixture = createChangeVersionFixture(1, true);
+
+        long collidingConfigurationId = createConfiguration(
+            changeVersionFixture.integrationId(), 2, AuthorizationType.API_KEY);
+
+        IntegrationInstanceConfiguration collidingConfiguration =
+            integrationInstanceConfigurationService.getIntegrationInstanceConfiguration(collidingConfigurationId);
+
+        String sourceConfigurationName = changeVersionFixture.sourceConfigurationName();
+
+        collidingConfiguration.setName(sourceConfigurationName.toUpperCase() + " · V2");
+
+        integrationInstanceConfigurationService.update(collidingConfiguration);
+
+        integrationInstanceConfigurationService.updateEnabled(collidingConfigurationId, false);
+
+        authenticate(admin());
+
+        ConfigurationMoveResultDTO configurationMoveResultDTO =
+            integrationInstanceConfigurationFacade.changeConnectedUserVersion(
+                changeVersionFixture.sourceConfigurationId(), CONNECTED_USER_ID, 2, null);
+
+        assertThat(configurationMoveResultDTO.movedConnectedUserIds()).containsExactly(CONNECTED_USER_ID);
+
+        IntegrationInstanceConfiguration copyConfiguration = getCopyConfiguration(
+            changeVersionFixture.integrationId(),
+            List.of(changeVersionFixture.sourceConfigurationId(), collidingConfigurationId));
+
+        assertThat(copyConfiguration.getName()).isEqualTo(sourceConfigurationName + " · V2 (2)");
+    }
+
+    @Test
+    void testChangeConnectedUserVersionDropsAConnectionWhoseNodeIsMissingFromTheTargetVersion() {
+        ChangeVersionFixture changeVersionFixture = createChangeVersionFixture(1, true);
+
+        IntegrationInstanceConfigurationWorkflowConnection carriedConnection =
+            new IntegrationInstanceConfigurationWorkflowConnection(1001L, "schedule", "trigger_1");
+        IntegrationInstanceConfigurationWorkflowConnection removedNodeConnection =
+            new IntegrationInstanceConfigurationWorkflowConnection(1002L, "slack", "removed_node_1");
+
+        List<IntegrationInstanceConfigurationWorkflow> sourceConfigurationWorkflows =
+            integrationInstanceConfigurationWorkflowService.getIntegrationInstanceConfigurationWorkflows(
+                changeVersionFixture.sourceConfigurationId());
+
+        IntegrationInstanceConfigurationWorkflow sourceConfigurationWorkflow = sourceConfigurationWorkflows.getFirst();
+
+        sourceConfigurationWorkflow.setConnections(List.of(carriedConnection, removedNodeConnection));
+
+        integrationInstanceConfigurationWorkflowService.update(sourceConfigurationWorkflow);
+
+        ComponentConnection scheduleComponentConnection = new ComponentConnection(
+            "schedule", 1, "trigger_1", "schedule", false);
+
+        when(componentConnectionFacade.getComponentConnections(any(WorkflowTrigger.class)))
+            .thenReturn(List.of(scheduleComponentConnection));
+        when(componentConnectionFacade.getComponentConnection(anyString(), eq("trigger_1"), eq("schedule")))
+            .thenReturn(scheduleComponentConnection);
+        when(componentConnectionFacade.getComponentConnection(anyString(), eq("removed_node_1"), anyString()))
+            .thenThrow(new NoSuchElementException("No value present"));
+
+        Connection scheduleConnection = new Connection();
+
+        scheduleConnection.setComponentName("schedule");
+
+        Connection slackConnection = new Connection();
+
+        slackConnection.setComponentName("slack");
+
+        when(connectionService.getConnection(1001L)).thenReturn(scheduleConnection);
+        when(connectionService.getConnection(1002L)).thenReturn(slackConnection);
+        when(connectionService.fetchConnection(1001L)).thenReturn(Optional.of(scheduleConnection));
+        when(connectionService.fetchConnection(1002L)).thenReturn(Optional.of(slackConnection));
+
+        authenticate(admin());
+
+        ConfigurationMoveResultDTO configurationMoveResultDTO =
+            integrationInstanceConfigurationFacade.changeConnectedUserVersion(
+                changeVersionFixture.sourceConfigurationId(), CONNECTED_USER_ID, 2, null);
+
+        assertThat(configurationMoveResultDTO.movedConnectedUserIds()).containsExactly(CONNECTED_USER_ID);
+
+        IntegrationInstanceConfiguration copyConfiguration = getCopyConfiguration(
+            changeVersionFixture.integrationId(), List.of(changeVersionFixture.sourceConfigurationId()));
+
+        assertThat(getConfigurationId(changeVersionFixture.integrationInstanceId()))
+            .isEqualTo(copyConfiguration.getId());
+
+        IntegrationInstanceConfigurationWorkflow copyConfigurationWorkflow =
+            integrationInstanceConfigurationWorkflowService.getIntegrationInstanceConfigurationWorkflow(
+                copyConfiguration.getId(), changeVersionFixture.otherWorkflowId());
+
+        assertThat(copyConfigurationWorkflow.isEnabled()).isTrue();
+        assertThat(copyConfigurationWorkflow.getConnections())
+            .extracting(
+                IntegrationInstanceConfigurationWorkflowConnection::getConnectionId,
+                IntegrationInstanceConfigurationWorkflowConnection::getWorkflowNodeName)
+            .containsExactly(tuple(1001L, "trigger_1"));
+    }
+
+    @Test
+    void testChangeConnectedUserVersionDeletesTheCopyWhenTheMoveThrows() {
+        ChangeVersionFixture changeVersionFixture = createChangeVersionFixture(1, true);
+
+        IllegalStateException moveFailure = new IllegalStateException("move failed");
+        List<List<Long>> configurationIdsAtFailure = new ArrayList<>();
+
+        doAnswer(invocation -> {
+            configurationIdsAtFailure.add(getIntegrationConfigurationIds(changeVersionFixture.integrationId()));
+
+            throw moveFailure;
+        }).when(integrationInstanceService)
+            .getIntegrationInstances(changeVersionFixture.sourceConfigurationId());
+
+        authenticate(admin());
+
+        assertThatThrownBy(
+            () -> integrationInstanceConfigurationFacade.changeConnectedUserVersion(
+                changeVersionFixture.sourceConfigurationId(), CONNECTED_USER_ID, 2, null))
+                    .isSameAs(moveFailure);
+
+        reset(integrationInstanceService);
+
+        assertThat(configurationIdsAtFailure).hasSize(1);
+        assertThat(configurationIdsAtFailure.getFirst()).hasSize(2);
+
+        assertNothingChanged(changeVersionFixture);
+    }
+
+    @Test
+    void testChangeConnectedUserVersionIsDeniedToNonAdmins() {
+        ChangeVersionFixture changeVersionFixture = createChangeVersionFixture(1, true);
+
+        authenticate(nonAdmin());
+
+        assertThatThrownBy(
+            () -> integrationInstanceConfigurationFacade.changeConnectedUserVersion(
+                changeVersionFixture.sourceConfigurationId(), CONNECTED_USER_ID, 2, null))
+                    .isInstanceOf(AccessDeniedException.class);
+
+        assertNothingChanged(changeVersionFixture);
+    }
+
+    @Test
     void testGetConfigurationConnectedUsers() {
         MoveFixture moveFixture = createMoveFixture(true, AuthorizationType.API_KEY);
 
@@ -1382,6 +2777,88 @@ class IntegrationInstanceConfigurationFacadeIntTest {
         integrationInstanceWorkflowService.update(integrationInstanceWorkflow);
     }
 
+    private String addWorkflow(long integrationId, int integrationVersion, UUID workflowUuid, String definition) {
+        Workflow workflow = new Workflow(String.valueOf(UUID.randomUUID()), definition, Workflow.Format.JSON);
+
+        when(workflowService.getWorkflow(workflow.getId())).thenReturn(workflow);
+
+        integrationWorkflowRepository.save(
+            new IntegrationWorkflow(integrationId, integrationVersion, workflow.getId(), workflowUuid));
+
+        return workflow.getId();
+    }
+
+    private void assertNothingChanged(ChangeVersionFixture changeVersionFixture) {
+        assertThat(getConfigurationId(changeVersionFixture.integrationInstanceId()))
+            .isEqualTo(changeVersionFixture.sourceConfigurationId());
+        assertThat(getConfigurationId(changeVersionFixture.otherIntegrationInstanceId()))
+            .isEqualTo(changeVersionFixture.sourceConfigurationId());
+        assertThat(getIntegrationConfigurationIds(changeVersionFixture.integrationId()))
+            .containsExactly(changeVersionFixture.sourceConfigurationId());
+    }
+
+    private ChangeVersionFixture createChangeVersionFixture(int sourceVersion, boolean otherVersionSharesWorkflow) {
+        ConnectedUser connectedUser = new ConnectedUser();
+
+        connectedUser.setEnabled(true);
+
+        when(connectedUserService.getConnectedUser(anyLong())).thenReturn(connectedUser);
+
+        Integration integration = createIntegration();
+
+        integrationService.publishIntegration(integration.getId(), null);
+        integrationService.publishIntegration(integration.getId(), null);
+
+        UUID workflowUuid = UUID.randomUUID();
+        int otherVersion = sourceVersion == 1 ? 2 : 1;
+
+        String sourceWorkflowId = addCronWorkflow(integration.getId(), sourceVersion, workflowUuid);
+        String otherWorkflowId = addCronWorkflow(
+            integration.getId(), otherVersion, otherVersionSharesWorkflow ? workflowUuid : UUID.randomUUID());
+
+        long sourceConfigurationId = createConfiguration(integration.getId(), sourceVersion, AuthorizationType.API_KEY);
+
+        IntegrationInstanceConfiguration sourceConfiguration =
+            integrationInstanceConfigurationService.getIntegrationInstanceConfiguration(sourceConfigurationId);
+
+        sourceConfiguration.setDescription("Source description");
+
+        sourceConfiguration = integrationInstanceConfigurationService.update(sourceConfiguration);
+
+        long sourceConfigurationWorkflowId = createConfigurationWorkflow(
+            sourceConfigurationId, sourceWorkflowId, OLD_CRON_EXPRESSION);
+
+        long integrationInstanceId = createUpgradeInstance(
+            CONNECTED_USER_ID, sourceConfigurationId, sourceConfigurationWorkflowId);
+        long otherIntegrationInstanceId = createUpgradeInstance(
+            OTHER_CONNECTED_USER_ID, sourceConfigurationId, sourceConfigurationWorkflowId);
+
+        reset(triggerLifecycleFacade);
+
+        return new ChangeVersionFixture(
+            integration.getId(), sourceConfigurationId, sourceConfiguration.getName(), integrationInstanceId,
+            otherIntegrationInstanceId, otherWorkflowId);
+    }
+
+    private IntegrationInstanceConfiguration getCopyConfiguration(long integrationId, List<Long> excludedIds) {
+        List<IntegrationInstanceConfiguration> copyConfigurations =
+            integrationInstanceConfigurationService.getIntegrationInstanceConfigurations(integrationId)
+                .stream()
+                .filter(configuration -> !excludedIds.contains(configuration.getId()))
+                .toList();
+
+        assertThat(copyConfigurations).hasSize(1);
+
+        return copyConfigurations.getFirst();
+    }
+
+    private List<Long> getIntegrationConfigurationIds(long integrationId) {
+        return integrationInstanceConfigurationService.getIntegrationInstanceConfigurations(integrationId)
+            .stream()
+            .map(IntegrationInstanceConfiguration::getId)
+            .toList();
+    }
+
     private long createConfiguration(long integrationId, int integrationVersion, AuthorizationType authorizationType) {
         return createConfiguration(integrationId, integrationVersion, authorizationType, Environment.PRODUCTION);
     }
@@ -1404,6 +2881,27 @@ class IntegrationInstanceConfigurationFacadeIntTest {
         integrationInstanceConfigurationService.updateEnabled(integrationInstanceConfiguration.getId(), true);
 
         return integrationInstanceConfiguration.getId();
+    }
+
+    private IntegrationInstanceConfigurationWorkflow createInternalOnlyConfigurationWorkflow(
+        String definition, boolean enabled, Map<String, ?> inputs) {
+
+        Integration integration = createIntegration();
+
+        String workflowId = addWorkflow(integration.getId(), 1, UUID.randomUUID(), definition);
+
+        long integrationInstanceConfigurationId = createEnabledIntegrationInstanceConfiguration(integration.getId());
+
+        IntegrationInstanceConfigurationWorkflow integrationInstanceConfigurationWorkflow =
+            new IntegrationInstanceConfigurationWorkflow();
+
+        integrationInstanceConfigurationWorkflow.setEnabled(enabled);
+        integrationInstanceConfigurationWorkflow.setInputs(inputs);
+        integrationInstanceConfigurationWorkflow.setIntegrationInstanceConfigurationId(
+            integrationInstanceConfigurationId);
+        integrationInstanceConfigurationWorkflow.setWorkflowId(workflowId);
+
+        return integrationInstanceConfigurationWorkflowService.create(integrationInstanceConfigurationWorkflow);
     }
 
     private long createConfigurationWorkflow(long configurationId, String workflowId, String cronExpression) {
@@ -1563,17 +3061,133 @@ class IntegrationInstanceConfigurationFacadeIntTest {
         return integrationInstanceConfigurationId;
     }
 
-    private Integration createPublishedIntegration() {
+    private Integration createIntegration() {
         Integration integration = new Integration();
 
         integration.setComponentName("componentName");
         integration.setName("integration-" + UUID.randomUUID());
 
-        integration = integrationService.create(integration);
+        return integrationService.create(integration);
+    }
+
+    private Integration createPublishedIntegration() {
+        Integration integration = createIntegration();
 
         integrationService.publishIntegration(integration.getId(), null);
 
         return integrationService.getIntegration(integration.getId());
+    }
+
+    private long createIntegrationInstanceConfiguration(
+        long integrationId, Environment environment, boolean enabled) {
+
+        IntegrationInstanceConfiguration integrationInstanceConfiguration = new IntegrationInstanceConfiguration();
+
+        integrationInstanceConfiguration.setAuthorizationType(AuthorizationType.API_KEY);
+        integrationInstanceConfiguration.setConnectionParameters(Map.of("key", "admin-value"));
+        integrationInstanceConfiguration.setEnvironment(environment);
+        integrationInstanceConfiguration.setIntegrationId(integrationId);
+        integrationInstanceConfiguration.setIntegrationVersion(1);
+        integrationInstanceConfiguration.setName("instance-configuration-" + UUID.randomUUID());
+
+        integrationInstanceConfiguration = integrationInstanceConfigurationService.create(
+            integrationInstanceConfiguration);
+
+        long integrationInstanceConfigurationId = integrationInstanceConfiguration.getId();
+
+        integrationInstanceConfigurationService.updateEnabled(integrationInstanceConfigurationId, enabled);
+
+        return integrationInstanceConfigurationId;
+    }
+
+    private Integration createPublishedIntegration(String workflowId) {
+        Integration integration = createIntegration();
+
+        integrationWorkflowService.addWorkflow(integration.getId(), 1, workflowId);
+
+        integrationService.publishIntegration(integration.getId(), null);
+
+        return integrationService.getIntegration(integration.getId());
+    }
+
+    private long createIntegrationInstanceConfigurationWorkflow(
+        long integrationInstanceConfigurationId, String workflowId) {
+
+        IntegrationInstanceConfigurationWorkflow integrationInstanceConfigurationWorkflow =
+            new IntegrationInstanceConfigurationWorkflow();
+
+        integrationInstanceConfigurationWorkflow.setEnabled(false);
+        integrationInstanceConfigurationWorkflow.setInputs(Map.of("channel", "general"));
+        integrationInstanceConfigurationWorkflow.setIntegrationInstanceConfigurationId(
+            integrationInstanceConfigurationId);
+        integrationInstanceConfigurationWorkflow.setWorkflowId(workflowId);
+
+        integrationInstanceConfigurationWorkflow = integrationInstanceConfigurationWorkflowService.create(
+            integrationInstanceConfigurationWorkflow);
+
+        return integrationInstanceConfigurationWorkflow.getId();
+    }
+
+    private long createEnabledConfigurationWithAnEnabledWorkflowAddedToVersion2(
+        Integration integration, String workflowId, String nextWorkflowId) {
+
+        long integrationInstanceConfigurationId = createIntegrationInstanceConfiguration(
+            integration.getId(), Environment.STAGING, true);
+
+        long integrationInstanceConfigurationWorkflowId = createIntegrationInstanceConfigurationWorkflow(
+            integrationInstanceConfigurationId, workflowId);
+
+        integrationInstanceConfigurationWorkflowService.updateEnabled(integrationInstanceConfigurationWorkflowId, true);
+
+        IntegrationWorkflow integrationWorkflow = integrationWorkflowService.getWorkflowIntegrationWorkflow(
+            workflowId);
+
+        integrationWorkflowRepository.save(
+            new IntegrationWorkflow(
+                integration.getId(), 2, nextWorkflowId, UUID.fromString(integrationWorkflow.getUuidAsString())));
+
+        integrationService.publishIntegration(integration.getId(), null);
+
+        return integrationInstanceConfigurationId;
+    }
+
+    private Map<String, Boolean> getEnabledByWorkflowId(long integrationInstanceConfigurationId) {
+        return integrationInstanceConfigurationWorkflowService
+            .getIntegrationInstanceConfigurationWorkflows(integrationInstanceConfigurationId)
+            .stream()
+            .collect(
+                Collectors.toMap(
+                    IntegrationInstanceConfigurationWorkflow::getWorkflowId,
+                    IntegrationInstanceConfigurationWorkflow::isEnabled));
+    }
+
+    private void stubWorkflowNeedingAnInternalOnlyInput(String workflowId) {
+        when(workflowService.getWorkflow(workflowId))
+            .thenReturn(new Workflow(INTERNAL_ONLY_REQUIRED_WORKFLOW_DEFINITION, Workflow.Format.JSON));
+    }
+
+    private void stubWorkflowNeedingAnAdminConnection(String workflowId) {
+        when(workflowService.getWorkflow(workflowId))
+            .thenReturn(
+                new Workflow(
+                    "{\"tasks\":[{\"name\":\"postToSlack\",\"type\":\"slack/v1/sendChannelMessage\"}]}",
+                    Workflow.Format.JSON));
+        when(componentConnectionFacade.getComponentConnections(any(WorkflowTask.class)))
+            .thenReturn(List.of(new ComponentConnection("slack", 1, "postToSlack", "slack", true)));
+    }
+
+    private void stubConnection(AuthorizationType... authorizationTypes) {
+        ModifiableAuthorization[] authorizations = Arrays.stream(authorizationTypes)
+            .map(ComponentDsl::authorization)
+            .toArray(ModifiableAuthorization[]::new);
+
+        when(componentDefinitionService.getComponentDefinition(anyString(), any()))
+            .thenReturn(
+                new ComponentDefinition(
+                    ComponentDsl.component("componentName")
+                        .connection(
+                            ComponentDsl.connection()
+                                .authorizations(authorizations))));
     }
 
     private static IntegrationInstanceConfigurationDTO newIntegrationInstanceConfigurationDTO(
@@ -1687,6 +3301,11 @@ class IntegrationInstanceConfigurationFacadeIntTest {
         long integrationInstanceId, long sourceConfigurationId, long sourceConfigurationWorkflowId,
         String sourceWorkflowId, long targetConfigurationId, long targetConfigurationWorkflowId,
         String targetWorkflowId) {
+    }
+
+    private record ChangeVersionFixture(
+        long integrationId, long sourceConfigurationId, String sourceConfigurationName, long integrationInstanceId,
+        long otherIntegrationInstanceId, String otherWorkflowId) {
     }
 
     private record CronFixture(

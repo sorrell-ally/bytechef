@@ -1,4 +1,3 @@
-import Badge from '@/components/Badge/Badge';
 import Button from '@/components/Button/Button';
 import {
     Dialog,
@@ -25,29 +24,72 @@ interface ProvisionMcpServerDialogProps {
 }
 
 interface ProvisionableMcpServerI {
+    coveredAutomationNames: string[];
     coveredComponentNames: string[];
     id: string;
+    missingAutomationNames: string[];
     missingComponentNames: string[];
     name: string;
     provisioned: boolean;
 }
 
+const joinTitles = (titles: string[]): string =>
+    titles.length > 1 ? `${titles.slice(0, -1).join(', ')} and ${titles[titles.length - 1]}` : (titles[0] ?? '');
+
+const describeAutomations = (automationNames: string[]): string =>
+    `the ${joinTitles(automationNames)} ${automationNames.length > 1 ? 'automations' : 'automation'}`;
+
+const isSelectable = ({coveredAutomationNames, coveredComponentNames}: ProvisionableMcpServerI): boolean =>
+    coveredComponentNames.length > 0 || coveredAutomationNames.length > 0;
+
 const describeMcpServer = (
-    {coveredComponentNames, missingComponentNames}: ProvisionableMcpServerI,
+    mcpServer: ProvisionableMcpServerI,
     getComponentTitle: (componentName: string) => string
 ): string => {
-    const covered = coveredComponentNames.map(getComponentTitle).join(', ');
-    const missing = missingComponentNames.map(getComponentTitle).join(', ');
+    const {coveredAutomationNames, coveredComponentNames, missingAutomationNames, missingComponentNames} = mcpServer;
 
-    if (coveredComponentNames.length === 0) {
-        return `Add ${missing} on the Integrations tab first.`;
+    const covered = joinTitles(coveredComponentNames.map(getComponentTitle));
+    const missing = joinTitles(missingComponentNames.map(getComponentTitle));
+    const missingIntegrations = missingComponentNames.length > 1 ? 'integrations' : 'integration';
+    const missingAutomationsText = describeAutomations(missingAutomationNames);
+    const sentences: string[] = [];
+
+    if (!isSelectable(mcpServer)) {
+        if (missingComponentNames.length > 0) {
+            sentences.push(
+                `Unavailable: its tools use ${missing}, and this user has no ${missing} ${missingIntegrations} yet. Add ${missingComponentNames.length > 1 ? 'them' : 'it'} with Provision Integration on the Integrations tab, then come back here.`
+            );
+        }
+
+        if (missingAutomationNames.length > 0) {
+            sentences.push(
+                `Unavailable: its tools use ${missingAutomationsText}, and this user does not have ${missingAutomationNames.length > 1 ? 'them' : 'it'} yet. Add ${missingAutomationNames.length > 1 ? 'them' : 'it'} on the Automations tab, then come back here.`
+            );
+        }
+
+        return sentences.join(' ');
     }
 
-    if (missingComponentNames.length === 0) {
-        return `Uses ${covered}`;
+    const coveredParts = [
+        ...(coveredComponentNames.length > 0 ? [covered] : []),
+        ...(coveredAutomationNames.length > 0 ? [describeAutomations(coveredAutomationNames)] : []),
+    ];
+
+    sentences.push(`Uses ${coveredParts.join(' and ')}`);
+
+    if (missingComponentNames.length > 0) {
+        sentences.push(
+            `Its ${missing} tools stay hidden until this user has the ${missing} ${missingIntegrations}; add ${missingComponentNames.length > 1 ? 'them' : 'it'} with Provision Integration on the Integrations tab`
+        );
     }
 
-    return `Uses ${covered}. Missing ${missing}: add those integrations first to expose them.`;
+    if (missingAutomationNames.length > 0) {
+        sentences.push(
+            `Its ${joinTitles(missingAutomationNames)} ${missingAutomationNames.length > 1 ? 'automations' : 'automation'} stay${missingAutomationNames.length > 1 ? '' : 's'} hidden until this user has ${missingAutomationNames.length > 1 ? 'them' : 'it'}; add ${missingAutomationNames.length > 1 ? 'them' : 'it'} on the Automations tab`
+        );
+    }
+
+    return sentences.length > 1 ? `${sentences.join('. ')}.` : sentences[0];
 };
 
 const ProvisionMcpServerDialog = ({connectedUserId, onClose}: ProvisionMcpServerDialogProps) => {
@@ -71,11 +113,8 @@ const ProvisionMcpServerDialog = ({connectedUserId, onClose}: ProvisionMcpServer
 
     const provisionableMcpServers = data?.provisionableConnectedUserMcpServers;
 
-    const orderedMcpServers = useMemo(
-        () => [
-            ...(provisionableMcpServers ?? []).filter((mcpServer) => !mcpServer.provisioned),
-            ...(provisionableMcpServers ?? []).filter((mcpServer) => mcpServer.provisioned),
-        ],
+    const unprovisionedMcpServers = useMemo(
+        () => (provisionableMcpServers ?? []).filter((mcpServer) => !mcpServer.provisioned),
         [provisionableMcpServers]
     );
 
@@ -92,9 +131,9 @@ const ProvisionMcpServerDialog = ({connectedUserId, onClose}: ProvisionMcpServer
 
     const getComponentTitle = (componentName: string) => componentTitles.get(componentName) || componentName;
 
-    const selectedMcpServer = orderedMcpServers.find((mcpServer) => mcpServer.id === mcpServerId);
+    const selectedMcpServer = unprovisionedMcpServers.find((mcpServer) => mcpServer.id === mcpServerId);
 
-    const canSave = !!selectedMcpServer && selectedMcpServer.coveredComponentNames.length > 0;
+    const canSave = !!selectedMcpServer && isSelectable(selectedMcpServer);
 
     const handleSave = () => {
         provisionConnectedUserMcpServerMutation.mutate({
@@ -115,19 +154,23 @@ const ProvisionMcpServerDialog = ({connectedUserId, onClose}: ProvisionMcpServer
                 </DialogHeader>
 
                 <div className="flex flex-col gap-4">
-                    {provisionableMcpServers?.length === 0 ? (
-                        <p className="text-sm text-content-neutral-secondary">No MCP servers are defined.</p>
+                    {provisionableMcpServers && unprovisionedMcpServers.length === 0 ? (
+                        <p className="text-sm text-content-neutral-secondary">
+                            {provisionableMcpServers.length === 0
+                                ? 'No MCP servers are defined.'
+                                : 'Every MCP server is already provisioned for this user.'}
+                        </p>
                     ) : (
                         <fieldset className="border-0 p-0">
                             <RadioGroup name="mcpServerId" onValueChange={setMcpServerId} value={mcpServerId}>
-                                {orderedMcpServers.map((mcpServer) => (
+                                {unprovisionedMcpServers.map((mcpServer) => (
                                     <div
                                         className="flex items-start gap-3 rounded border border-border/50 px-3 py-2"
                                         key={mcpServer.id}
                                     >
                                         <RadioGroupItem
                                             className="mt-1"
-                                            disabled={mcpServer.coveredComponentNames.length === 0}
+                                            disabled={!isSelectable(mcpServer)}
                                             id={`provision-mcp-server-${mcpServer.id}`}
                                             value={mcpServer.id}
                                         />
@@ -136,13 +179,7 @@ const ProvisionMcpServerDialog = ({connectedUserId, onClose}: ProvisionMcpServer
                                             className="flex flex-1 flex-col items-start gap-1"
                                             htmlFor={`provision-mcp-server-${mcpServer.id}`}
                                         >
-                                            <span className="flex items-center gap-2 text-sm font-medium">
-                                                {mcpServer.name}
-
-                                                {mcpServer.provisioned && (
-                                                    <Badge label="Provisioned" styleType="success-filled" />
-                                                )}
-                                            </span>
+                                            <span className="text-sm font-medium">{mcpServer.name}</span>
 
                                             <span className="text-sm font-normal text-content-neutral-secondary">
                                                 {describeMcpServer(mcpServer, getComponentTitle)}

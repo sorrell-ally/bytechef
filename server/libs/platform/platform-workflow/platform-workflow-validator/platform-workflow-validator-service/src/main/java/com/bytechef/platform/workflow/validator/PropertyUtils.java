@@ -17,6 +17,7 @@
 package com.bytechef.platform.workflow.validator;
 
 import com.bytechef.platform.workflow.validator.model.PropertyInfo;
+import java.util.ArrayList;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
 
@@ -115,7 +116,7 @@ class PropertyUtils {
     }
 
     public static boolean checkPropertyExists(PropertyInfo outputInfo, String propertyName) {
-        return checkPropertyExistsRecursive(outputInfo, propertyName.split("\\."));
+        return checkPropertyExistsRecursive(outputInfo, splitPropertyPath(propertyName));
     }
 
     /**
@@ -128,7 +129,59 @@ class PropertyUtils {
     }
 
     public static @Nullable PropertyInfo getProperty(PropertyInfo outputInfo, String propertyName) {
-        return getPropertyRecursive(outputInfo, propertyName.split("\\."));
+        return getPropertyRecursive(outputInfo, splitPropertyPath(propertyName));
+    }
+
+    static String[] splitPropertyPath(String propertyPath) {
+        List<String> segments = new ArrayList<>();
+        StringBuilder segment = new StringBuilder();
+
+        int index = 0;
+
+        while (index < propertyPath.length()) {
+            char character = propertyPath.charAt(index);
+
+            if (character == '[' && index + 1 < propertyPath.length() && propertyPath.charAt(index + 1) == '\'') {
+                int keyEndIndex = propertyPath.indexOf("']", index + 2);
+
+                if (keyEndIndex >= 0) {
+                    addSegment(segments, segment);
+
+                    segments.add(propertyPath.substring(index + 2, keyEndIndex));
+
+                    index = keyEndIndex + 2;
+
+                    continue;
+                }
+            }
+
+            if (character == '.') {
+                addSegment(segments, segment);
+            } else {
+                segment.append(character);
+            }
+
+            index++;
+        }
+
+        addSegment(segments, segment);
+
+        return segments.toArray(String[]::new);
+    }
+
+    private static boolean isOpenObject(PropertyInfo propertyInfo) {
+        List<PropertyInfo> nestedPropertyInfos = propertyInfo.nestedProperties();
+
+        return "OBJECT".equalsIgnoreCase(propertyInfo.type()) &&
+            (nestedPropertyInfos == null || nestedPropertyInfos.isEmpty());
+    }
+
+    private static void addSegment(List<String> segments, StringBuilder segment) {
+        if (!segment.isEmpty()) {
+            segments.add(segment.toString());
+
+            segment.setLength(0);
+        }
     }
 
     private static boolean checkPropertyExistsRecursive(PropertyInfo outputInfo, String[] propertyPath) {
@@ -200,7 +253,7 @@ class PropertyUtils {
     }
 
     private static boolean checkCurrentPropertyExists(PropertyInfo outputInfo, String[] propertyPath) {
-        if (propertyPath.length == 1) {
+        if (propertyPath.length == 1 || isOpenObject(outputInfo)) {
             return true;
         }
 
@@ -223,7 +276,7 @@ class PropertyUtils {
         if (outputPropertyInfo.nestedProperties() != null) {
             for (PropertyInfo nestedProp : outputPropertyInfo.nestedProperties()) {
                 if (currentProperty.equals(nestedProp.name())) {
-                    if (propertyPath.length == 1) {
+                    if (propertyPath.length == 1 || isOpenObject(nestedProp)) {
                         return true;
                     }
 

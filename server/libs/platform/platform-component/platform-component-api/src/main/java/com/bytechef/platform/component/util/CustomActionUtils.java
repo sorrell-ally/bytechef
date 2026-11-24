@@ -32,7 +32,6 @@ import static com.bytechef.component.definition.ComponentDsl.time;
 import static com.bytechef.component.definition.Context.Http;
 
 import com.bytechef.commons.util.MapUtils;
-import com.bytechef.commons.util.OptionalUtils;
 import com.bytechef.component.definition.ActionContext;
 import com.bytechef.component.definition.ActionDefinition;
 import com.bytechef.component.definition.ComponentDefinition;
@@ -45,8 +44,11 @@ import com.bytechef.component.definition.FileEntry;
 import com.bytechef.component.definition.Help;
 import com.bytechef.component.definition.Parameters;
 import com.bytechef.component.definition.Property;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * @author Ivica Cardic
@@ -182,13 +184,15 @@ public class CustomActionUtils {
             .output()
             .perform(CustomActionUtils::perform);
 
+        Optional<Help> customActionHelp = componentDefinition.getCustomActionHelp();
+
         return customActionDefinition.help(
-            OptionalUtils.mapOrElse(componentDefinition.getCustomActionHelp(), Help::getBody, null),
-            OptionalUtils.orElse(
-                OptionalUtils.mapOptional(
-                    componentDefinition.getCustomActionHelp(),
-                    help -> OptionalUtils.orElse(help.getLearnMoreUrl(), null)),
-                null));
+            customActionHelp
+                .map(Help::getBody)
+                .orElse(null),
+            customActionHelp
+                .flatMap(Help::getLearnMoreUrl)
+                .orElse(null));
     }
 
     protected static Object perform(
@@ -205,9 +209,8 @@ public class CustomActionUtils {
                 Http.responseType(ResponseType.JSON)
                     .responseType(getResponseType(inputParameters))
                     .filename(inputParameters.getString(RESPONSE_FILENAME)))
-            .headers(MapUtils.toMap(headers, Map.Entry::getKey, entry -> List.of((String) entry.getValue())))
-            .queryParameters(
-                MapUtils.toMap(queryParameters, Map.Entry::getKey, entry -> List.of((String) entry.getValue())))
+            .headers(toValueLists(headers))
+            .queryParameters(toValueLists(queryParameters))
             .body(
                 getBody(MapUtils.get(inputParameters, BODY_CONTENT_TYPE, BodyContentType.class, null), inputParameters))
             .execute();
@@ -237,6 +240,32 @@ public class CustomActionUtils {
         }
 
         return body;
+    }
+
+    static Map<String, List<String>> toValueLists(Map<String, ?> parameters) {
+        Map<String, List<String>> valueLists = new LinkedHashMap<>();
+
+        for (Map.Entry<String, ?> entry : parameters.entrySet()) {
+            Object value = entry.getValue();
+
+            if (value instanceof List<?> list) {
+                List<String> values = new ArrayList<>();
+
+                for (Object item : list) {
+                    if (item != null) {
+                        values.add(String.valueOf(item));
+                    }
+                }
+
+                if (!values.isEmpty()) {
+                    valueLists.put(entry.getKey(), values);
+                }
+            } else if (value != null) {
+                valueLists.put(entry.getKey(), List.of(String.valueOf(value)));
+            }
+        }
+
+        return valueLists;
     }
 
     private static ResponseType getResponseType(Parameters inputParameters) {

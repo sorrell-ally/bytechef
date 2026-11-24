@@ -1,0 +1,10 @@
+{
+  "$schema": "../../../../../.source/json-schema/docs.meta.json",
+  "title": "AI",
+  "description": "AI providers, skills, and memories",
+  "pages": [
+    "ai-providers",
+    "skills",
+    "memories"
+  ]
+}

@@ -89,7 +89,11 @@ public class McpProjectWorkflowGraphQlController {
         return mcpProjectWorkflowFacade.getToolEligibleProjectVersionWorkflows(projectId, projectVersion);
     }
 
-    @SuppressFBWarnings("BC_VACUOUS_INSTANCEOF")
+    @QueryMapping
+    List<Property> toolEligibleWorkflowProperties(@Argument long projectId, @Argument String workflowId) {
+        return getWorkflowToolProperties(mcpProjectWorkflowFacade.getToolEligibleWorkflow(projectId, workflowId));
+    }
+
     @QueryMapping
     List<Property> mcpProjectWorkflowProperties(@Argument long mcpProjectWorkflowId) {
         McpProjectWorkflow mcpProjectWorkflow = mcpProjectWorkflowService.fetchMcpProjectWorkflow(mcpProjectWorkflowId)
@@ -105,6 +109,11 @@ public class McpProjectWorkflowGraphQlController {
 
         Workflow workflow = workflowService.getWorkflow(projectDeploymentWorkflow.getWorkflowId());
 
+        return getWorkflowToolProperties(workflow);
+    }
+
+    @SuppressFBWarnings("BC_VACUOUS_INSTANCEOF")
+    private List<Property> getWorkflowToolProperties(Workflow workflow) {
         WorkflowTrigger trigger = McpWorkflowUtils.getCallableTrigger(workflow);
 
         if (trigger == null) {
@@ -113,7 +122,7 @@ public class McpProjectWorkflowGraphQlController {
 
         List<Property> properties = new ArrayList<>();
 
-        properties.add(ToolPropertyUtils.toolNameProperty("workflow"));
+        properties.add(ToolPropertyUtils.toolNameProperty("SEND_EMAIL"));
 
         properties.add(ToolPropertyUtils.toolDescriptionProperty("workflow"));
 
@@ -166,7 +175,7 @@ public class McpProjectWorkflowGraphQlController {
             projectDeploymentWorkflowId = Long.valueOf(String.valueOf(input.get("projectDeploymentWorkflowId")));
         }
 
-        McpProjectWorkflow mcpProjectWorkflow = mcpProjectWorkflowService.update(
+        McpProjectWorkflow mcpProjectWorkflow = mcpProjectWorkflowFacade.updateMcpProjectWorkflow(
             id, mcpProjectId, projectDeploymentWorkflowId);
 
         if (input.containsKey("parameters")) {

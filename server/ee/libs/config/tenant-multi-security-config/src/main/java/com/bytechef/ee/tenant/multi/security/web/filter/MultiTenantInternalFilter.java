@@ -23,11 +23,12 @@ import org.springframework.boot.web.servlet.FilterRegistration;
  * @version ee
  */
 @FilterRegistration(name = "multi-tenant-internal-filter", urlPatterns = {
-    "/api/*", "/graphql"
+    "/api/*", "/graphql", "/icons/*"
 })
 public class MultiTenantInternalFilter implements Filter {
 
     private static final String APPROVAL_FORM_PATH = "/api/platform/internal/approval-form/";
+    private static final String ICONS_PATH = "/icons/";
 
     @Override
     public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain filterChain)
@@ -38,6 +39,12 @@ public class MultiTenantInternalFilter implements Filter {
 
         if (requestURI.startsWith(APPROVAL_FORM_PATH)) {
             filterChain.doFilter(servletRequest, servletResponse);
+
+            return;
+        }
+
+        if (requestURI.startsWith(ICONS_PATH)) {
+            doFilterIconRequest(request, servletResponse, filterChain);
 
             return;
         }
@@ -74,5 +81,23 @@ public class MultiTenantInternalFilter implements Filter {
         } else {
             filterChain.doFilter(servletRequest, servletResponse);
         }
+    }
+
+    private void doFilterIconRequest(
+        HttpServletRequest request, ServletResponse servletResponse, FilterChain filterChain)
+        throws IOException, ServletException {
+
+        HttpSession session = request.getSession(false);
+
+        String sessionCurrentTenantId = session == null
+            ? null : (String) session.getAttribute(TenantConstants.CURRENT_TENANT_ID);
+
+        if (sessionCurrentTenantId == null) {
+            filterChain.doFilter(request, servletResponse);
+
+            return;
+        }
+
+        TenantContext.runWithTenantId(sessionCurrentTenantId, () -> filterChain.doFilter(request, servletResponse));
     }
 }

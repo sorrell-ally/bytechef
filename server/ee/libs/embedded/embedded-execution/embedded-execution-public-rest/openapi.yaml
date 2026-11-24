@@ -540,12 +540,12 @@ paths:
           required: false
           schema:
             $ref: "#/components/schemas/ExternalInvocationSource"
-        - name: "outcome"
-          description: "Return only invocations with this outcome."
+        - name: "status"
+          description: "Return only invocations with this status."
           in: "query"
           required: false
           schema:
-            $ref: "#/components/schemas/ExternalInvocationOutcome"
+            $ref: "#/components/schemas/ExternalInvocationStatus"
         - name: "startDate"
           description: "Return only invocations recorded at or after this instant."
           in: "query"
@@ -1197,6 +1197,9 @@ components:
           description: "The id of the integration instance the invocation ran on."
           type: "integer"
           format: "int64"
+        invocationName:
+          description: "The name the caller invoked: a tool name for MCP and tool calls, an action name for action calls."
+          type: "string"
         jobId:
           description: "The id of the workflow run a workflow tool started."
           type: "integer"
@@ -1206,31 +1209,16 @@ components:
         operationName:
           description: "The name of the action or cluster element the tool ran."
           type: "string"
-        outcome:
-          $ref: "#/components/schemas/ExternalInvocationOutcome"
         source:
           $ref: "#/components/schemas/ExternalInvocationSource"
-        toolName:
-          description: "The name of the tool."
-          type: "string"
+        status:
+          $ref: "#/components/schemas/ExternalInvocationStatus"
     ExternalInvocationKind:
       description: "What a external invocation ran."
       type: "string"
       enum:
         - "COMPONENT"
         - "WORKFLOW"
-    ExternalInvocationOutcome:
-      description: "The outcome of a external invocation."
-      type: "string"
-      enum:
-        - "SUCCESS"
-        - "ERROR"
-        - "CONNECTION_REQUIRED"
-        - "TIMEOUT"
-        - "APPROVAL_REQUIRED"
-        - "APPROVAL_DENIED"
-        - "RULE_BLOCKED"
-        - "SUSPENDED"
     ExternalInvocationPage:
       description: "A page of a connected user's external invocations."
       type: "object"
@@ -1262,6 +1250,18 @@ components:
         - "MCP_SERVER"
         - "API_ACTION"
         - "API_TOOL"
+    ExternalInvocationStatus:
+      description: "The status of an external invocation."
+      type: "string"
+      enum:
+        - "SUCCESS"
+        - "ERROR"
+        - "CONNECTION_REQUIRED"
+        - "TIMEOUT"
+        - "APPROVAL_REQUIRED"
+        - "APPROVAL_DENIED"
+        - "RULE_BLOCKED"
+        - "SUSPENDED"
 #    Trigger:
 #      type: "object"
 #      required:

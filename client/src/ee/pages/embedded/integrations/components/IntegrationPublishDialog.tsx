@@ -13,6 +13,7 @@ import {Textarea} from '@/components/ui/textarea';
 import {Integration} from '@/ee/shared/middleware/embedded/configuration';
 import {usePublishIntegrationMutation} from '@/ee/shared/mutations/embedded/integrations.mutations';
 import {IntegrationKeys} from '@/ee/shared/queries/embedded/integrations.queries';
+import {PUBLISH_DESCRIPTION_PLACEHOLDER} from '@/shared/constants';
 import {useAnalytics} from '@/shared/hooks/useAnalytics';
 import {useQueryClient} from '@tanstack/react-query';
 import {useState} from 'react';
@@ -52,7 +53,11 @@ const IntegrationPublishDialog = ({integration, onClose}: {integration: Integrat
                         <div className="flex flex-col space-y-2">
                             <Label>Description</Label>
 
-                            <Textarea className="h-28" onChange={(event) => setDescription(event.target.value)} />
+                            <Textarea
+                                className="h-28"
+                                onChange={(event) => setDescription(event.target.value)}
+                                placeholder={PUBLISH_DESCRIPTION_PLACEHOLDER}
+                            />
                         </div>
                     </DialogBody>
 

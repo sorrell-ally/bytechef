@@ -21,7 +21,7 @@ import {
     TokenPayloadI,
     WorkflowInputType,
 } from './types';
-import {decodeJwtSubject, mergeWorkflowInputs} from './utils';
+import {decodeJwtSubject, mergeWorkflowInputs, normalizeInputType} from './utils';
 import useExecuteAction from './useExecuteAction';
 
 const OAUTH2_TYPES = ['OAUTH2_AUTHORIZATION_CODE', 'OAUTH2_AUTHORIZATION_CODE_PKCE'];
@@ -66,6 +66,7 @@ interface UseConnectDialogBaseProps {
     mapObjectFields?: MapObjectFieldsType;
     mode?: 'dark' | 'light';
     onClose?: () => void;
+    toolsOnly?: boolean;
 }
 
 interface FullModePropsI {
@@ -109,6 +110,7 @@ export default function useConnectDialog({
     onConnected,
     onReauthorized,
     reauthorizeConnectionId,
+    toolsOnly = false,
 }: UseConnectDialogProps): ConnectionDialogHookReturnType {
     const [integration, setIntegration] = useState<IntegrationType | undefined>(undefined);
     const [isOpen, setIsOpen] = useState(false);
@@ -182,10 +184,12 @@ export default function useConnectDialog({
 
                           return {
                               ...input,
+                              type: normalizeInputType(input.type),
                               value: overrideValue ?? serverValue ?? (isGroupInput ? {} : ''),
                           };
                       })
                     : [],
+                staticWebhookUrl: instanceWorkflow?.staticWebhookUrl,
             } as MergedWorkflowType;
         });
     }, [integration, currentIntegrationInstanceId, enabledOverrides, inputOverrides]);
@@ -250,6 +254,7 @@ export default function useConnectDialog({
 
                           return {
                               ...input,
+                              type: normalizeInputType(input.type),
                               value: overrideValue ?? serverValue ?? (isGroupInput ? {} : ''),
                           };
                       })
@@ -450,9 +455,23 @@ export default function useConnectDialog({
                 }));
 
                 console.error('Failed to toggle workflow:', error);
+
+                return;
+            }
+
+            if (!pressed) {
+                return;
+            }
+
+            try {
+                const integrationData: IntegrationType = await fetch(`/api/embedded/v1/integrations/${integrationId}`);
+
+                setIntegration(integrationData);
+            } catch (error) {
+                console.error('Enabled the workflow but failed to reload the integration:', error);
             }
         },
-        [fetch, currentIntegrationInstanceId]
+        [fetch, currentIntegrationInstanceId, integrationId]
     );
 
     const handleMcpToolToggle = useCallback(
@@ -1088,6 +1107,7 @@ export default function useConnectDialog({
                         ? `Reconnect ${integration?.name ?? ''}`.trim()
                         : undefined
                 }
+                toolsOnly={toolsOnly}
                 workflowsView={workflowsView}
             />
         );
@@ -1118,6 +1138,7 @@ export default function useConnectDialog({
         reauthorizeTargetConnectionId,
         registerFormSubmit,
         saveError,
+        toolsOnly,
         workflowsView,
         currentIntegrationInstanceId,
     ]);

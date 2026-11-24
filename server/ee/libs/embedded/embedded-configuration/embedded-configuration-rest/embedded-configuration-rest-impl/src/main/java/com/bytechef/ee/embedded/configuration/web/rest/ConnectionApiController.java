@@ -8,8 +8,9 @@
 package com.bytechef.ee.embedded.configuration.web.rest;
 
 import com.bytechef.atlas.coordinator.annotation.ConditionalOnCoordinator;
+import com.bytechef.ee.embedded.configuration.domain.ConnectionOrigin;
 import com.bytechef.ee.embedded.configuration.facade.ConnectedUserConnectionFacade;
-import com.bytechef.ee.embedded.configuration.facade.ConnectionAdminFacade;
+import com.bytechef.ee.embedded.configuration.facade.ConnectionFacade;
 import com.bytechef.ee.embedded.configuration.web.rest.model.ConnectionModel;
 import com.bytechef.ee.embedded.configuration.web.rest.model.UpdateConnectionCredentialsRequestModel;
 import com.bytechef.ee.embedded.configuration.web.rest.model.UpdateConnectionRequestModel;
@@ -19,9 +20,11 @@ import com.bytechef.platform.connection.dto.ConnectionDTO;
 import com.bytechef.platform.tag.domain.Tag;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import org.apache.commons.lang3.Validate;
+import org.jspecify.annotations.Nullable;
 import org.springframework.core.convert.ConversionService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -39,23 +42,23 @@ import org.springframework.web.bind.annotation.RestController;
 public class ConnectionApiController implements ConnectionApi {
 
     private final ConnectedUserConnectionFacade connectedUserConnectionFacade;
-    private final ConnectionAdminFacade connectionAdminFacade;
+    private final ConnectionFacade connectionFacade;
     private final ConversionService conversionService;
 
     @SuppressFBWarnings("EI")
     public ConnectionApiController(
-        ConnectedUserConnectionFacade connectedUserConnectionFacade, ConnectionAdminFacade connectionAdminFacade,
+        ConnectedUserConnectionFacade connectedUserConnectionFacade, ConnectionFacade connectionFacade,
         ConversionService conversionService) {
 
         this.connectedUserConnectionFacade = connectedUserConnectionFacade;
-        this.connectionAdminFacade = connectionAdminFacade;
+        this.connectionFacade = connectionFacade;
         this.conversionService = conversionService;
     }
 
     @Override
     public ResponseEntity<Long> createConnection(ConnectionModel connectionModel) {
         return ResponseEntity.ok(
-            connectionAdminFacade.createConnection(
+            connectionFacade.createConnection(
                 conversionService.convert(connectionModel, ConnectionDTO.class),
                 Boolean.TRUE.equals(connectionModel.getShared())));
     }
@@ -74,54 +77,51 @@ public class ConnectionApiController implements ConnectionApi {
     }
 
     @Override
-    public ResponseEntity<Void> deleteConnection(Long id) {
-        connectionAdminFacade.deleteConnection(id);
+    public ResponseEntity<Void> deleteConnectedUserConnection(Long connectedUserId, Long connectionId) {
+        connectedUserConnectionFacade.deleteConnectedUserConnection(connectedUserId, connectionId);
 
         return ResponseEntity.noContent()
             .build();
     }
 
     @Override
+    public ResponseEntity<Void> deleteConnection(Long id) {
+        connectionFacade.deleteConnection(id);
+
+        return ResponseEntity.noContent()
+            .build();
+    }
+
+    @Override
+    public ResponseEntity<List<ConnectionModel>> getAllConnectedUserConnections(Long connectedUserId) {
+        return ResponseEntity.ok(getConnectedUserConnectionModels(connectedUserId, null, List.of()));
+    }
+
+    @Override
     public ResponseEntity<List<ConnectionModel>> getConnectedUserConnections(
         Long connectedUserId, String componentName, List<Long> connectionIds) {
 
-        Set<Long> sharedConnectionIds = connectedUserConnectionFacade.getSharedConnectionIds();
-
-        List<Long> requestedConnectionIds = connectionIds == null ? List.of() : connectionIds;
-
-        List<ConnectionDTO> connectionDTOs;
-
-        if (ConnectedUserAuthentications.isConnectedUser()) {
-            connectionDTOs = connectedUserConnectionFacade.getConnectedUserConnections(
-                connectedUserId, componentName, requestedConnectionIds);
-        } else {
-            connectionDTOs = connectedUserConnectionFacade.getConnectedUserConnectionsForAdmin(
-                connectedUserId, componentName, requestedConnectionIds);
-        }
-
         return ResponseEntity.ok(
-            connectionDTOs
-                .stream()
-                .map(connectionDTO -> toConnectionModel(connectionDTO, sharedConnectionIds))
-                .toList());
+            getConnectedUserConnectionModels(
+                connectedUserId, componentName, connectionIds == null ? List.of() : connectionIds));
     }
 
     @Override
     public ResponseEntity<ConnectionModel> getConnection(Long id) {
         return ResponseEntity.ok(
             toConnectionModel(
-                connectionAdminFacade.getConnection(Validate.notNull(id, "id")),
-                connectionAdminFacade.getSharedConnectionIds()));
+                connectionFacade.getConnection(Validate.notNull(id, "id")),
+                connectionFacade.getSharedConnectionIds()));
     }
 
     @Override
     public ResponseEntity<List<ConnectionModel>> getConnections(
         String componentName, Integer connectionVersion, Long environmentId, Long tagId) {
 
-        Set<Long> sharedConnectionIds = connectionAdminFacade.getSharedConnectionIds();
+        Set<Long> sharedConnectionIds = connectionFacade.getSharedConnectionIds();
 
         return ResponseEntity.ok(
-            connectionAdminFacade.getConnections(componentName, connectionVersion, environmentId, tagId)
+            connectionFacade.getConnections(componentName, connectionVersion, environmentId, tagId)
                 .stream()
                 .map(connectionDTO -> toConnectionModel(connectionDTO, sharedConnectionIds))
                 .toList());
@@ -134,9 +134,22 @@ public class ConnectionApiController implements ConnectionApi {
             .map(tagModel -> conversionService.convert(tagModel, Tag.class))
             .toList();
 
-        connectionAdminFacade.updateConnection(
+        connectionFacade.updateConnection(
             id, updateConnectionRequestModel.getName(), list, updateConnectionRequestModel.getShared(),
             Objects.requireNonNull(updateConnectionRequestModel.getVersion()));
+
+        return ResponseEntity.noContent()
+            .build();
+    }
+
+    @Override
+    public ResponseEntity<Void> updateConnectedUserConnectionCredentials(
+        Long connectedUserId, Long connectionId,
+        UpdateConnectionCredentialsRequestModel updateConnectionCredentialsRequestModel) {
+
+        connectedUserConnectionFacade.updateConnectedUserConnectionCredentials(
+            connectedUserId, connectionId, updateConnectionCredentialsRequestModel.getParameters(),
+            Objects.requireNonNull(updateConnectionCredentialsRequestModel.getVersion()));
 
         return ResponseEntity.noContent()
             .build();
@@ -146,12 +159,47 @@ public class ConnectionApiController implements ConnectionApi {
     public ResponseEntity<Void> updateConnectionCredentials(
         Long id, UpdateConnectionCredentialsRequestModel updateConnectionCredentialsRequestModel) {
 
-        connectionAdminFacade.updateConnectionCredentials(
+        connectionFacade.updateConnectionCredentials(
             id, updateConnectionCredentialsRequestModel.getParameters(),
             Objects.requireNonNull(updateConnectionCredentialsRequestModel.getVersion()));
 
         return ResponseEntity.noContent()
             .build();
+    }
+
+    private List<ConnectionModel> getConnectedUserConnectionModels(
+        long connectedUserId, @Nullable String componentName, List<Long> connectionIds) {
+
+        Set<Long> sharedConnectionIds = connectedUserConnectionFacade.getSharedConnectionIds();
+
+        List<ConnectionDTO> connectionDTOs;
+
+        if (ConnectedUserAuthentications.isConnectedUser()) {
+            connectionDTOs = connectedUserConnectionFacade.getConnectedUserConnections(
+                connectedUserId, componentName, connectionIds);
+        } else {
+            connectionDTOs = connectedUserConnectionFacade.getConnectedUserConnectionsForAdmin(
+                connectedUserId, componentName, connectionIds);
+        }
+
+        Map<Long, ConnectionOrigin> connectionOrigins = connectedUserConnectionFacade.getConnectionOrigins(
+            connectedUserId, connectionDTOs.stream()
+                .map(ConnectionDTO::id)
+                .filter(Objects::nonNull)
+                .toList());
+
+        return connectionDTOs.stream()
+            .map(connectionDTO -> toConnectionModel(connectionDTO, sharedConnectionIds)
+                .origin(toOriginEnum(connectionOrigins.get(connectionDTO.id()))))
+            .toList();
+    }
+
+    private static ConnectionModel.@Nullable OriginEnum toOriginEnum(@Nullable ConnectionOrigin connectionOrigin) {
+        if (connectionOrigin == null) {
+            return null;
+        }
+
+        return ConnectionModel.OriginEnum.valueOf(connectionOrigin.name());
     }
 
     private ConnectionModel toConnectionModel(ConnectionDTO connection, Set<Long> sharedConnectionIds) {

@@ -45,7 +45,7 @@ const PropertyCodeEditorDialog = ({
             <Dialog onOpenChange={handleOpenChange} open={true}>
                 <DialogContent
                     className={twMerge(
-                        'absolute top-12 bottom-4 flex h-[calc(100vh-64px)] max-w-none translate-x-0 translate-y-0 flex-row gap-0 overflow-hidden border border-stroke-neutral-secondary bg-surface-neutral-secondary p-0 transition-[left,width] duration-300 ease-in-out sm:max-w-none',
+                        'absolute top-3 bottom-4 flex h-auto max-h-none max-w-none translate-x-0 translate-y-0 flex-row gap-0 overflow-hidden border border-stroke-neutral-secondary bg-surface-neutral-secondary p-0 transition-[left,width] duration-300 ease-in-out sm:max-w-none',
                         copilotPanelOpen ? 'left-2 w-[calc(100vw-16px)]' : 'left-16 w-[calc(100vw-80px)]'
                     )}
                     onFocusOutside={(event) => event.preventDefault()}
@@ -72,7 +72,11 @@ const PropertyCodeEditorDialog = ({
                                             className="rounded-lg bg-surface-neutral-primary"
                                             defaultSize={750}
                                         >
-                                            <PropertyCodeEditorDialogEditor language={language} />
+                                            <PropertyCodeEditorDialogEditor
+                                                language={language}
+                                                workflowId={workflow.id}
+                                                workflowNodeName={workflowNodeName}
+                                            />
                                         </ResizablePanel>
 
                                         <ResizableHandle className="bg-transparent aria-[orientation=horizontal]:h-1.5" />
@@ -100,6 +104,7 @@ const PropertyCodeEditorDialog = ({
                                             minSize={280}
                                         >
                                             <PropertyCodeEditorDialogRightPanel
+                                                language={language}
                                                 workflow={workflow}
                                                 workflowNodeName={workflowNodeName}
                                             />

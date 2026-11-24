@@ -33,6 +33,9 @@ import com.bytechef.automation.configuration.dto.SharedProjectDTO;
 import com.bytechef.automation.configuration.exception.ProjectErrorType;
 import com.bytechef.automation.configuration.ownership.ProjectOwner;
 import com.bytechef.automation.configuration.service.PreBuiltTemplateService;
+import com.bytechef.automation.configuration.service.ProjectCodeWorkflowInfoSupplier;
+import com.bytechef.automation.configuration.service.ProjectCodeWorkflowInfoSupplier.CodeWorkflowInfo;
+import com.bytechef.automation.configuration.service.ProjectCodeWorkflowInfoSupplier.CodeWorkflowSource;
 import com.bytechef.automation.configuration.service.ProjectDeploymentService;
 import com.bytechef.automation.configuration.service.ProjectOwnershipService;
 import com.bytechef.automation.configuration.service.ProjectService;
@@ -81,12 +84,14 @@ import org.apache.commons.lang3.StringUtils;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * @author Ivica Cardic
+ * @author Igor Beslic
  */
 @Transactional
 @Service
@@ -94,11 +99,15 @@ public class ProjectFacadeImpl implements ProjectFacade {
 
     private static final Logger log = LoggerFactory.getLogger(ProjectFacadeImpl.class);
 
+    private static final String CODE_WORKFLOW_ENTRY_PREFIX = "code-workflow.";
+
     private final CategoryService categoryService;
     private final ComponentDefinitionHelper componentDefinitionHelper;
     private final PreBuiltTemplateService preBuiltTemplateService;
+    private final ObjectProvider<ProjectCodeWorkflowInfoSupplier> projectCodeWorkflowInfoSupplierProvider;
     private final ProjectOwnershipService projectOwnershipService;
     private final ProjectService projectService;
+    private final ProjectVersionWorkflowChangeFacade projectVersionWorkflowChangeFacade;
     private final ProjectWorkflowService projectWorkflowService;
     private final ProjectDeploymentFacade projectDeploymentFacade;
     private final ProjectDeploymentService projectDeploymentService;
@@ -116,9 +125,10 @@ public class ProjectFacadeImpl implements ProjectFacade {
     public ProjectFacadeImpl(
         ApplicationProperties applicationProperties, CategoryService categoryService,
         ComponentDefinitionHelper componentDefinitionHelper, PreBuiltTemplateService preBuiltTemplateService,
+        ObjectProvider<ProjectCodeWorkflowInfoSupplier> projectCodeWorkflowInfoSupplierProvider,
         ProjectWorkflowService projectWorkflowService,
         ProjectDeploymentService projectDeploymentService, ProjectOwnershipService projectOwnershipService,
-        ProjectService projectService,
+        ProjectService projectService, ProjectVersionWorkflowChangeFacade projectVersionWorkflowChangeFacade,
         ProjectDeploymentFacade projectDeploymentFacade, ProjectWorkflowFacade projectWorkflowFacade,
         SharedTemplateFileStorage sharedTemplateFileStorage, SharedTemplateService sharedTemplateService,
         TagService tagService, WorkflowService workflowService,
@@ -129,10 +139,12 @@ public class ProjectFacadeImpl implements ProjectFacade {
         this.categoryService = categoryService;
         this.componentDefinitionHelper = componentDefinitionHelper;
         this.preBuiltTemplateService = preBuiltTemplateService;
+        this.projectCodeWorkflowInfoSupplierProvider = projectCodeWorkflowInfoSupplierProvider;
         this.projectWorkflowService = projectWorkflowService;
         this.projectDeploymentService = projectDeploymentService;
         this.projectOwnershipService = projectOwnershipService;
         this.projectService = projectService;
+        this.projectVersionWorkflowChangeFacade = projectVersionWorkflowChangeFacade;
         this.projectDeploymentFacade = projectDeploymentFacade;
         this.projectWorkflowFacade = projectWorkflowFacade;
         this.publicUrl = applicationProperties.getPublicUrl();
@@ -271,6 +283,20 @@ public class ProjectFacadeImpl implements ProjectFacade {
         newProject.setTagIds(project.getTagIds());
         newProject.setWorkspaceId(project.getWorkspaceId());
 
+        Optional<CodeWorkflowSource> codeWorkflowSource = fetchCodeWorkflowSource(id);
+
+        if (codeWorkflowSource.isPresent()) {
+            newProject = projectService.create(newProject);
+
+            CodeWorkflowSource source = codeWorkflowSource.get();
+
+            long newProjectId = Objects.requireNonNull(newProject.getId());
+
+            deployCodeWorkflowSource(newProjectId, source.language(), source.source());
+
+            return toProjectDTO(projectService.getProject(newProjectId));
+        }
+
         List<String> workflowIds = copyWorkflowIds(
             projectWorkflowService.getProjectWorkflowIds(project.getId(), project.getLastProjectVersion()));
 
@@ -317,7 +343,9 @@ public class ProjectFacadeImpl implements ProjectFacade {
     public ProjectDTO getProject(long id) {
         Project project = projectService.getProject(id);
 
-        return toProjectDTO(project);
+        ProjectDTO projectDTO = toProjectDTO(project);
+
+        return projectDTO.withUnpublishedChanges(hasUnpublishedChanges(project));
     }
 
     @Override
@@ -528,7 +556,7 @@ public class ProjectFacadeImpl implements ProjectFacade {
         for (ProjectWorkflow oldProjectWorkflow : oldProjectWorkflows) {
             String oldWorkflowId = oldProjectWorkflow.getWorkflowId();
 
-            Workflow duplicatedWorkflow = workflowService.duplicateWorkflow(oldWorkflowId);
+            Workflow duplicatedWorkflow = workflowService.duplicateWorkflowPreservingAudit(oldWorkflowId);
 
             oldProjectWorkflow.setProjectVersion(newProjectVersion);
             oldProjectWorkflow.setWorkflowId(duplicatedWorkflow.getId());
@@ -553,6 +581,19 @@ public class ProjectFacadeImpl implements ProjectFacade {
         Project project = projectService.getProject(id);
 
         projectService.getPublishedProjectVersion(id, projectVersion);
+
+        ProjectCodeWorkflowInfoSupplier projectCodeWorkflowInfoSupplier =
+            projectCodeWorkflowInfoSupplierProvider.getIfAvailable();
+
+        if (projectCodeWorkflowInfoSupplier != null) {
+            Optional<CodeWorkflowInfo> codeWorkflowInfo = projectCodeWorkflowInfoSupplier.fetchCodeWorkflowInfo(id);
+
+            if (codeWorkflowInfo.isPresent()) {
+                projectCodeWorkflowInfoSupplier.restoreCodeWorkflowSource(id, projectVersion);
+
+                return;
+            }
+        }
 
         int draftProjectVersion = project.getLastProjectVersion();
 
@@ -594,6 +635,7 @@ public class ProjectFacadeImpl implements ProjectFacade {
         for (ProjectWorkflow draftProjectWorkflow : draftProjectWorkflowMap.values()) {
             deleteProjectWorkflow(draftProjectWorkflow);
         }
+        projectService.restoreProjectVersionDates(id, projectVersion);
     }
 
     @Override
@@ -616,7 +658,15 @@ public class ProjectFacadeImpl implements ProjectFacade {
 
         project.setTags(tags);
 
+        Project currentProject = projectService.getProject(Objects.requireNonNull(project.getId()));
+
+        String currentName = currentProject.getName();
+
         projectService.update(project);
+
+        if (!Objects.equals(currentName, project.getName())) {
+            renameCodeWorkflowSource(currentProject.getId());
+        }
     }
 
     private List<Tag> checkTags(List<Tag> tags) {
@@ -676,6 +726,21 @@ public class ProjectFacadeImpl implements ProjectFacade {
             zipOutputStream.write(projectJson.getBytes(StandardCharsets.UTF_8));
 
             zipOutputStream.closeEntry();
+
+            Optional<CodeWorkflowSource> codeWorkflowSource = fetchCodeWorkflowSource(id);
+
+            if (codeWorkflowSource.isPresent()) {
+                CodeWorkflowSource source = codeWorkflowSource.get();
+
+                ZipEntry codeWorkflowZipEntry = new ZipEntry(CODE_WORKFLOW_ENTRY_PREFIX + source.language());
+
+                zipOutputStream.putNextEntry(codeWorkflowZipEntry);
+
+                zipOutputStream.write(source.source()
+                    .getBytes(StandardCharsets.UTF_8));
+
+                zipOutputStream.closeEntry();
+            }
 
             for (ProjectWorkflow projectWorkflow : projectWorkflows) {
                 Workflow workflow = workflowService.getWorkflow(projectWorkflow.getWorkflowId());
@@ -767,28 +832,54 @@ public class ProjectFacadeImpl implements ProjectFacade {
                     .stream()
                     .collect(Collectors.groupingBy(ProjectDeployment::getProjectId, Collectors.counting()));
 
+            ProjectCodeWorkflowInfoSupplier projectCodeWorkflowInfoSupplier =
+                projectCodeWorkflowInfoSupplierProvider.getIfAvailable();
+
+            Set<Long> codeWorkflowProjectIds = projectCodeWorkflowInfoSupplier == null
+                ? Set.of()
+                : Set.copyOf(projectCodeWorkflowInfoSupplier.getCodeWorkflowProjectIds());
+
+            Map<Long, String> codeWorkflowLanguages = projectCodeWorkflowInfoSupplier == null
+                ? Map.of()
+                : projectCodeWorkflowInfoSupplier.getCodeWorkflowLanguages();
+
             return CollectionUtils.map(
                 projects,
-                project -> new ProjectDTO(
-                    CollectionUtils.findFirstFilterOrElse(
-                        categories,
-                        category -> Objects.equals(project.getCategoryId(), category.getId()),
-                        null),
-                    project,
-                    allProjectWorkflows.stream()
-                        .filter(projectWorkflow -> Objects.equals(projectWorkflow.getProjectId(), project.getId()) &&
-                            projectWorkflow.getProjectVersion() == project.getLastProjectVersion())
-                        .map(ProjectWorkflow::getId)
-                        .toList(),
-                    CollectionUtils.filter(
-                        allTags,
-                        tag -> CollectionUtils.contains(project.getTagIds(), tag.getId())),
-                    developmentDeploymentCounts == null
-                        ? null
-                        : Math.toIntExact(developmentDeploymentCounts.getOrDefault(project.getId(), 0L))));
+                project -> {
+                    ProjectDTO projectDTO = new ProjectDTO(
+                        CollectionUtils.findFirstFilterOrElse(
+                            categories,
+                            category -> Objects.equals(project.getCategoryId(), category.getId()),
+                            null),
+                        project,
+                        allProjectWorkflows.stream()
+                            .filter(
+                                projectWorkflow -> Objects.equals(projectWorkflow.getProjectId(), project.getId()) &&
+                                    projectWorkflow.getProjectVersion() == project.getLastProjectVersion())
+                            .map(ProjectWorkflow::getId)
+                            .toList(),
+                        CollectionUtils.filter(
+                            allTags,
+                            tag -> CollectionUtils.contains(project.getTagIds(), tag.getId())),
+                        developmentDeploymentCounts == null
+                            ? null
+                            : Math.toIntExact(developmentDeploymentCounts.getOrDefault(project.getId(), 0L)),
+                        codeWorkflowProjectIds.contains(project.getId()),
+                        codeWorkflowLanguages.get(project.getId()));
+
+                    return projectDTO.withUnpublishedChanges(hasUnpublishedChanges(project));
+                });
         } else {
             return CollectionUtils.map(projects, ProjectDTO::new);
         }
+    }
+
+    private boolean hasUnpublishedChanges(Project project) {
+        if (project.getLastPublishedDate() == null) {
+            return true;
+        }
+
+        return projectVersionWorkflowChangeFacade.hasUnpublishedChanges(project);
     }
 
     private List<Workflow> getWorkflows(TemplateFiles templateFiles) {
@@ -832,6 +923,12 @@ public class ProjectFacadeImpl implements ProjectFacade {
 
         long projectId = createProject(projectDTO);
 
+        if (templateFiles.codeWorkflowLanguage != null) {
+            deployCodeWorkflowSource(projectId, templateFiles.codeWorkflowLanguage, templateFiles.codeWorkflowSource);
+
+            return projectId;
+        }
+
         for (String workflowJson : templateFiles.workflowJsons) {
             String definition = JsonUtils.read(workflowJson, String.class);
 
@@ -845,6 +942,8 @@ public class ProjectFacadeImpl implements ProjectFacade {
         try (ZipInputStream zipInputStream = new ZipInputStream(new ByteArrayInputStream(data))) {
             String projectJson = null;
             String templateJson = null;
+            String codeWorkflowLanguage = null;
+            String codeWorkflowSource = null;
             ZipEntry zipEntry;
             List<String> workflowJsons = new ArrayList<>();
 
@@ -857,6 +956,9 @@ public class ProjectFacadeImpl implements ProjectFacade {
                     projectJson = new String(entryData, StandardCharsets.UTF_8);
                 } else if ("template.json".equals(name)) {
                     templateJson = new String(entryData, StandardCharsets.UTF_8);
+                } else if (name.startsWith(CODE_WORKFLOW_ENTRY_PREFIX)) {
+                    codeWorkflowLanguage = name.substring(CODE_WORKFLOW_ENTRY_PREFIX.length());
+                    codeWorkflowSource = new String(entryData, StandardCharsets.UTF_8);
                 } else if (name.startsWith("workflow-") && name.endsWith(".json")) {
                     workflowJsons.add(new String(entryData, StandardCharsets.UTF_8));
                 }
@@ -864,21 +966,68 @@ public class ProjectFacadeImpl implements ProjectFacade {
                 zipInputStream.closeEntry();
             }
 
-            if (projectJson == null || sharedTemplate && (templateJson == null) || workflowJsons.isEmpty()) {
+            if (projectJson == null || sharedTemplate && (templateJson == null)
+                || workflowJsons.isEmpty() && codeWorkflowSource == null) {
+
                 throw new RuntimeException("Missing files in a shared project file");
             }
 
-            return new TemplateFiles(templateJson, projectJson, workflowJsons);
+            return new TemplateFiles(templateJson, projectJson, workflowJsons, codeWorkflowLanguage,
+                codeWorkflowSource);
         } catch (IOException e) {
             throw new RuntimeException("Failed to read shared project", e);
         }
     }
 
+    private Optional<CodeWorkflowSource> fetchCodeWorkflowSource(long projectId) {
+        ProjectCodeWorkflowInfoSupplier projectCodeWorkflowInfoSupplier =
+            projectCodeWorkflowInfoSupplierProvider.getIfAvailable();
+
+        return projectCodeWorkflowInfoSupplier == null
+            ? Optional.empty()
+            : projectCodeWorkflowInfoSupplier.fetchCodeWorkflowSource(projectId);
+    }
+
+    private void deployCodeWorkflowSource(long projectId, String language, String source) {
+        ProjectCodeWorkflowInfoSupplier projectCodeWorkflowInfoSupplier =
+            projectCodeWorkflowInfoSupplierProvider.getIfAvailable();
+
+        if (projectCodeWorkflowInfoSupplier == null) {
+            throw new IllegalStateException("Code workflows are not available in this edition");
+        }
+
+        projectCodeWorkflowInfoSupplier.deployCodeWorkflowSource(projectId, language, source);
+    }
+
+    private void renameCodeWorkflowSource(long projectId) {
+        ProjectCodeWorkflowInfoSupplier projectCodeWorkflowInfoSupplier =
+            projectCodeWorkflowInfoSupplierProvider.getIfAvailable();
+
+        if (projectCodeWorkflowInfoSupplier == null) {
+            return;
+        }
+
+        Optional<CodeWorkflowInfo> codeWorkflowInfo = projectCodeWorkflowInfoSupplier.fetchCodeWorkflowInfo(projectId);
+
+        if (codeWorkflowInfo.isPresent()) {
+            projectCodeWorkflowInfoSupplier.renameCodeWorkflowSource(projectId);
+        }
+    }
+
     private ProjectDTO toProjectDTO(Project project) {
+        ProjectCodeWorkflowInfoSupplier projectCodeWorkflowInfoSupplier =
+            projectCodeWorkflowInfoSupplierProvider.getIfAvailable();
+
+        Optional<CodeWorkflowInfo> codeWorkflowInfo = projectCodeWorkflowInfoSupplier == null
+            ? Optional.empty()
+            : projectCodeWorkflowInfoSupplier.fetchCodeWorkflowInfo(project.getId());
+
         return new ProjectDTO(
             getCategory(project), project,
             projectWorkflowService.getProjectProjectWorkflowIds(project.getId(), project.getLastProjectVersion()),
-            tagService.getTags(project.getTagIds()));
+            tagService.getTags(project.getTagIds()), codeWorkflowInfo.isPresent(),
+            codeWorkflowInfo.map(CodeWorkflowInfo::language)
+                .orElse(null));
     }
 
     record ProjectInfo(String name, String description) {
@@ -897,6 +1046,8 @@ public class ProjectFacadeImpl implements ProjectFacade {
         }
     }
 
-    private record TemplateFiles(String templateJson, String projectJson, List<String> workflowJsons) {
+    private record TemplateFiles(
+        String templateJson, String projectJson, List<String> workflowJsons, String codeWorkflowLanguage,
+        String codeWorkflowSource) {
     }
 }

@@ -3,7 +3,7 @@ import {ProjectStatus} from '@/shared/middleware/automation/configuration';
 import {useGetProjectVersionsQuery} from '@/shared/queries/automation/projectVersions.queries';
 import {CheckIcon} from 'lucide-react';
 import {Select as SelectPrimitive} from 'radix-ui';
-import {useMemo} from 'react';
+import {useEffect, useMemo} from 'react';
 
 const ProjectDeploymentDialogBasicStepProjectVersionsSelect = ({
     onChange,
@@ -20,6 +20,25 @@ const ProjectDeploymentDialogBasicStepProjectVersionsSelect = ({
         () => (projectVersions ?? []).filter((projectVersion) => projectVersion.status === ProjectStatus.Published),
         [projectVersions]
     );
+
+    const latestPublishedVersion = useMemo(
+        () =>
+            publishedProjectVersions.reduce<number | undefined>(
+                (latestVersion, publishedProjectVersion) =>
+                    publishedProjectVersion.version !== undefined &&
+                    (latestVersion === undefined || publishedProjectVersion.version > latestVersion)
+                        ? publishedProjectVersion.version
+                        : latestVersion,
+                undefined
+            ),
+        [publishedProjectVersions]
+    );
+
+    useEffect(() => {
+        if (projectVersion === undefined && latestPublishedVersion !== undefined) {
+            onChange(latestPublishedVersion);
+        }
+    }, [latestPublishedVersion, onChange, projectVersion]);
 
     if (isError) {
         return <p className="text-sm text-destructive">Could not load the project versions. Try again later.</p>;

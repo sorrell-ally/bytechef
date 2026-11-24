@@ -1,9 +1,22 @@
 import {TooltipProvider} from '@/components/ui/tooltip';
+import {GraphQLResponseError} from '@/shared/middleware/graphqlFetcher';
 import {environmentStore} from '@/shared/stores/useEnvironmentStore';
 import {render, resetAll, screen, userEvent, waitFor, windowResizeObserver} from '@/shared/util/test-utils';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
 import AutomationProjectConfigurationDialog from '../AutomationProjectConfigurationDialog';
+
+const regionInput = {
+    componentName: null,
+    componentVersion: null,
+    groupName: null,
+    internalOnly: true,
+    label: 'Region',
+    name: 'region',
+    optionConnections: [],
+    required: false,
+    type: 'STRING',
+};
 
 const mocks = vi.hoisted(() => ({
     configurations: {current: [] as unknown[]},
@@ -11,10 +24,11 @@ const mocks = vi.hoisted(() => ({
     enableWorkflowMutateAsync: vi.fn(),
     impactData: {current: {automationProjectConfigurationVersionImpact: {workflows: []}} as unknown},
     impactQuery: vi.fn(),
+    providableInputs: {current: undefined as unknown[] | undefined},
     providableValuesQuery: vi.fn(),
     updateMutateAsync: vi.fn(),
     updateWorkflowMutateAsync: vi.fn(),
-    versionWorkflowChangesQuery: vi.fn(),
+    versionWorkflowsQuery: vi.fn(),
 }));
 
 vi.mock('@/ee/shared/queries/embedded/componentDefinitions.queries', () => ({
@@ -40,7 +54,7 @@ vi.mock('@/shared/middleware/graphql', async (importOriginal) => ({
         return {data: options.enabled ? mocks.impactData.current : undefined};
     },
     useAutomationProjectConfigurationWorkflowProvidableValuesQuery: (
-        variables: {id: string; workflowUuid: string},
+        variables: {id: string; projectVersion?: number; workflowUuid: string},
         options: {enabled: boolean}
     ) => {
         mocks.providableValuesQuery(variables, options);
@@ -50,18 +64,7 @@ vi.mock('@/shared/middleware/graphql', async (importOriginal) => ({
                 ? {
                       automationProjectConfigurationWorkflowProvidableValues: {
                           connectionSlots: [],
-                          inputs: [
-                              {
-                                  componentName: null,
-                                  componentVersion: null,
-                                  groupName: null,
-                                  label: 'Region',
-                                  name: 'region',
-                                  optionConnections: [],
-                                  required: false,
-                                  type: 'STRING',
-                              },
-                          ],
+                          inputs: mocks.providableInputs.current ?? [regionInput],
                           providedConnections: null,
                           providedInputs: null,
                       },
@@ -72,24 +75,19 @@ vi.mock('@/shared/middleware/graphql', async (importOriginal) => ({
     useAutomationProjectConfigurationsQuery: () => ({
         data: {automationProjectConfigurations: mocks.configurations.current},
     }),
-    useAutomationProjectVersionWorkflowChangesQuery: (
+    useAutomationProjectVersionWorkflowsQuery: (
         variables: {id: string; projectVersion: number},
         options: {enabled: boolean}
     ) => {
-        mocks.versionWorkflowChangesQuery(variables, options);
+        mocks.versionWorkflowsQuery(variables, options);
 
         return {
             data: options.enabled
                 ? {
-                      automationProjectVersionWorkflowChanges: {
-                          baseVersion: null,
-                          version: variables.projectVersion,
-                          workflows: [
-                              {changeCount: 0, changeType: 'ADDED', label: 'Sync Contacts', workflowUuid: 'workflow-1'},
-                              {changeCount: 0, changeType: 'ADDED', label: 'Send Digest', workflowUuid: 'workflow-2'},
-                              {changeCount: 0, changeType: 'REMOVED', label: 'Old Flow', workflowUuid: 'workflow-3'},
-                          ],
-                      },
+                      automationProjectVersionWorkflows: [
+                          {label: 'Sync Contacts', workflowUuid: 'workflow-1'},
+                          {label: 'Send Digest', workflowUuid: 'workflow-2'},
+                      ],
                   }
                 : undefined,
             isLoading: false,
@@ -124,6 +122,9 @@ vi.mock('@/shared/middleware/graphql', async (importOriginal) => ({
 
 const project = {
     categoryId: null,
+    codeWorkflowDraftPublishable: null,
+    codeWorkflowLanguage: null,
+    codeWorkflowProject: false,
     configurationCount: 0,
     description: null,
     id: 'project-1',
@@ -133,6 +134,7 @@ const project = {
     permissionExpression: null,
     published: true,
     tagIds: [],
+    unpublishedChanges: false,
     version: 4,
     workflowTemplates: [],
 };
@@ -211,6 +213,7 @@ describe('AutomationProjectConfigurationDialog', () => {
     afterEach(() => {
         mocks.configurations.current = [];
         mocks.impactData.current = {automationProjectConfigurationVersionImpact: {workflows: []}};
+        mocks.providableInputs.current = undefined;
 
         resetAll();
         vi.clearAllMocks();
@@ -224,7 +227,7 @@ describe('AutomationProjectConfigurationDialog', () => {
                 </TooltipProvider>
             );
 
-            expect(screen.getByText('New Project Configuration')).toBeInTheDocument();
+            expect(screen.getByText('New Configuration')).toBeInTheDocument();
             expect(screen.getAllByText('Run a published project version for connected users.').length).toBeGreaterThan(
                 0
             );
@@ -244,7 +247,7 @@ describe('AutomationProjectConfigurationDialog', () => {
             expect(screen.getByRole('combobox', {name: 'Project'})).toHaveTextContent('My Project');
         });
 
-        it('prefills the name with the project name and saves from the basic step with defaults', async () => {
+        it('prefills the name and the latest published version and saves from the basic step with defaults', async () => {
             const user = userEvent.setup();
 
             const onClose = vi.fn();
@@ -258,7 +261,7 @@ describe('AutomationProjectConfigurationDialog', () => {
             expect(screen.getByText('Staging')).toBeInTheDocument();
             expect(screen.queryByRole('combobox', {name: 'Environment'})).not.toBeInTheDocument();
             expect(screen.getByLabelText(/^Name/)).toHaveValue('My Project');
-            expect(screen.getByRole('combobox', {name: 'Version'})).toHaveTextContent('Latest published version (V3)');
+            expect(screen.getByRole('combobox', {name: 'Version'})).toHaveTextContent(/^V3$/);
 
             await user.click(screen.getByRole('button', {name: 'Save'}));
 
@@ -268,6 +271,46 @@ describe('AutomationProjectConfigurationDialog', () => {
             expect(mocks.createMutateAsync).toHaveBeenCalledWith(expectedCreateVariables);
             expect(mocks.enableWorkflowMutateAsync).not.toHaveBeenCalled();
             expect(mocks.updateWorkflowMutateAsync).not.toHaveBeenCalled();
+        });
+
+        it('reports the created configuration once it is saved', async () => {
+            const user = userEvent.setup();
+
+            const onSuccess = vi.fn();
+
+            render(
+                <TooltipProvider>
+                    <AutomationProjectConfigurationDialog onClose={vi.fn()} onSuccess={onSuccess} project={project} />
+                </TooltipProvider>
+            );
+
+            await user.click(screen.getByRole('button', {name: 'Save'}));
+
+            await waitFor(() => expect(onSuccess).toHaveBeenCalledWith('configuration-9'));
+
+            expect(onSuccess).toHaveBeenCalledTimes(1);
+        });
+
+        it('does not report a configuration whose workflow settings failed to save', async () => {
+            const user = userEvent.setup();
+
+            const onSuccess = vi.fn();
+
+            mocks.enableWorkflowMutateAsync.mockRejectedValueOnce(new Error('failed'));
+
+            render(
+                <TooltipProvider>
+                    <AutomationProjectConfigurationDialog onClose={vi.fn()} onSuccess={onSuccess} project={project} />
+                </TooltipProvider>
+            );
+
+            await user.click(screen.getByRole('button', {name: 'Next'}));
+            await user.click(await screen.findByRole('switch', {name: 'Send Digest'}));
+
+            await user.click(screen.getByRole('button', {name: 'Save'}));
+
+            expect(await screen.findByRole('alert')).toBeInTheDocument();
+            expect(onSuccess).not.toHaveBeenCalled();
         });
 
         it('creates a configuration with the chosen version', async () => {
@@ -289,8 +332,11 @@ describe('AutomationProjectConfigurationDialog', () => {
             expect(mocks.createMutateAsync).toHaveBeenCalledWith({...expectedCreateVariables, projectVersion: 1});
         });
 
-        it('leaves the name empty when the project name is already taken in the environment', () => {
-            mocks.configurations.current = [{...existingConfiguration, name: 'my project'}];
+        it('numbers the prefilled name when the project name is already taken in the environment', () => {
+            mocks.configurations.current = [
+                {...existingConfiguration, name: 'my project'},
+                {...existingConfiguration, id: 'configuration-2', name: 'My Project 2'},
+            ];
 
             render(
                 <TooltipProvider>
@@ -298,9 +344,9 @@ describe('AutomationProjectConfigurationDialog', () => {
                 </TooltipProvider>
             );
 
-            expect(screen.getByLabelText(/^Name/)).toHaveValue('');
-            expect(screen.getByRole('button', {name: 'Save'})).toBeDisabled();
-            expect(screen.getByRole('button', {name: 'Next'})).toBeDisabled();
+            expect(screen.getByLabelText(/^Name/)).toHaveValue(`${project.name} 3`);
+            expect(screen.queryByText(/already exists/)).not.toBeInTheDocument();
+            expect(screen.getByRole('button', {name: 'Save'})).toBeEnabled();
         });
 
         it('updates the prefilled name when the project changes until the user types a name', async () => {
@@ -450,10 +496,9 @@ describe('AutomationProjectConfigurationDialog', () => {
 
             expect(await screen.findByRole('switch', {name: 'Sync Contacts'})).toBeChecked();
             expect(screen.getByRole('switch', {name: 'Send Digest'})).toBeChecked();
-            expect(screen.queryByText('Old Flow')).not.toBeInTheDocument();
             expect(screen.getAllByText('Step 2 of 2').length).toBeGreaterThan(0);
             expect(screen.queryByLabelText(/^Name/)).not.toBeInTheDocument();
-            expect(mocks.versionWorkflowChangesQuery).toHaveBeenLastCalledWith(
+            expect(mocks.versionWorkflowsQuery).toHaveBeenLastCalledWith(
                 {id: 'project-1', projectVersion: 3},
                 {enabled: true}
             );
@@ -492,6 +537,58 @@ describe('AutomationProjectConfigurationDialog', () => {
             });
             expect(mocks.updateWorkflowMutateAsync).not.toHaveBeenCalled();
             expect(mocks.providableValuesQuery).not.toHaveBeenCalledWith(expect.anything(), {enabled: true});
+        });
+
+        it('shows the reason the server gives for refusing a workflow change', async () => {
+            const user = userEvent.setup();
+
+            mocks.enableWorkflowMutateAsync.mockRejectedValueOnce(
+                new GraphQLResponseError('Workflow Notify account needs a value for the internal-only input accountId')
+            );
+
+            render(
+                <TooltipProvider>
+                    <AutomationProjectConfigurationDialog onClose={vi.fn()} project={project} />
+                </TooltipProvider>
+            );
+
+            await user.click(screen.getByRole('button', {name: 'Next'}));
+            await user.click(await screen.findByRole('switch', {name: 'Send Digest'}));
+
+            await user.click(screen.getByRole('button', {name: 'Save'}));
+
+            const alert = await screen.findByRole('alert');
+
+            expect(alert).toHaveTextContent(
+                'The configuration was created, but some workflow settings could not be saved.'
+            );
+            expect(alert).toHaveTextContent(
+                'Workflow Notify account needs a value for the internal-only input accountId'
+            );
+        });
+
+        it('lists no reason for a workflow change that failed before reaching the server', async () => {
+            const user = userEvent.setup();
+
+            mocks.enableWorkflowMutateAsync.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+
+            render(
+                <TooltipProvider>
+                    <AutomationProjectConfigurationDialog onClose={vi.fn()} project={project} />
+                </TooltipProvider>
+            );
+
+            await user.click(screen.getByRole('button', {name: 'Next'}));
+            await user.click(await screen.findByRole('switch', {name: 'Send Digest'}));
+
+            await user.click(screen.getByRole('button', {name: 'Save'}));
+
+            const alert = await screen.findByRole('alert');
+
+            expect(alert).toHaveTextContent(
+                'The configuration was created, but some workflow settings could not be saved.'
+            );
+            expect(alert).not.toHaveTextContent('Failed to fetch');
         });
 
         it('keeps the dialog open when a workflow change fails and retries without creating again', async () => {
@@ -573,7 +670,7 @@ describe('AutomationProjectConfigurationDialog', () => {
                 </TooltipProvider>
             );
 
-            expect(screen.getByText('Edit Project Configuration')).toBeInTheDocument();
+            expect(screen.getByText('Edit Configuration')).toBeInTheDocument();
             expect(screen.getByText('Staging')).toBeInTheDocument();
             expect(screen.getByLabelText(/^Name/)).toHaveValue('PRODUCTION');
             expect(screen.getByRole('combobox', {name: 'Project'})).toBeDisabled();
@@ -604,7 +701,7 @@ describe('AutomationProjectConfigurationDialog', () => {
             expect(mocks.createMutateAsync).not.toHaveBeenCalled();
             expect(mocks.enableWorkflowMutateAsync).not.toHaveBeenCalled();
             expect(mocks.updateWorkflowMutateAsync).not.toHaveBeenCalled();
-            expect(mocks.versionWorkflowChangesQuery).not.toHaveBeenCalledWith(expect.anything(), {enabled: true});
+            expect(mocks.versionWorkflowsQuery).not.toHaveBeenCalledWith(expect.anything(), {enabled: true});
         });
 
         it('edits the enabled state and provided values of the configuration workflows', async () => {
@@ -632,7 +729,7 @@ describe('AutomationProjectConfigurationDialog', () => {
             );
 
             await user.click(screen.getByRole('switch', {name: 'Send Digest'}));
-            await user.click(screen.getAllByRole('tab', {name: /Inputs/})[0]);
+            await user.click(screen.getAllByRole('tab', {name: /Inputs/})[1]);
             await user.type(screen.getAllByLabelText('Region')[0], 'eu');
 
             await user.click(screen.getByRole('button', {name: 'Save'}));
@@ -653,6 +750,95 @@ describe('AutomationProjectConfigurationDialog', () => {
                 providedInputs: {region: 'eu'},
                 workflowUuid: 'workflow-1',
             });
+            expect(mocks.updateWorkflowMutateAsync.mock.invocationCallOrder[0]).toBeLessThan(
+                mocks.enableWorkflowMutateAsync.mock.invocationCallOrder[0]
+            );
+        });
+
+        it('waits for the provided values to be saved before enabling a workflow', async () => {
+            const user = userEvent.setup();
+
+            const onClose = vi.fn();
+
+            let resolveProvidedValuesUpdate: (value: unknown) => void = () => undefined;
+
+            mocks.updateWorkflowMutateAsync.mockImplementationOnce(
+                () =>
+                    new Promise((resolve) => {
+                        resolveProvidedValuesUpdate = resolve;
+                    })
+            );
+
+            render(
+                <TooltipProvider>
+                    <AutomationProjectConfigurationDialog
+                        configuration={existingConfigurationWithWorkflows}
+                        onClose={onClose}
+                        project={project}
+                    />
+                </TooltipProvider>
+            );
+
+            await user.click(screen.getByRole('button', {name: 'Next'}));
+            await user.click(await screen.findByRole('switch', {name: 'Send Digest'}));
+            await user.click(screen.getAllByRole('tab', {name: /Inputs/})[1]);
+            await user.type(screen.getAllByLabelText('Region')[0], 'eu');
+
+            await user.click(screen.getByRole('button', {name: 'Save'}));
+
+            await waitFor(() => expect(mocks.updateWorkflowMutateAsync).toHaveBeenCalledTimes(1));
+
+            expect(mocks.enableWorkflowMutateAsync).not.toHaveBeenCalled();
+
+            resolveProvidedValuesUpdate({updateAutomationProjectConfigurationWorkflow: true});
+
+            await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+
+            expect(mocks.enableWorkflowMutateAsync).toHaveBeenCalledWith({
+                enable: true,
+                id: 'configuration-1',
+                workflowUuid: 'workflow-2',
+            });
+        });
+
+        it('disables a workflow before saving its provided values', async () => {
+            const user = userEvent.setup();
+
+            const onClose = vi.fn();
+
+            render(
+                <TooltipProvider>
+                    <AutomationProjectConfigurationDialog
+                        configuration={existingConfigurationWithWorkflows}
+                        onClose={onClose}
+                        project={project}
+                    />
+                </TooltipProvider>
+            );
+
+            await user.click(screen.getByRole('button', {name: 'Next'}));
+            await user.click(await screen.findByRole('tab', {name: /Inputs/}));
+            await user.type(screen.getByLabelText('Region'), 'eu');
+            await user.click(screen.getByRole('switch', {name: 'Sync Contacts'}));
+
+            await user.click(screen.getByRole('button', {name: 'Save'}));
+
+            await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+
+            expect(mocks.enableWorkflowMutateAsync).toHaveBeenCalledWith({
+                enable: false,
+                id: 'configuration-1',
+                workflowUuid: 'workflow-1',
+            });
+            expect(mocks.updateWorkflowMutateAsync).toHaveBeenCalledWith({
+                id: 'configuration-1',
+                providedConnections: {},
+                providedInputs: {region: 'eu'},
+                workflowUuid: 'workflow-1',
+            });
+            expect(mocks.enableWorkflowMutateAsync.mock.invocationCallOrder[0]).toBeLessThan(
+                mocks.updateWorkflowMutateAsync.mock.invocationCallOrder[0]
+            );
         });
     });
 
@@ -673,11 +859,12 @@ describe('AutomationProjectConfigurationDialog', () => {
                 </TooltipProvider>
             );
 
-            expect(screen.getByText('Upgrade Project Version')).toBeInTheDocument();
+            expect(screen.getAllByText('Change Project Version').length).toBeGreaterThan(0);
             expect(screen.getByText('Staging')).toBeInTheDocument();
             expect(screen.getByRole('combobox', {name: 'Version'})).toHaveTextContent('V3');
             expect(screen.queryByRole('switch', {name: 'Show in Automation Hub'})).not.toBeInTheDocument();
-            expect(screen.queryByRole('navigation', {name: 'Steps'})).not.toBeInTheDocument();
+            expect(screen.queryByLabelText(/^Name/)).not.toBeInTheDocument();
+            expect(screen.getAllByText('Step 1 of 2').length).toBeGreaterThan(0);
 
             await user.click(screen.getByRole('button', {name: 'Save'}));
 
@@ -691,6 +878,68 @@ describe('AutomationProjectConfigurationDialog', () => {
                 permissionExpression: null,
                 projectVersion: 3,
             });
+            expect(mocks.enableWorkflowMutateAsync).not.toHaveBeenCalled();
+        });
+
+        it('lists the workflows of the chosen version and saves their enabled state and provided values after the version', async () => {
+            const user = userEvent.setup();
+
+            const onClose = vi.fn();
+
+            render(
+                <TooltipProvider>
+                    <AutomationProjectConfigurationDialog
+                        configuration={{
+                            ...existingConfigurationWithWorkflows,
+                            projectVersion: 1,
+                            workflows: [existingConfigurationWithWorkflows.workflows[1]],
+                        }}
+                        onClose={onClose}
+                        project={project}
+                        updateProjectVersion
+                    />
+                </TooltipProvider>
+            );
+
+            await user.click(screen.getByRole('button', {name: 'Next'}));
+
+            expect(await screen.findByText(/Choose which workflows of V3 this configuration runs/)).toBeInTheDocument();
+            expect(screen.getByRole('switch', {name: 'Sync Contacts'})).toBeChecked();
+            expect(screen.getByRole('switch', {name: 'Send Digest'})).not.toBeChecked();
+            expect(mocks.versionWorkflowsQuery).toHaveBeenLastCalledWith(
+                {id: 'project-1', projectVersion: 3},
+                {enabled: true}
+            );
+            expect(mocks.providableValuesQuery).toHaveBeenCalledWith(
+                {id: 'configuration-1', projectVersion: 3, workflowUuid: 'workflow-1'},
+                {enabled: true}
+            );
+
+            await user.click(screen.getByRole('switch', {name: 'Send Digest'}));
+            await user.click(screen.getAllByRole('tab', {name: /Inputs/})[1]);
+            await user.type(screen.getAllByLabelText('Region')[0], 'eu');
+            await user.click(screen.getByRole('button', {name: 'Save'}));
+
+            await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+
+            expect(mocks.updateMutateAsync).toHaveBeenCalledWith(
+                expect.objectContaining({id: 'configuration-1', projectVersion: 3})
+            );
+            expect(mocks.enableWorkflowMutateAsync).toHaveBeenCalledTimes(1);
+            expect(mocks.enableWorkflowMutateAsync).toHaveBeenCalledWith({
+                enable: true,
+                id: 'configuration-1',
+                workflowUuid: 'workflow-2',
+            });
+            expect(mocks.updateWorkflowMutateAsync).toHaveBeenCalledWith({
+                id: 'configuration-1',
+                providedConnections: {},
+                providedInputs: {region: 'eu'},
+                workflowUuid: 'workflow-1',
+            });
+            expect(mocks.updateMutateAsync.mock.invocationCallOrder[0]).toBeLessThan(
+                mocks.updateWorkflowMutateAsync.mock.invocationCallOrder[0]
+            );
         });
 
         it('warns that moving to an older version disconnects automations it lacks', async () => {
@@ -722,6 +971,7 @@ describe('AutomationProjectConfigurationDialog', () => {
         const impactWorkflows = [
             {
                 affectedConnectedUserCount: 4,
+                awaitsConfiguration: false,
                 label: 'Sync Contacts',
                 newRequiredConnections: ['slack'],
                 newRequiredInputs: ['apiKey', 'region'],
@@ -765,6 +1015,97 @@ describe('AutomationProjectConfigurationDialog', () => {
                     'Version 3 adds a required Slack connection to Sync Contacts: connected users without a Slack integration will pause.'
                 )
             ).toBeInTheDocument();
+        });
+
+        it('names a workflow that stays disabled until this configuration sets its internal-only inputs', async () => {
+            const user = userEvent.setup();
+
+            mocks.impactData.current = {
+                automationProjectConfigurationVersionImpact: {
+                    workflows: [
+                        {
+                            affectedConnectedUserCount: 2,
+                            awaitsConfiguration: true,
+                            label: 'Sync Accounts',
+                            newRequiredConnections: [],
+                            newRequiredInputs: [],
+                            workflowUuid: 'workflow-2',
+                        },
+                    ],
+                },
+            };
+
+            render(
+                <TooltipProvider>
+                    <AutomationProjectConfigurationDialog
+                        configuration={{...existingConfiguration, projectVersion: 1}}
+                        onClose={vi.fn()}
+                        project={project}
+                        updateProjectVersion
+                    />
+                </TooltipProvider>
+            );
+
+            await user.click(screen.getByRole('combobox', {name: 'Version'}));
+            await user.click(await screen.findByRole('option', {name: 'V3'}));
+
+            expect(
+                await screen.findByText(
+                    'Version 3 leaves Sync Accounts disabled until this configuration sets its internal-only inputs: 2 connected users will pause.'
+                )
+            ).toBeInTheDocument();
+        });
+
+        it('drops the internal-only warning of a workflow once its missing value is filled in the workflows step', async () => {
+            const user = userEvent.setup();
+
+            mocks.providableInputs.current = [
+                {
+                    ...regionInput,
+                    internalOnly: true,
+                    label: 'Account',
+                    name: 'accountId',
+                    required: true,
+                },
+            ];
+            mocks.impactData.current = {
+                automationProjectConfigurationVersionImpact: {
+                    workflows: [
+                        {
+                            affectedConnectedUserCount: 2,
+                            awaitsConfiguration: true,
+                            label: 'Sync Contacts',
+                            newRequiredConnections: [],
+                            newRequiredInputs: [],
+                            workflowUuid: 'workflow-1',
+                        },
+                    ],
+                },
+            };
+
+            render(
+                <TooltipProvider>
+                    <AutomationProjectConfigurationDialog
+                        configuration={{...existingConfigurationWithWorkflows, projectVersion: 1}}
+                        onClose={vi.fn()}
+                        project={project}
+                        updateProjectVersion
+                    />
+                </TooltipProvider>
+            );
+
+            const warningText =
+                'Version 3 leaves Sync Contacts disabled until this configuration sets its internal-only inputs: 2 connected users will pause.';
+
+            expect(await screen.findByText(warningText)).toBeInTheDocument();
+
+            await user.click(screen.getByRole('button', {name: 'Next'}));
+            await user.click(await screen.findByRole('tab', {name: /Inputs/}));
+            await user.type(await screen.findByLabelText(/Account/), 'account-1');
+            await user.click(screen.getByRole('button', {name: /^Basic/}));
+
+            expect(screen.getByLabelText('Version')).toBeInTheDocument();
+            expect(screen.queryByText(warningText)).not.toBeInTheDocument();
         });
 
         it('renders nothing when the impact list is empty', async () => {
@@ -826,6 +1167,131 @@ describe('AutomationProjectConfigurationDialog', () => {
                 {id: 'configuration-1', projectVersion: 1},
                 {enabled: true}
             );
+        });
+    });
+    describe('tabs', () => {
+        const otherConfiguration = {
+            ...existingConfiguration,
+            automationHubVisible: false,
+            id: 'configuration-2',
+            name: 'BETA',
+            permissionExpression: 'plan == beta',
+            projectVersion: 1,
+        };
+
+        it('shows no tabs without showTabs', () => {
+            mocks.configurations.current = [existingConfiguration];
+
+            render(
+                <TooltipProvider>
+                    <AutomationProjectConfigurationDialog onClose={vi.fn()} project={project} />
+                </TooltipProvider>
+            );
+
+            expect(screen.queryByRole('tab', {name: 'Change Version'})).not.toBeInTheDocument();
+        });
+
+        it('opens on the New tab when the project has no configurations in the environment', () => {
+            mocks.configurations.current = [{...existingConfiguration, environmentId: '1'}];
+
+            render(
+                <TooltipProvider>
+                    <AutomationProjectConfigurationDialog onClose={vi.fn()} project={project} showTabs />
+                </TooltipProvider>
+            );
+
+            expect(screen.getByRole('tab', {name: 'New', selected: true})).toBeInTheDocument();
+            expect(screen.getAllByText('New Configuration').length).toBeGreaterThan(0);
+            expect(screen.getByRole('combobox', {name: 'Project'})).toBeDisabled();
+            expect(screen.getByRole('combobox', {name: 'Version'})).toHaveTextContent(/^V3$/);
+        });
+
+        it('opens on Change Version and blocks saving until a configuration is picked', () => {
+            mocks.configurations.current = [existingConfiguration, otherConfiguration];
+
+            render(
+                <TooltipProvider>
+                    <AutomationProjectConfigurationDialog onClose={vi.fn()} project={project} showTabs />
+                </TooltipProvider>
+            );
+
+            expect(screen.getByRole('tab', {name: 'Change Version', selected: true})).toBeInTheDocument();
+            expect(screen.getAllByText('Change Project Version').length).toBeGreaterThan(0);
+            expect(screen.queryByRole('combobox', {name: 'Version'})).not.toBeInTheDocument();
+            expect(screen.getByRole('button', {name: 'Save'})).toBeDisabled();
+        });
+
+        it('shows a message instead of a configuration select when Change Version has nothing to change', async () => {
+            const user = userEvent.setup();
+
+            render(
+                <TooltipProvider>
+                    <AutomationProjectConfigurationDialog onClose={vi.fn()} project={project} showTabs />
+                </TooltipProvider>
+            );
+
+            await user.click(screen.getByRole('tab', {name: 'Change Version'}));
+
+            expect(screen.getByText('No configurations for this project yet')).toBeInTheDocument();
+            expect(screen.queryByRole('combobox', {name: 'Configuration'})).not.toBeInTheDocument();
+            expect(screen.getByRole('button', {name: 'Save'})).toBeDisabled();
+        });
+
+        it('updates the version of the picked configuration, keeping its other settings', async () => {
+            const user = userEvent.setup();
+
+            const onClose = vi.fn();
+
+            mocks.configurations.current = [existingConfiguration, otherConfiguration];
+
+            render(
+                <TooltipProvider>
+                    <AutomationProjectConfigurationDialog onClose={onClose} project={project} showTabs />
+                </TooltipProvider>
+            );
+
+            await user.click(screen.getByRole('combobox', {name: 'Configuration'}));
+            await user.click(await screen.findByRole('option', {name: 'BETA'}));
+
+            expect(screen.getByRole('combobox', {name: 'Version'})).toHaveTextContent(/^V3$/);
+
+            await user.click(screen.getByRole('button', {name: 'Save'}));
+
+            await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+
+            expect(mocks.updateMutateAsync).toHaveBeenCalledWith({
+                automationHubVisible: false,
+                enabled: true,
+                id: 'configuration-2',
+                name: 'BETA',
+                permissionExpression: 'plan == beta',
+                projectVersion: 3,
+            });
+            expect(mocks.createMutateAsync).not.toHaveBeenCalled();
+        });
+
+        it('picks the only configuration and creates a new one again from the New tab', async () => {
+            const user = userEvent.setup();
+
+            mocks.configurations.current = [existingConfiguration];
+
+            render(
+                <TooltipProvider>
+                    <AutomationProjectConfigurationDialog onClose={vi.fn()} project={project} showTabs />
+                </TooltipProvider>
+            );
+
+            expect(screen.getByRole('combobox', {name: 'Configuration'})).toHaveTextContent(/^PRODUCTION$/);
+
+            await user.click(screen.getByRole('tab', {name: 'New'}));
+
+            expect(screen.getAllByText('New Configuration').length).toBeGreaterThan(0);
+
+            await user.click(screen.getByRole('button', {name: 'Save'}));
+
+            await waitFor(() => expect(mocks.createMutateAsync).toHaveBeenCalledTimes(1));
+
+            expect(mocks.updateMutateAsync).not.toHaveBeenCalled();
         });
     });
 });

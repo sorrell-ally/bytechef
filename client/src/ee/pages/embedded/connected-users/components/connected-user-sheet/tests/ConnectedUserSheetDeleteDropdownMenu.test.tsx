@@ -19,13 +19,21 @@ afterEach(() => {
 
 describe('ConnectedUserSheetDeleteDropdownMenu', () => {
     it('should render the menu trigger button', () => {
-        render(<ConnectedUserSheetDeleteDropdownMenu onDeleteClick={hoisted.onDeleteClick} />);
+        render(
+            <TooltipProvider>
+                <ConnectedUserSheetDeleteDropdownMenu onDeleteClick={hoisted.onDeleteClick} />
+            </TooltipProvider>
+        );
 
         expect(screen.getByRole('button', {name: 'More actions'})).toBeInTheDocument();
     });
 
     it('should render with the design-system DropdownMenu', async () => {
-        render(<ConnectedUserSheetDeleteDropdownMenu onDeleteClick={hoisted.onDeleteClick} />);
+        render(
+            <TooltipProvider>
+                <ConnectedUserSheetDeleteDropdownMenu onDeleteClick={hoisted.onDeleteClick} />
+            </TooltipProvider>
+        );
 
         await userEvent.click(screen.getByRole('button', {name: 'More actions'}));
 
@@ -33,8 +41,40 @@ describe('ConnectedUserSheetDeleteDropdownMenu', () => {
         expect(screen.getByRole('menuitem', {name: 'Delete'})).toHaveClass('text-content-destructive-primary');
     });
 
+    it('should leave Edit out when no edit handler is given', async () => {
+        render(
+            <TooltipProvider>
+                <ConnectedUserSheetDeleteDropdownMenu onDeleteClick={hoisted.onDeleteClick} />
+            </TooltipProvider>
+        );
+
+        await userEvent.click(screen.getByRole('button', {name: 'More actions'}));
+
+        expect(screen.queryByRole('menuitem', {name: 'Edit'})).not.toBeInTheDocument();
+    });
+
+    it('should call onEditClick when clicking Edit', async () => {
+        const onEditClick = vi.fn();
+
+        render(
+            <TooltipProvider>
+                <ConnectedUserSheetDeleteDropdownMenu onDeleteClick={hoisted.onDeleteClick} onEditClick={onEditClick} />
+            </TooltipProvider>
+        );
+
+        await userEvent.click(screen.getByRole('button', {name: 'More actions'}));
+        await userEvent.click(screen.getByRole('menuitem', {name: 'Edit'}));
+
+        expect(onEditClick).toHaveBeenCalledTimes(1);
+        expect(hoisted.onDeleteClick).not.toHaveBeenCalled();
+    });
+
     it('should call onDeleteClick when clicking Delete', async () => {
-        render(<ConnectedUserSheetDeleteDropdownMenu onDeleteClick={hoisted.onDeleteClick} />);
+        render(
+            <TooltipProvider>
+                <ConnectedUserSheetDeleteDropdownMenu onDeleteClick={hoisted.onDeleteClick} />
+            </TooltipProvider>
+        );
 
         await userEvent.click(screen.getByRole('button', {name: 'More actions'}));
 
@@ -43,8 +83,61 @@ describe('ConnectedUserSheetDeleteDropdownMenu', () => {
         expect(hoisted.onDeleteClick).toHaveBeenCalledTimes(1);
     });
 
+    it('should call onCredentialsClick when clicking Credentials', async () => {
+        const onCredentialsClick = vi.fn();
+
+        render(
+            <TooltipProvider>
+                <ConnectedUserSheetDeleteDropdownMenu
+                    onCredentialsClick={onCredentialsClick}
+                    onDeleteClick={hoisted.onDeleteClick}
+                />
+            </TooltipProvider>
+        );
+
+        await userEvent.click(screen.getByRole('button', {name: 'More actions'}));
+        await userEvent.click(screen.getByRole('menuitem', {name: 'Credentials'}));
+
+        expect(onCredentialsClick).toHaveBeenCalledTimes(1);
+        expect(hoisted.onDeleteClick).not.toHaveBeenCalled();
+    });
+
+    it('should disable Credentials with the given reason', async () => {
+        render(
+            <TooltipProvider>
+                <ConnectedUserSheetDeleteDropdownMenu credentialsDisabledReason="Edited elsewhere" />
+            </TooltipProvider>
+        );
+
+        await userEvent.click(screen.getByRole('button', {name: 'More actions'}));
+
+        const credentialsMenuItem = screen.getByRole('menuitem', {name: 'Credentials'});
+
+        expect(credentialsMenuItem).toHaveAttribute('aria-disabled', 'true');
+
+        await userEvent.hover(credentialsMenuItem.parentElement as HTMLElement);
+
+        await waitFor(async () => expect((await screen.findAllByText('Edited elsewhere')).length).toBeGreaterThan(0));
+    });
+
+    it('should leave Delete out when no delete handler is given', async () => {
+        render(
+            <TooltipProvider>
+                <ConnectedUserSheetDeleteDropdownMenu onCredentialsClick={vi.fn()} />
+            </TooltipProvider>
+        );
+
+        await userEvent.click(screen.getByRole('button', {name: 'More actions'}));
+
+        expect(screen.getAllByRole('menuitem').map((menuItem) => menuItem.textContent)).toEqual(['Credentials']);
+    });
+
     it('should not offer Change configuration unless the handler is given', async () => {
-        render(<ConnectedUserSheetDeleteDropdownMenu onDeleteClick={hoisted.onDeleteClick} />);
+        render(
+            <TooltipProvider>
+                <ConnectedUserSheetDeleteDropdownMenu onDeleteClick={hoisted.onDeleteClick} />
+            </TooltipProvider>
+        );
 
         await userEvent.click(screen.getByRole('button', {name: 'More actions'}));
 
@@ -97,5 +190,81 @@ describe('ConnectedUserSheetDeleteDropdownMenu', () => {
         await waitFor(async () =>
             expect((await screen.findAllByText('No other configuration in this environment')).length).toBeGreaterThan(0)
         );
+    });
+
+    it('should list Change version after Change configuration and call its handler', async () => {
+        const onChangeVersionClick = vi.fn();
+
+        render(
+            <TooltipProvider>
+                <ConnectedUserSheetDeleteDropdownMenu
+                    onChangeConfigurationClick={vi.fn()}
+                    onChangeVersionClick={onChangeVersionClick}
+                    onDeleteClick={hoisted.onDeleteClick}
+                />
+            </TooltipProvider>
+        );
+
+        await userEvent.click(screen.getByRole('button', {name: 'More actions'}));
+
+        expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+            'Change configuration…',
+            'Change version…',
+            'Delete',
+        ]);
+
+        await userEvent.click(screen.getByRole('menuitem', {name: 'Change version'}));
+
+        expect(onChangeVersionClick).toHaveBeenCalledTimes(1);
+    });
+
+    it('should disable Change version with the given reason', async () => {
+        render(
+            <TooltipProvider>
+                <ConnectedUserSheetDeleteDropdownMenu
+                    changeVersionDisabledReason="No other published version"
+                    onChangeVersionClick={vi.fn()}
+                />
+            </TooltipProvider>
+        );
+
+        await userEvent.click(screen.getByRole('button', {name: 'More actions'}));
+
+        const item = screen.getByRole('menuitem', {name: 'Change version'});
+
+        expect(item).toHaveAttribute('aria-disabled', 'true');
+
+        await userEvent.hover(item.parentElement as HTMLElement);
+
+        await waitFor(async () =>
+            expect((await screen.findAllByText('No other published version')).length).toBeGreaterThan(0)
+        );
+    });
+
+    it('should call onCopyWorkflowUuidClick when clicking Copy Workflow UUID', async () => {
+        const onCopyWorkflowUuidClick = vi.fn();
+
+        render(
+            <TooltipProvider>
+                <ConnectedUserSheetDeleteDropdownMenu onCopyWorkflowUuidClick={onCopyWorkflowUuidClick} />
+            </TooltipProvider>
+        );
+
+        await userEvent.click(screen.getByRole('button', {name: 'More actions'}));
+        await userEvent.click(screen.getByRole('menuitem', {name: 'Copy Workflow UUID'}));
+
+        expect(onCopyWorkflowUuidClick).toHaveBeenCalled();
+    });
+
+    it('should leave Copy Workflow UUID out when no copy handler is given', async () => {
+        render(
+            <TooltipProvider>
+                <ConnectedUserSheetDeleteDropdownMenu onDeleteClick={hoisted.onDeleteClick} />
+            </TooltipProvider>
+        );
+
+        await userEvent.click(screen.getByRole('button', {name: 'More actions'}));
+
+        expect(screen.queryByRole('menuitem', {name: 'Copy Workflow UUID'})).not.toBeInTheDocument();
     });
 });

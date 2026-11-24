@@ -23,6 +23,12 @@ describe('applicationInfoStore', () => {
             expect(ai.knowledgeBase.enabled).toBe(false);
         });
 
+        it('defaults custom component Java uploads to enabled before getApplicationInfo resolves', () => {
+            const {component} = applicationInfoStore.getState();
+
+            expect(component.customComponent.javaEnabled).toBe(true);
+        });
+
         it('starts without docs URLs before getApplicationInfo resolves', () => {
             expect(applicationInfoStore.getInitialState().docs).toEqual({
                 changelogUrl: undefined,
@@ -55,6 +61,31 @@ describe('applicationInfoStore', () => {
             });
         });
 
+        it('shares the in-flight request between concurrent callers', async () => {
+            const fetchSpy = mockActuatorInfo({...ACTUATOR_INFO, application: {edition: 'EE'}});
+
+            const firstRequest = applicationInfoStore.getState().getApplicationInfo();
+            const secondRequest = applicationInfoStore.getState().getApplicationInfo();
+
+            expect(secondRequest).toBe(firstRequest);
+
+            await Promise.all([firstRequest, secondRequest]);
+
+            expect(fetchSpy).toHaveBeenCalledTimes(1);
+            expect(applicationInfoStore.getState().application).toEqual({edition: 'EE'});
+        });
+
+        it('starts a new request once the previous one has settled', async () => {
+            const fetchSpy = vi
+                .spyOn(globalThis, 'fetch')
+                .mockImplementation(() => Promise.resolve(new Response(JSON.stringify(ACTUATOR_INFO), {status: 200})));
+
+            await applicationInfoStore.getState().getApplicationInfo();
+            await applicationInfoStore.getState().getApplicationInfo();
+
+            expect(fetchSpy).toHaveBeenCalledTimes(2);
+        });
+
         it('parses authorizationServer enabled from actuator info', async () => {
             mockActuatorInfo({...ACTUATOR_INFO, oauth2: {authorizationServer: {enabled: 'true'}}});
 
@@ -69,6 +100,30 @@ describe('applicationInfoStore', () => {
             await applicationInfoStore.getState().getApplicationInfo();
 
             expect(applicationInfoStore.getState().oauth2.authorizationServer.enabled).toBe(false);
+        });
+
+        it('turns script connection injection off only when the actuator info says false', async () => {
+            mockActuatorInfo({...ACTUATOR_INFO, script: {injectConnections: 'false'}});
+
+            const {getApplicationInfo} = applicationInfoStore.getState();
+
+            await getApplicationInfo();
+
+            const {script} = applicationInfoStore.getState();
+
+            expect(script.injectConnections).toBe(false);
+        });
+
+        it('keeps script connection injection on when the field is missing', async () => {
+            mockActuatorInfo(ACTUATOR_INFO);
+
+            const {getApplicationInfo} = applicationInfoStore.getState();
+
+            await getApplicationInfo();
+
+            const {script} = applicationInfoStore.getState();
+
+            expect(script.injectConnections).toBe(true);
         });
 
         it('leaves blank or missing docs URLs undefined', async () => {

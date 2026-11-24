@@ -1,5 +1,5 @@
 import {useAutomationHubStore} from '@/ee/pages/embedded/automation-hub/stores/useAutomationHubStore';
-import {AutomationProject, ConnectedUserProjectWorkflow, ResponseError} from '@/ee/shared/middleware/embedded/public';
+import {AutomationProject, ConnectedUserProjectWorkflow, ResponseError} from '@bytechef/embedded-api';
 import {render, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {MemoryRouter} from 'react-router-dom';
@@ -8,24 +8,30 @@ import {beforeEach, describe, expect, it, vi} from 'vitest';
 import AutomationsView from '../views/AutomationsView';
 
 const {
+    copyToClipboardMock,
     createBlankMutateMock,
     deleteAutomationMutateMock,
     deprovisionMutateMock,
     invalidateQueriesMock,
     navigateMock,
     setEnabledMutateMock,
+    setMcpEnabledMutateMock,
     toastErrorMock,
+    toastMock,
     updateInputsMutateAsyncMock,
     useGetAutomationsQueryMock,
     useGetTemplateProjectsQueryMock,
 } = vi.hoisted(() => ({
+    copyToClipboardMock: vi.fn(),
     createBlankMutateMock: vi.fn(),
     deleteAutomationMutateMock: vi.fn(),
     deprovisionMutateMock: vi.fn(),
     invalidateQueriesMock: vi.fn(),
     navigateMock: vi.fn(),
     setEnabledMutateMock: vi.fn(),
+    setMcpEnabledMutateMock: vi.fn(),
     toastErrorMock: vi.fn(),
+    toastMock: vi.fn(),
     updateInputsMutateAsyncMock: vi.fn(),
     useGetAutomationsQueryMock: vi.fn(),
     useGetTemplateProjectsQueryMock: vi.fn(),
@@ -52,6 +58,7 @@ vi.mock('@/ee/pages/embedded/automation-hub/mutations/automationHub.mutations', 
     useDeleteAutomationMutation: () => ({mutateAsync: deleteAutomationMutateMock}),
     useDeprovisionReferenceMutation: () => ({mutateAsync: deprovisionMutateMock}),
     useSetAutomationEnabledMutation: () => ({mutateAsync: setEnabledMutateMock}),
+    useSetAutomationMcpEnabledMutation: () => ({mutateAsync: setMcpEnabledMutateMock}),
     useUpdateAutomationInputsMutation: () => ({mutateAsync: updateInputsMutateAsyncMock}),
 }));
 
@@ -92,8 +99,14 @@ vi.mock('@tanstack/react-query', async () => {
 });
 
 vi.mock('sonner', () => ({
-    toast: {error: toastErrorMock},
+    toast: Object.assign(toastMock, {error: toastErrorMock}),
 }));
+
+vi.mock('@uidotdev/usehooks', async () => {
+    const actual = await vi.importActual<typeof import('@uidotdev/usehooks')>('@uidotdev/usehooks');
+
+    return {...actual, useCopyToClipboard: () => [null, copyToClipboardMock]};
+});
 
 vi.mock('react-inlinesvg', () => ({
     default: ({src}: {src: string}) => <img alt="component icon" src={src} />,
@@ -198,7 +211,10 @@ describe('AutomationsView', () => {
         navigateMock.mockReset();
         onActivate.mockReset();
         setEnabledMutateMock.mockReset();
+        setMcpEnabledMutateMock.mockReset();
         toastErrorMock.mockReset();
+        toastMock.mockReset();
+        copyToClipboardMock.mockReset();
         useGetAutomationsQueryMock.mockReset();
         useGetTemplateProjectsQueryMock.mockReset();
 
@@ -386,6 +402,38 @@ describe('AutomationsView', () => {
             await user.click(screen.getByRole('button', {name: 'Remove'}));
 
             expect(deleteAutomationMutateMock).toHaveBeenCalledWith('blank-uuid');
+        });
+
+        it('copies the webhook URL of an automation that starts with a static webhook trigger', async () => {
+            const user = userEvent.setup();
+
+            useGetAutomationsQueryMock.mockReturnValue({
+                data: [{...blankAutomation, staticWebhookUrl: 'https://bytechef.example.com/webhooks/abc'}],
+                error: null,
+                isLoading: false,
+            });
+
+            renderView();
+
+            await user.click(
+                within(templateCard('Weekly digest')).getByRole('button', {name: 'Weekly digest actions'})
+            );
+            await user.click(screen.getByRole('menuitem', {name: /copy webhook url/i}));
+
+            expect(copyToClipboardMock).toHaveBeenCalledWith('https://bytechef.example.com/webhooks/abc');
+            expect(toastMock).toHaveBeenCalledWith('Webhook URL copied to clipboard');
+        });
+
+        it('offers no Copy webhook URL on an automation without a webhook URL', async () => {
+            const user = userEvent.setup();
+
+            renderView();
+
+            await user.click(
+                within(templateCard('Weekly digest')).getByRole('button', {name: 'Weekly digest actions'})
+            );
+
+            expect(screen.queryByRole('menuitem', {name: /copy webhook url/i})).not.toBeInTheDocument();
         });
 
         it('marks a dangling reference as needing attention, disables its toggle and offers only Remove', async () => {
@@ -856,36 +904,6 @@ describe('AutomationsView', () => {
             expect(screen.getByRole('menuitem', {name: /remove/i})).toBeInTheDocument();
         });
 
-        it('withholds Settings from a template card whose inputs are all provided', async () => {
-            const user = userEvent.setup();
-
-            useGetAutomationsQueryMock.mockReturnValue({
-                data: [{...automationWithInputs, inputs: [{name: 'sheetName', provided: true, required: true}]}],
-                isLoading: false,
-            });
-
-            renderView();
-
-            await user.click(screen.getByRole('button', {name: 'Sync leads actions'}));
-
-            expect(screen.queryByRole('menuitem', {name: /settings/i})).not.toBeInTheDocument();
-        });
-
-        it('withholds Settings from an automation card whose inputs are all provided', async () => {
-            const user = userEvent.setup();
-
-            useGetAutomationsQueryMock.mockReturnValue({
-                data: [{...blankAutomation, inputs: [{name: 'sheetName', provided: true, required: true}]}],
-                isLoading: false,
-            });
-
-            renderView();
-
-            await user.click(screen.getByRole('button', {name: 'Weekly digest actions'}));
-
-            expect(screen.queryByRole('menuitem', {name: /settings/i})).not.toBeInTheDocument();
-        });
-
         it('refuses to save while a required value is blank', async () => {
             const user = userEvent.setup();
 
@@ -1067,5 +1085,58 @@ describe('AutomationsView', () => {
         await user.click(screen.getByRole('button', {name: 'Simulate edit workflow'}));
 
         expect(navigateMock).toHaveBeenCalledWith('/embedded/hub/builder/wf-copy');
+    });
+    describe('Available to AI agents switch', () => {
+        const offeredAutomation: ConnectedUserProjectWorkflow = {...blankAutomation, mcpEnabled: false};
+
+        it('showsAiAgentsSwitchOnlyWhenOffered', () => {
+            useGetAutomationsQueryMock.mockReturnValue({
+                data: [referenceAutomation, offeredAutomation],
+                error: null,
+                isLoading: false,
+            });
+
+            renderView();
+
+            expect(
+                within(templateCard('Weekly digest')).getByRole('switch', {name: 'Available to AI agents'})
+            ).not.toBeChecked();
+            expect(
+                within(templateCard('Triage ticket')).queryByRole('switch', {name: 'Available to AI agents'})
+            ).not.toBeInTheDocument();
+        });
+
+        it('togglingAiAgentsSwitchCallsMcpMutationNotOwnEnable', async () => {
+            const user = userEvent.setup();
+
+            useGetAutomationsQueryMock.mockReturnValue({data: [offeredAutomation], error: null, isLoading: false});
+
+            renderView();
+
+            await user.click(
+                within(templateCard('Weekly digest')).getByRole('switch', {name: 'Available to AI agents'})
+            );
+
+            expect(setMcpEnabledMutateMock).toHaveBeenCalledWith({enabled: true, workflowUuid: 'blank-uuid'});
+            expect(setEnabledMutateMock).not.toHaveBeenCalled();
+        });
+
+        it('toolOnlyAutomationShowsOnlyAiAgentsSwitchAndKeepsMenu', () => {
+            useGetAutomationsQueryMock.mockReturnValue({
+                data: [{...offeredAutomation, mcpEnabled: true, toolOnly: true}],
+                error: null,
+                isLoading: false,
+            });
+
+            renderView();
+
+            const card = templateCard('Weekly digest');
+
+            expect(within(card).getByRole('switch', {name: 'Available to AI agents'})).toBeChecked();
+            expect(
+                within(card).queryByRole('button', {name: /^(Enable|Disable) Weekly digest$/})
+            ).not.toBeInTheDocument();
+            expect(within(card).getByRole('button', {name: 'Weekly digest actions'})).toBeInTheDocument();
+        });
     });
 });

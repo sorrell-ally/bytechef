@@ -1,14 +1,11 @@
 ---
 title: Automations
 description: Author and publish the workflow templates that back the automations you ship to connected users.
-comingSoon: true
 ---
 
 ![Automations overview](automations-overview.png)
 
 ---
-
-> **Feature flag.** Automations are behind a deployment feature flag. The **Automations** entry appears in the Embedded sidebar only where that flag is enabled; without it the pages below are not linked from the UI.
 
 The **Automations** page is the authoring surface for your **workflow templates**. Templates are grouped under **Projects**, organized by **Category** and **Tag**, and made available to end users by publishing the project and releasing a version to an environment through a **configuration**.
 
@@ -82,8 +79,10 @@ Expand a row to list the workflows of that version, each with its own switch. Tu
 - **Environment** -- the environment the configuration belongs to. It is fixed when you edit a configuration.
 - **Version** -- the published versions of the project. Pointing a configuration at an older version is allowed, which is how you roll an environment back.
 - **Enabled** -- whether the configuration is on.
-- **Show in Automation Hub** -- list the project through the API for this environment, and so in the [Automation Hub](/platform/embedded/build/automation-hub) and in custom UIs. Turn it off for flows you only activate by UUID; they can still be provisioned. Turning off the configuration or a workflow is what stops provisioning and running.
+- **Show in Automation Hub** -- list the project through the API for this environment, and so in the [Automation Hub](/platform/embedded/build/automations/automation-hub) and in custom UIs. Turn it off for flows you only activate by UUID; they can still be provisioned. Turning off the configuration or a workflow is what stops provisioning and running.
 - **Assignment rule** -- optional. An expression that decides which new users can be placed on this configuration on their own. Empty means everyone. See [Several configurations in one environment](#several-configurations-in-one-environment).
+
+**Next** opens the **Workflows** step, which lists the workflows of the chosen version. Each workflow has a switch and a card with **Connections** and **Inputs** tabs. Pick a connection to provide it for every connected user on this configuration, or leave **Let each user connect** to have each user connect their own. The **Inputs** tab lists only the workflow's [internal-only inputs](/platform/embedded/configure/instance-configurations#internal-only-workflow-inputs), because the configuration sets those and each user fills in every other input. A required internal-only input that is still empty shows **Required before this workflow can be enabled**, and you cannot enable the workflow until you set it. An input whose options come from a component loads them with the connection you pick. **Save** creates the configuration and then saves what you provided for each workflow. If saving a workflow fails, the dialog stays open on that step so you can try again.
 
 The **New Configuration** button is disabled, with the tooltip "Publish the project first", until the project has a published version.
 
@@ -112,15 +111,15 @@ Use a move to put chosen users on another configuration of the same project and 
 1. Open the configuration's ⋮ menu and pick **Move Users…**. It is unavailable when the environment has no other configuration, or when no user is on this one.
 2. The dialog lists every user on the configuration, all selected. Search to narrow the list, and clear the ones you want to leave.
 3. Pick the target configuration. The target can be disabled, in which case it is marked "(disabled)" and the moved users' references are switched off.
-4. Review the warnings (new required inputs or connections in the target version), then confirm. **Move** stays unavailable until the preview has loaded. If the preview cannot load, the dialog says so and you can still move.
+4. Review what the target version needs. Each workflow with a new required connection or input gets a card with the number of users it affects. A new connection is listed for information, since each user connects their own. A new required input has a field: the value you enter is saved for every moved user, and keeps their other input values. Internal-only inputs are left out, because the target configuration sets them. A workflow whose target configuration still lacks a required internal-only value is marked **Stays disabled until the configuration sets its internal-only inputs**. Fill every field, then confirm. **Move** stays unavailable until the preview has loaded and the fields are filled. If the preview cannot load, the dialog says so and you can still move.
 
 To move chosen users from the Connected Users page instead, see [Upgrading Several Users at Once](/platform/embedded/monitor/connected-users#upgrading-several-users-at-once).
 
 Moved users' references roll to the target's version, with provided values taken from the target. Their copies are not changed.
 
-A user is **skipped** when the target version does not have a workflow they still reference. The dialog lists these users, with the missing workflows, before you confirm, and the rest of the batch still moves. If a moved user is missing a connection or input, their reference is paused with a reason and the dialog counts how many need attention.
+A user is **skipped** when the target version does not have a workflow they still reference. The dialog lists these users, with the missing workflows, before you confirm, and the rest of the batch still moves. If a moved user is still missing a connection, their reference is paused with a reason and the dialog counts how many need attention.
 
-To move a single user, open the user in [Connected Users](/platform/embedded/monitor/connected-users) and pick **Change configuration…** on the project row. It works the same way, also offers the disabled configurations of the environment, and it is how you pin an existing self-serve user to a configuration. When you provision a project for a user who already has it, the configuration is read-only and the dialog points you to **Change configuration**.
+To move a single user, open the user in [Connected Users](/platform/embedded/monitor/connected-users) and pick **Change configuration…** on the project row. It works the same way, asks for the new required inputs in the same cards, also offers the disabled configurations of the environment, and it is how you pin an existing self-serve user to a configuration. When you provision a project for a user who already has it, the configuration is read-only and the dialog points you to **Change configuration**.
 
 #### What a configuration does to connected users
 
@@ -147,7 +146,7 @@ Click a workflow in an expanded configuration row to open a side panel with two 
 3. Optionally enter a **Permission Expression** to limit which connected users see the project. See [Permission Expressions](/platform/embedded/build/permission-expressions).
 4. Submit. The new project appears in the list as a `DRAFT`.
 
-Showing the project in the [Automation Hub](/platform/embedded/build/automation-hub) is set per environment on its configuration, not on the project.
+Showing the project in the [Automation Hub](/platform/embedded/build/automations/automation-hub) is set per environment on its configuration, not on the project.
 
 If no projects exist yet, the empty state shows a **Create Project** button that opens the same dialog.
 
@@ -200,8 +199,8 @@ Switching environment from the selector in the left sidebar (next to the user me
 
 ## Related
 
-- [Automation Hub](/platform/embedded/build/automation-hub) - the embeddable catalog where connected users find published projects.
-- [Activate templates from your app](/platform/embedded/build/activation-dialog) - open the activation dialog for a published template from your own page.
+- [Automation Hub](/platform/embedded/build/automations/automation-hub) - the embeddable catalog where connected users find published projects.
+- [Activate templates from your app](/platform/embedded/build/automations/activation-dialog) - open the activation dialog for a published template from your own page.
 - [Permission Expressions](/platform/embedded/build/permission-expressions) - limit which connected users see a project or workflow.
 - [Automation Code Workflows](/platform/embedded/build/automations/automation-code-workflows) - references, provisioning and dangling references.
 - [Request Triggers](/platform/embedded/build/request-triggers) - run a connected user's workflow and get its result in the response.

@@ -10,16 +10,21 @@ package com.bytechef.ee.embedded.configuration.web.graphql;
 import com.bytechef.atlas.coordinator.annotation.ConditionalOnCoordinator;
 import com.bytechef.ee.embedded.configuration.dto.ConnectedUserAutomationProjectConfigurationDTO;
 import com.bytechef.ee.embedded.configuration.dto.ConnectedUserProjectDTO;
+import com.bytechef.ee.embedded.configuration.dto.ConnectedUserProjectWorkflowDTO;
+import com.bytechef.ee.embedded.configuration.dto.ConnectedUserWorkflowReferenceValuesDTO;
 import com.bytechef.ee.embedded.configuration.dto.ProvisionConnectedUserProjectWorkflowDTO;
 import com.bytechef.ee.embedded.configuration.dto.ProvisionableAutomationProjectDTO;
-import com.bytechef.ee.embedded.configuration.facade.ConnectedUserProjectAdminFacade;
+import com.bytechef.ee.embedded.configuration.facade.ConnectedUserProjectFacade;
+import com.bytechef.ee.embedded.configuration.util.ToolOnlyWorkflowUtils;
 import com.bytechef.ee.embedded.connected.user.domain.ConnectedUser;
 import com.bytechef.platform.annotation.ConditionalOnEEVersion;
 import com.bytechef.platform.configuration.service.EnvironmentService;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.jspecify.annotations.Nullable;
 import org.springframework.graphql.data.method.annotation.Argument;
 import org.springframework.graphql.data.method.annotation.MutationMapping;
 import org.springframework.graphql.data.method.annotation.QueryMapping;
@@ -36,12 +41,12 @@ import org.springframework.stereotype.Controller;
 @ConditionalOnEEVersion
 public class ConnectedUserProjectGraphQlController {
 
-    private final ConnectedUserProjectAdminFacade connectedUserProjectFacade;
+    private final ConnectedUserProjectFacade connectedUserProjectFacade;
     private final EnvironmentService environmentService;
 
     @SuppressFBWarnings("EI")
     public ConnectedUserProjectGraphQlController(
-        ConnectedUserProjectAdminFacade connectedUserProjectFacade, EnvironmentService environmentService) {
+        ConnectedUserProjectFacade connectedUserProjectFacade, EnvironmentService environmentService) {
 
         this.connectedUserProjectFacade = connectedUserProjectFacade;
         this.environmentService = environmentService;
@@ -53,6 +58,21 @@ public class ConnectedUserProjectGraphQlController {
 
         return connectedUserProjectFacade.getConnectedUserProjects(
             connectedUserId, environmentService.getEnvironment(environmentId));
+    }
+
+    @QueryMapping
+    public ConnectedUserProjectWorkflowReferenceValues connectedUserProjectWorkflowReferenceValues(@Argument long id) {
+        ConnectedUserWorkflowReferenceValuesDTO referenceValues =
+            connectedUserProjectFacade.getProjectWorkflowReferenceValues(id);
+
+        Map<String, Long> connectionIds = referenceValues.connectionIds();
+
+        return new ConnectedUserProjectWorkflowReferenceValues(
+            connectionIds.entrySet()
+                .stream()
+                .map(entry -> new ConnectedUserProjectWorkflowReferenceConnection(entry.getKey(), entry.getValue()))
+                .toList(),
+            referenceValues.inputs());
     }
 
     @QueryMapping
@@ -86,6 +106,11 @@ public class ConnectedUserProjectGraphQlController {
             Objects.requireNonNull(connectedUser.getId()));
     }
 
+    @SchemaMapping(typeName = "ConnectedUserProjectWorkflow")
+    public boolean toolOnly(ConnectedUserProjectWorkflowDTO connectedUserProjectWorkflow) {
+        return ToolOnlyWorkflowUtils.isToolOnly(connectedUserProjectWorkflow.workflow());
+    }
+
     @MutationMapping
     public boolean provisionConnectedUserProjectWorkflows(
         @Argument long connectedUserId, @Argument long configurationId,
@@ -95,13 +120,45 @@ public class ConnectedUserProjectGraphQlController {
             connectedUserId, configurationId,
             workflows.stream()
                 .map(workflow -> new ProvisionConnectedUserProjectWorkflowDTO(
-                    workflow.workflowUuid(), workflow.inputs()))
+                    workflow.workflowUuid(), workflow.inputs(), getConnectionIds(workflow.connections())))
                 .toList());
 
         return true;
     }
 
+    private static Map<String, Long> getConnectionIds(
+        @Nullable List<ProvisionConnectedUserProjectWorkflowConnectionInput> connections) {
+
+        if (connections == null) {
+            return Map.of();
+        }
+
+        Map<String, Long> connectionIds = new LinkedHashMap<>();
+
+        for (ProvisionConnectedUserProjectWorkflowConnectionInput connection : connections) {
+            if (connectionIds.putIfAbsent(connection.componentName(), connection.connectionId()) != null) {
+                throw new IllegalArgumentException(
+                    "Component %s has more than one connection".formatted(connection.componentName()));
+            }
+        }
+
+        return connectionIds;
+    }
+
     @SuppressFBWarnings("EI")
-    public record ProvisionConnectedUserProjectWorkflowInput(String workflowUuid, Map<String, Object> inputs) {
+    public record ConnectedUserProjectWorkflowReferenceValues(
+        List<ConnectedUserProjectWorkflowReferenceConnection> connections, Map<String, Object> inputs) {
+    }
+
+    public record ConnectedUserProjectWorkflowReferenceConnection(String componentName, long connectionId) {
+    }
+
+    @SuppressFBWarnings("EI")
+    public record ProvisionConnectedUserProjectWorkflowInput(
+        String workflowUuid, Map<String, Object> inputs,
+        @Nullable List<ProvisionConnectedUserProjectWorkflowConnectionInput> connections) {
+    }
+
+    public record ProvisionConnectedUserProjectWorkflowConnectionInput(String componentName, long connectionId) {
     }
 }

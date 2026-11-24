@@ -40,8 +40,8 @@ import com.bytechef.platform.component.service.ComponentDefinitionService;
 import com.bytechef.platform.configuration.domain.Environment;
 import com.bytechef.platform.constant.PlatformType;
 import com.bytechef.platform.external.invocation.ExternalInvocationKind;
-import com.bytechef.platform.external.invocation.ExternalInvocationOutcome;
 import com.bytechef.platform.external.invocation.ExternalInvocationSource;
+import com.bytechef.platform.external.invocation.ExternalInvocationStatus;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -132,7 +132,7 @@ class ToolFacadeIntTest {
                 assertThat(externalInvocationLog.getType()).isEqualTo(PlatformType.EMBEDDED);
                 assertThat(externalInvocationLog.getSource()).isEqualTo(ExternalInvocationSource.API_TOOL);
                 assertThat(externalInvocationLog.getKind()).isEqualTo(ExternalInvocationKind.COMPONENT);
-                assertThat(externalInvocationLog.getToolName()).isEqualTo("slack_send");
+                assertThat(externalInvocationLog.getInvocationName()).isEqualTo("slack_send");
                 assertThat(externalInvocationLog.getComponentName()).isEqualTo("slack");
                 assertThat(externalInvocationLog.getOperationName()).isEqualTo("send");
                 assertThat(externalInvocationLog.getConnectionId()).isEqualTo(7L);
@@ -140,7 +140,7 @@ class ToolFacadeIntTest {
                 assertThat(externalInvocationLog.getExternalUserId()).isEqualTo("user-1");
                 assertThat(externalInvocationLog.getConnectedUserId()).isEqualTo(connectedUserId);
                 assertThat(externalInvocationLog.getIntegrationInstanceId()).isEqualTo(integrationInstance.getId());
-                assertThat(externalInvocationLog.getOutcome()).isEqualTo(ExternalInvocationOutcome.SUCCESS);
+                assertThat(externalInvocationLog.getStatus()).isEqualTo(ExternalInvocationStatus.SUCCESS);
             });
     }
 
@@ -159,7 +159,7 @@ class ToolFacadeIntTest {
 
         assertThat(getExternalInvocationLogs(connectedUserId)).singleElement()
             .satisfies(externalInvocationLog -> {
-                assertThat(externalInvocationLog.getOutcome()).isEqualTo(ExternalInvocationOutcome.ERROR);
+                assertThat(externalInvocationLog.getStatus()).isEqualTo(ExternalInvocationStatus.ERROR);
                 assertThat(externalInvocationLog.getErrorType()).isEqualTo("IllegalStateException");
                 assertThat(externalInvocationLog.getErrorMessage()).isEqualTo("Channel not found");
                 assertThat(externalInvocationLog.getConnectedUserId()).isEqualTo(connectedUserId);
@@ -182,7 +182,7 @@ class ToolFacadeIntTest {
 
         assertThat(getExternalInvocationLogs(connectedUserId)).singleElement()
             .satisfies(externalInvocationLog -> {
-                assertThat(externalInvocationLog.getOutcome()).isEqualTo(ExternalInvocationOutcome.CONNECTION_REQUIRED);
+                assertThat(externalInvocationLog.getStatus()).isEqualTo(ExternalInvocationStatus.CONNECTION_REQUIRED);
                 assertThat(externalInvocationLog.getSource()).isEqualTo(ExternalInvocationSource.API_TOOL);
                 assertThat(externalInvocationLog.getConnectedUserId()).isEqualTo(connectedUserId);
                 assertThat(externalInvocationLog.getConnectionId()).isNull();
@@ -203,8 +203,8 @@ class ToolFacadeIntTest {
 
         assertEquals("ok", result);
         assertThat(getExternalInvocationLogs(connectedUserId)).singleElement()
-            .satisfies(externalInvocationLog -> assertThat(externalInvocationLog.getOutcome())
-                .isEqualTo(ExternalInvocationOutcome.SUCCESS));
+            .satisfies(externalInvocationLog -> assertThat(externalInvocationLog.getStatus())
+                .isEqualTo(ExternalInvocationStatus.SUCCESS));
     }
 
     @Test
@@ -220,8 +220,8 @@ class ToolFacadeIntTest {
 
         assertEquals("ok", result);
         assertThat(getExternalInvocationLogs(connectedUserId)).singleElement()
-            .satisfies(externalInvocationLog -> assertThat(externalInvocationLog.getOutcome())
-                .isEqualTo(ExternalInvocationOutcome.SUCCESS));
+            .satisfies(externalInvocationLog -> assertThat(externalInvocationLog.getStatus())
+                .isEqualTo(ExternalInvocationStatus.SUCCESS));
     }
 
     @Test
@@ -234,7 +234,8 @@ class ToolFacadeIntTest {
 
         stubConnectedUserSlackIntegration(
             List.of(
-                ToolPropertyUtils.toolNameProperty("tool"), ToolPropertyUtils.toolDescriptionProperty("tool"),
+                ToolPropertyUtils.toolNameProperty("SLACK_SEND_MESSAGE"),
+                ToolPropertyUtils.toolDescriptionProperty("tool"),
                 textProperty));
 
         Map<String, List<ToolDTO>> tools = toolFacade.getTools(

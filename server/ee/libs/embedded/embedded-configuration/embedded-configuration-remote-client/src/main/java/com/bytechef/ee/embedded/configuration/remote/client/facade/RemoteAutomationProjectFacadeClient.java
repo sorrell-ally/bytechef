@@ -12,6 +12,7 @@ import com.bytechef.ee.embedded.configuration.dto.AutomationProjectConfiguration
 import com.bytechef.ee.embedded.configuration.dto.AutomationProjectDTO;
 import com.bytechef.ee.embedded.configuration.dto.AutomationProjectTagDTO;
 import com.bytechef.ee.embedded.configuration.dto.AutomationProjectVersionDTO;
+import com.bytechef.ee.embedded.configuration.dto.AutomationProjectVersionWorkflowDTO;
 import com.bytechef.ee.embedded.configuration.facade.AutomationProjectFacade;
 import com.bytechef.ee.remote.client.LoadBalancedRestClient;
 import com.bytechef.platform.annotation.ConditionalOnEEVersion;
@@ -20,6 +21,7 @@ import com.bytechef.platform.configuration.dto.VersionWorkflowChange;
 import com.bytechef.platform.configuration.dto.VersionWorkflowChanges;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.List;
+import java.util.Optional;
 import org.jspecify.annotations.Nullable;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
@@ -61,6 +63,11 @@ public class RemoteAutomationProjectFacadeClient implements AutomationProjectFac
     }
 
     @Override
+    public Optional<Long> fetchProjectIdByName(String name) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public VersionWorkflowChange getProjectVersionWorkflowChange(
         long projectId, int projectVersion, String workflowUuid) {
 
@@ -69,6 +76,11 @@ public class RemoteAutomationProjectFacadeClient implements AutomationProjectFac
 
     @Override
     public VersionWorkflowChanges getProjectVersionWorkflowChanges(long projectId, int projectVersion) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public List<AutomationProjectVersionWorkflowDTO> getProjectVersionWorkflows(long projectId, int projectVersion) {
         throw new UnsupportedOperationException();
     }
 
@@ -141,6 +153,11 @@ public class RemoteAutomationProjectFacadeClient implements AutomationProjectFac
 
     @Override
     public int publishProject(long projectId, @Nullable String description) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void restoreProjectVersion(long projectId, int projectVersion) {
         throw new UnsupportedOperationException();
     }
 

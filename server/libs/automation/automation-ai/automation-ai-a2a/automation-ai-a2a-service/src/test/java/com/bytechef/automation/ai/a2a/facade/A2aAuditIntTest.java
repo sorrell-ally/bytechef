@@ -406,9 +406,11 @@ class A2aAuditIntTest {
         @Bean
         AuditAspect auditAspect(
             ApplicationProperties applicationProperties, AuditEventService auditEventService,
-            AuditMapperResolver auditMapperResolver) {
+            AuditMapperResolver auditMapperResolver,
+            ObjectProvider<PlatformTransactionManager> transactionManagerProvider) {
 
-            return new AuditAspect(applicationProperties, auditEventService, auditMapperResolver);
+            return new AuditAspect(
+                applicationProperties, auditEventService, auditMapperResolver, transactionManagerProvider);
         }
 
         @Bean

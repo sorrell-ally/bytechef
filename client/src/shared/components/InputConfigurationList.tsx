@@ -4,6 +4,7 @@ import Button from '@/components/Button/Button';
 import {Collapsible, CollapsibleContent, CollapsibleTrigger} from '@/components/ui/collapsible';
 import {Label} from '@/components/ui/label';
 import Properties from '@/pages/platform/workflow-editor/components/properties/Properties';
+import WorkflowNodeOptionsSelect from '@/shared/components/WorkflowNodeOptionsSelect';
 import {ComponentConnection} from '@/shared/middleware/automation/configuration';
 import {
     ComponentDefinition,
@@ -34,6 +35,7 @@ interface InputConfigurationListProps {
     control: Control<FieldValues>;
     controlPath: string;
     duplicateSubflowStubs?: SubflowDuplicateStubI[];
+    emptyStateMessage?: string;
     formState: FormState<FieldValues>;
     inputs?: WorkflowInput[];
     onOpenInputs?: () => void;
@@ -85,7 +87,7 @@ const createDanglingPlaceholder = (input: WorkflowInput): PropertyAllType =>
         type: PropertyType.String,
     }) as PropertyAllType;
 
-interface ResolvedComponentInputGroupI {
+export interface ResolvedComponentInputGroupI {
     label?: string;
     members: PropertyAllType[];
     name: string;
@@ -144,8 +146,8 @@ const countSubflowNodeInputs = (node: SubflowInputTreeNodeI): number => {
     return count;
 };
 
-const convertInputToProperty = (input: WorkflowInput): PropertyAllType => {
-    switch (input.type) {
+export const convertInputToProperty = (input: WorkflowInput): PropertyAllType => {
+    switch (input.type?.toLowerCase()) {
         case 'boolean':
             return {...input, controlType: ControlType.Select, type: PropertyType.Boolean} as PropertyAllType;
         case 'date':
@@ -244,21 +246,12 @@ const ComponentReferenceDynamicSelect = ({
                 control={control}
                 name={`${controlPath}.${valuePropertyName ?? property.name}`}
                 render={({field}) => (
-                    <select
-                        className="flex h-9 w-full rounded-md border border-stroke-neutral-secondary bg-surface-neutral-primary px-3 py-1 text-sm text-content-neutral-primary"
-                        onChange={(event) => field.onChange(event.target.value)}
-                        value={field.value ?? ''}
-                    >
-                        <option disabled value="">
-                            {isLoading ? 'Loading...' : 'Select...'}
-                        </option>
-
-                        {(options ?? []).map((option) => (
-                            <option key={String(option.value)} value={String(option.value)}>
-                                {option.label ?? String(option.value)}
-                            </option>
-                        ))}
-                    </select>
+                    <WorkflowNodeOptionsSelect
+                        isLoading={isLoading}
+                        onChange={field.onChange}
+                        options={options}
+                        value={field.value}
+                    />
                 )}
             />
 
@@ -641,6 +634,7 @@ const InputConfigurationList = ({
     control,
     controlPath,
     duplicateSubflowStubs,
+    emptyStateMessage,
     formState,
     inputs,
     onOpenInputs,
@@ -690,8 +684,18 @@ const InputConfigurationList = ({
     }, [inputs, duplicateSubflowStubs]);
 
     if (!referenceInputs.length && !regularInputs.length && !subflowInputTree.size && !topLevelStubs.length) {
+        if (emptyStateMessage) {
+            return (
+                <div className="flex flex-col items-center gap-2">
+                    <h3 className="font-medium text-content-neutral-primary">No Inputs yet</h3>
+
+                    <p className="text-sm text-content-neutral-secondary">{emptyStateMessage}</p>
+                </div>
+            );
+        }
+
         if (!onOpenInputs) {
-            return <p className="p-4 text-center text-sm text-content-neutral-secondary">No Inputs yet</p>;
+            return <p className="text-sm">No Inputs yet</p>;
         }
 
         return (

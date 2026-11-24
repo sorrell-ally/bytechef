@@ -53,7 +53,7 @@ describe('ConnectDialog', () => {
                     {
                         name: 'input1',
                         label: 'Input 1',
-                        type: 'string' as const,
+                        type: 'STRING' as const,
                         value: 'test value',
                     },
                 ],
@@ -286,6 +286,64 @@ describe('ConnectDialog', () => {
             expect(screen.getByText('INPUTS')).toBeInTheDocument();
             expect(screen.getByLabelText('Input 1')).toBeInTheDocument();
         });
+
+        it('shows and copies the webhook URL of an enabled workflow', async () => {
+            const writeTextMock = vi.fn().mockResolvedValue(undefined);
+
+            Object.assign(navigator, {clipboard: {writeText: writeTextMock}});
+
+            const webhookUrl = 'https://bytechef.example.com/webhooks/abc';
+
+            render(
+                <ConnectDialog
+                    {...editConnectionProps}
+                    mergedWorkflows={[{...editConnectionProps.mergedWorkflows[0], staticWebhookUrl: webhookUrl}]}
+                />
+            );
+
+            const workflowItem = screen.getByText('Test Workflow').closest('li') as HTMLElement;
+
+            expect(within(workflowItem).getByText(webhookUrl)).toBeInTheDocument();
+
+            fireEvent.click(within(workflowItem).getByRole('button', {name: 'Copy webhook URL'}));
+
+            expect(writeTextMock).toHaveBeenCalledWith(webhookUrl);
+            expect(await within(workflowItem).findByRole('button', {name: 'Copied'})).toBeInTheDocument();
+        });
+
+        it('explains the webhook URL in a tooltip', () => {
+            render(
+                <ConnectDialog
+                    {...editConnectionProps}
+                    mergedWorkflows={[
+                        {
+                            ...editConnectionProps.mergedWorkflows[0],
+                            staticWebhookUrl: 'https://bytechef.example.com/webhooks/abc',
+                        },
+                    ]}
+                />
+            );
+
+            expect(screen.getByRole('button', {name: 'About the webhook URL'})).toHaveAccessibleDescription(
+                /start this workflow/
+            );
+        });
+
+        it('hides the webhook URL of a disabled workflow', () => {
+            const webhookUrl = 'https://bytechef.example.com/webhooks/abc';
+
+            render(
+                <ConnectDialog
+                    {...editConnectionProps}
+                    mergedWorkflows={[
+                        {...editConnectionProps.mergedWorkflows[0], enabled: false, staticWebhookUrl: webhookUrl},
+                    ]}
+                />
+            );
+
+            expect(screen.queryByText('WEBHOOK URL')).not.toBeInTheDocument();
+            expect(screen.queryByText(webhookUrl)).not.toBeInTheDocument();
+        });
     });
 
     describe('Form Validation UI Tests', () => {
@@ -485,6 +543,67 @@ describe('ConnectDialog', () => {
 
             expect(within(toolsContainer).getByText('sendEmail')).toBeInTheDocument();
         });
+
+        it('shows the tools without tabs or workflows when toolsOnly is set', () => {
+            render(
+                <ConnectDialog
+                    {...editConnectionProps}
+                    mergedMcpTools={[{enabled: true, id: 1051, label: 'Send Email', name: 'sendEmail'}]}
+                    toolsOnly
+                />
+            );
+
+            expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
+            expect(screen.queryByText('Test Workflow')).not.toBeInTheDocument();
+            expect(within(screen.getByTestId('tools-container')).getByText('Send Email')).toBeInTheDocument();
+        });
+
+        it('shows the tools container instead of the workflows when toolsOnly is set and there are no tools', () => {
+            render(<ConnectDialog {...editConnectionProps} toolsOnly />);
+
+            expect(screen.queryByText('Test Workflow')).not.toBeInTheDocument();
+            expect(screen.getByTestId('tools-container')).toBeInTheDocument();
+        });
+    });
+
+    describe('Field Mapping Tests', () => {
+        it('renders the field mapping UI for a FIELD_MAPPING input', async () => {
+            const executeAction = vi.fn();
+            const getObjectTypes = vi.fn().mockResolvedValue([{label: 'Contacts', value: 'contacts'}]);
+
+            render(
+                <ConnectDialog
+                    {...editConnectionProps}
+                    executeAction={executeAction}
+                    mapObjectFields={{
+                        Contacts: {
+                            applicationFields: {fields: [{label: 'Email', value: 'email'}]},
+                            integrationFields: {get: vi.fn().mockResolvedValue([])},
+                            objectTypes: {get: getObjectTypes},
+                        },
+                    }}
+                    mergedWorkflows={[
+                        {
+                            enabled: true,
+                            inputs: [
+                                {
+                                    label: 'Contact Mapping',
+                                    name: 'contactMapping',
+                                    objectName: 'Contacts',
+                                    type: 'FIELD_MAPPING',
+                                },
+                            ],
+                            label: 'Test Workflow',
+                            workflowUuid: 'workflow-123',
+                        },
+                    ]}
+                />
+            );
+
+            expect(await screen.findByRole('option', {name: 'Contacts'})).toBeInTheDocument();
+            expect(screen.getByText('Email')).toBeInTheDocument();
+            expect(getObjectTypes).toHaveBeenCalledWith(expect.objectContaining({executeAction}));
+        });
     });
 
     describe('Form Submission Tests', () => {
@@ -494,7 +613,7 @@ describe('ConnectDialog', () => {
             const props = {
                 ...createConnectionProps,
                 integration: {name: 'Test Integration'} as IntegrationType,
-                properties: [{name: 'field1', label: 'Field 1', type: 'string'} as PropertyType],
+                properties: [{name: 'field1', label: 'Field 1', type: 'STRING'} as PropertyType],
                 form: createFormMock(),
                 handleClick: handleClickMock,
             };

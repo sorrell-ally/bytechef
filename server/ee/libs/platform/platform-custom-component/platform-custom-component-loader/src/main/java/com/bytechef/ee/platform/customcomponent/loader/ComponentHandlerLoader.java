@@ -8,13 +8,10 @@
 package com.bytechef.ee.platform.customcomponent.loader;
 
 import com.bytechef.component.ComponentHandler;
+import com.bytechef.component.definition.ComponentDefinition;
 import com.bytechef.ee.platform.customcomponent.configuration.domain.CustomComponent.Language;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import java.io.IOException;
-import java.net.URISyntaxException;
+import com.bytechef.platform.component.polyglot.AbstractHandlerLoader;
 import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import org.springframework.cache.CacheManager;
 
 /**
@@ -22,54 +19,50 @@ import org.springframework.cache.CacheManager;
  *
  * @author Ivica Cardic
  */
-public class ComponentHandlerLoader {
+public class ComponentHandlerLoader extends AbstractHandlerLoader<ComponentHandler> {
 
-    /**
-     * Security Note: PATH_TRAVERSAL_IN - URL comes from internal file storage after admin upload, not direct user
-     * input. Access is controlled through admin-only upload permissions.
-     */
-    @SuppressFBWarnings("PATH_TRAVERSAL_IN")
+    private static final ComponentHandlerLoader INSTANCE = new ComponentHandlerLoader();
+
+    private ComponentHandlerLoader() {
+    }
+
     public static ComponentHandler loadComponentHandler(
         URL url, Language language, String cacheKey, CacheManager cacheManager) {
 
-        try {
-            return switch (language) {
-                case JAVA -> loadJavaComponentHandler(url, cacheKey, cacheManager);
-                case JAVASCRIPT, PYTHON, RUBY -> loadPolyglotComponentHandler(url, language);
-            };
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+        return INSTANCE.loadHandler(url, language, cacheKey, cacheManager);
+    }
+
+    public static ComponentDefinition loadComponentDefinition(URL url, Language language) {
+        ComponentDefinition componentDefinition;
+
+        if (language == Language.JAVA) {
+            ComponentHandlerClassLoader componentHandlerClassLoader = ComponentHandlerClassLoader.of(
+                url, url.toString(), null);
+
+            componentDefinition = componentHandlerClassLoader.loadComponentDefinition();
+        } else {
+            ComponentHandler componentHandler = INSTANCE.loadHandler(url, language, url.toString(), null);
+
+            componentDefinition = componentHandler.getDefinition();
         }
-    }
 
-    private static ComponentHandler loadJavaComponentHandler(
-        URL url, String cacheKey, CacheManager cacheManager) throws IOException {
-
-        try (ComponentHandlerClassLoader codeComponentHandlerClassLoader = ComponentHandlerClassLoader.of(
-            url, cacheKey, cacheManager)) {
-
-            return codeComponentHandlerClassLoader.loadComponentHandler();
+        if (componentDefinition == null) {
+            throw new IllegalArgumentException("No component handler found in " + url);
         }
+
+        return componentDefinition;
     }
 
-    /**
-     * Security Note: PATH_TRAVERSAL_IN - URL comes from internal file storage after admin upload, not direct user
-     * input.
-     */
-    @SuppressFBWarnings("PATH_TRAVERSAL_IN")
-    private static ComponentHandler loadPolyglotComponentHandler(URL url, Language language)
-        throws URISyntaxException, IOException {
+    @Override
+    protected ComponentHandler loadJavaHandler(URL url, String cacheKey, CacheManager cacheManager) {
+        ComponentHandlerClassLoader componentHandlerClassLoader =
+            ComponentHandlerClassLoader.of(url, cacheKey, cacheManager);
 
-        return ComponentHandlerPolyglotEngine.load(getLanguageId(language), Files.readString(Paths.get(url.toURI())));
+        return componentHandlerClassLoader.loadHandler();
     }
 
-    private static String getLanguageId(Language language) {
-        return switch (language) {
-//            case JAVA -> "java";
-            case JAVASCRIPT -> "js";
-            case PYTHON -> "python";
-            case RUBY -> "ruby";
-            default -> throw new IllegalArgumentException("Unsupported language: " + language);
-        };
+    @Override
+    protected ComponentHandler loadPolyglotHandler(String languageId, String script) {
+        return ComponentHandlerPolyglotEngine.load(languageId, script);
     }
 }

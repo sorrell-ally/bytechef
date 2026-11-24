@@ -4,6 +4,7 @@ import LoadingIcon from '@/components/LoadingIcon';
 import IntegrationInstanceConfigurationDialog from '@/ee/pages/embedded/integration-instance-configurations/components/integration-instance-configuration-dialog/IntegrationInstanceConfigurationDialog';
 import IntegrationInstanceConfigurationList from '@/ee/pages/embedded/integration-instance-configurations/components/integration-instance-configuration-list/IntegrationInstanceConfigurationList';
 import IntegrationPublishDialog from '@/ee/pages/embedded/integrations/components/IntegrationPublishDialog';
+import {isIntegrationConfigurable} from '@/ee/pages/embedded/shared/integrationPublication';
 import {Integration, IntegrationInstanceConfiguration} from '@/ee/shared/middleware/embedded/configuration';
 import {useGetComponentDefinitionsQuery} from '@/ee/shared/queries/embedded/componentDefinitions.queries';
 import {useGetIntegrationInstanceConfigurationTagsQuery} from '@/ee/shared/queries/embedded/integrationInstanceConfigurationTags.queries';
@@ -63,7 +64,7 @@ const IntegrationInstanceConfigurationsPanel = ({
         [integrationInstanceConfigurations]
     );
 
-    const isPublished = !!(integration.lastPublishedDate && integration.lastIntegrationVersion);
+    const isConfigurable = isIntegrationConfigurable(integration);
 
     const integrationInstanceConfigurationsLoadFailed =
         !!integrationInstanceConfigurationsError && integrationInstanceConfigurations === undefined;
@@ -103,7 +104,7 @@ const IntegrationInstanceConfigurationsPanel = ({
             {!integrationInstanceConfigurationsIsLoading &&
                 !integrationInstanceConfigurationsLoadFailed &&
                 sortedIntegrationInstanceConfigurations.length === 0 &&
-                (isPublished ? (
+                (isConfigurable ? (
                     <EmptyState
                         actions={
                             <IntegrationInstanceConfigurationDialog
@@ -113,26 +114,17 @@ const IntegrationInstanceConfigurationsPanel = ({
                                         integrationId: integration.id,
                                     } as IntegrationInstanceConfiguration
                                 }
-                                triggerNode={<Button label="Create Configuration" />}
+                                triggerNode={<Button icon={<Settings2Icon />} label="Configure" />}
                             />
                         }
-                        description="Create an instance configuration to run this integration's workflows here."
+                        description="Configure this integration to run its workflows here."
                         icon={<Settings2Icon />}
                         title="No configurations in Development"
                     />
                 ) : (
                     <EmptyState
-                        actions={
-                            <PublishButton
-                                disabledReason={
-                                    integration.integrationWorkflowIds?.length
-                                        ? undefined
-                                        : 'Add a workflow before publishing the integration.'
-                                }
-                                onClick={() => setShowPublishIntegrationDialog(true)}
-                            />
-                        }
-                        description="Instance configurations run a published version of an integration. Publish this integration to create its first version."
+                        actions={<PublishButton onClick={() => setShowPublishIntegrationDialog(true)} />}
+                        description="Configurations run a published, read-only version of an integration. Publish this integration to create its first version."
                         icon={<SendIcon />}
                         title="Publish the integration to configure it"
                     />
@@ -146,10 +138,12 @@ const IntegrationInstanceConfigurationsPanel = ({
                 >
                     <IntegrationInstanceConfigurationList
                         componentDefinitions={componentDefinitions}
+                        divided
                         expandAll
                         integration={integration}
                         integrationInstanceConfigurations={sortedIntegrationInstanceConfigurations}
                         showIntegrationIcon={false}
+                        showOpenInIntegration
                         showTags={false}
                         tags={tags ?? []}
                         taskDispatcherDefinitions={taskDispatcherDefinitions}

@@ -1,9 +1,11 @@
 import Button from '@/components/Button/Button';
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '@/components/ui/table';
+import formatWorkflowInputTestValue from '@/pages/platform/workflow-editor/components/workflow-inputs/utils/formatWorkflowInputTestValue';
 import {WorkflowInput, WorkflowTestConfiguration} from '@/shared/middleware/platform/configuration';
 import {EditIcon, Trash2Icon} from 'lucide-react';
 
 interface WorkflowInputsTableProps {
+    codeWorkflow?: boolean;
     internalOnlyVisible?: boolean;
     openDeleteDialog: (index: number) => void;
     openEditDialog: (index?: number) => void;
@@ -12,6 +14,7 @@ interface WorkflowInputsTableProps {
 }
 
 const WorkflowInputsTable = ({
+    codeWorkflow,
     internalOnlyVisible,
     openDeleteDialog,
     openEditDialog,
@@ -41,7 +44,8 @@ const WorkflowInputsTable = ({
 
         <TableBody>
             {workflowInputs?.map((input, index) => {
-                const testValue = workflowTestConfigurationInputs?.[input.name]?.toString();
+                const inputType = input.componentReference ? 'component' : input.type;
+                const testValue = formatWorkflowInputTestValue(workflowTestConfigurationInputs?.[input.name]);
 
                 return (
                     <TableRow className="cursor-pointer border-b-border/50" key={`${input.name}-${index}`}>
@@ -53,8 +57,8 @@ const WorkflowInputsTable = ({
                             {input.label}
                         </TableCell>
 
-                        <TableCell className="truncate" title={input.type}>
-                            {input.type}
+                        <TableCell className="truncate" title={inputType}>
+                            {inputType}
                         </TableCell>
 
                         <TableCell>{input.required === true ? 'true' : 'false'}</TableCell>
@@ -67,18 +71,22 @@ const WorkflowInputsTable = ({
 
                         <TableCell className="flex justify-end">
                             <Button
+                                aria-label="Edit input"
                                 icon={<EditIcon />}
                                 onClick={() => openEditDialog(index)}
                                 size="icon"
                                 variant="ghost"
                             />
 
-                            <Button
-                                icon={<Trash2Icon className="text-destructive" />}
-                                onClick={() => openDeleteDialog(index)}
-                                size="icon"
-                                variant="ghost"
-                            />
+                            {!codeWorkflow && (
+                                <Button
+                                    aria-label="Delete input"
+                                    icon={<Trash2Icon className="text-destructive" />}
+                                    onClick={() => openDeleteDialog(index)}
+                                    size="icon"
+                                    variant="ghost"
+                                />
+                            )}
                         </TableCell>
                     </TableRow>
                 );

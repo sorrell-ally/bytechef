@@ -27,8 +27,8 @@ Software, all on `PATH`:
 
 - `git`
 - Docker Engine with the Compose plugin (`docker compose version` works) and a user allowed to run `docker`
-- JDK 25 (Temurin 25 is what the project is developed on)
-- Node.js 24 or newer, with `npm`
+- JDK 25. CI builds with GraalVM Community 25.2.4, and the server image starts from `ghcr.io/graalvm/jdk-community:25i2-25.0.4`
+- Node.js 24.15.0 or newer, with `npm` (`client/.nvmrc` and `client/package.json` `engines`)
 - `curl`, `openssl`
 
 Check before continuing; every command must succeed:
@@ -212,7 +212,7 @@ docker compose down -v
 | Symptom | Likely cause |
 |---|---|
 | Build killed, exit 137 or 143 | Not enough memory; use a 16 GB machine |
-| `Node.js ... is not supported for building the client` | Node older than 24 |
+| `Node.js ... is not supported for building the client` | Node older than 24. `docker-build.sh` still accepts any Node 24, but the client toolchain requires 24.15.0 (`client/.nvmrc`) |
 | `bytechef` container restarts in a loop | Read `docker compose logs bytechef`; usually a failed migration or a Spring bean conflict. Report the first stack trace |
 | No "Single Sign-On" in settings, no "Git Sync" on projects | `BYTECHEF_EDITION` is not `CE`, or the signed-in user is not an admin |
 | SSO settings page says the feature is disabled | `BYTECHEF_SECURITY_SSO_ENABLED` is not `true` |

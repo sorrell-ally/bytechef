@@ -142,9 +142,23 @@ public class ActionDefinitionServiceImpl implements ActionDefinitionService {
         String propertyName, Map<String, ?> inputParameters, List<String> lookupDependsOnPaths, String searchText,
         @ConnectionParam @Nullable ComponentConnection componentConnection) {
 
+        return executeOptions(
+            componentName, componentVersion, actionName, propertyName, inputParameters, lookupDependsOnPaths,
+            searchText, componentConnection, null);
+    }
+
+    @Override
+    @WithTokenRefresh(
+        errorTypeClass = ActionDefinitionErrorType.class,
+        errorTypeField = "EXECUTE_OPTIONS")
+    public List<Option> executeOptions(
+        @ComponentNameParam String componentName, int componentVersion, String actionName,
+        String propertyName, Map<String, ?> inputParameters, List<String> lookupDependsOnPaths, String searchText,
+        @ConnectionParam @Nullable ComponentConnection componentConnection, @Nullable String workflowId) {
+
         ActionContext actionContext = contextFactory.createActionContext(
-            componentName, componentVersion, actionName, null, null, null, null, null, componentConnection, null, null,
-            true);
+            componentName, componentVersion, actionName, null, null, null, null, workflowId, componentConnection, null,
+            null, true);
 
         return doExecuteOptions(
             componentName, componentVersion, actionName, propertyName, inputParameters, lookupDependsOnPaths,
@@ -160,11 +174,26 @@ public class ActionDefinitionServiceImpl implements ActionDefinitionService {
         String propertyName, Map<String, ?> inputParameters, List<String> lookupDependsOnPaths, String searchText,
         @ConnectionParam Map<String, ComponentConnection> componentConnections, Map<String, ?> extensions) {
 
+        return executeOptions(
+            componentName, componentVersion, actionName, propertyName, inputParameters, lookupDependsOnPaths,
+            searchText, componentConnections, extensions, null);
+    }
+
+    @Override
+    @WithTokenRefresh(
+        errorTypeClass = ActionDefinitionErrorType.class,
+        errorTypeField = "EXECUTE_OPTIONS")
+    public List<Option> executeOptions(
+        @ComponentNameParam String componentName, int componentVersion, String actionName,
+        String propertyName, Map<String, ?> inputParameters, List<String> lookupDependsOnPaths, String searchText,
+        @ConnectionParam Map<String, ComponentConnection> componentConnections, Map<String, ?> extensions,
+        @Nullable String workflowId) {
+
         ComponentConnection firstComponentConnection = getFirstComponentConnection(componentConnections);
 
         ActionContext actionContext = contextFactory.createActionContext(
-            componentName, componentVersion, actionName, null, null, null, null, null, firstComponentConnection, null,
-            null, true);
+            componentName, componentVersion, actionName, null, null, null, null, workflowId, firstComponentConnection,
+            null, null, true);
 
         return doExecuteMultipleConnectionsOptions(
             componentName, componentVersion, actionName, propertyName, inputParameters, lookupDependsOnPaths,
@@ -178,6 +207,18 @@ public class ActionDefinitionServiceImpl implements ActionDefinitionService {
     public @Nullable OutputResponse executeOutput(
         @ComponentNameParam String componentName, int componentVersion, String actionName,
         Map<String, ?> inputParameters, @ConnectionParam Map<String, ComponentConnection> componentConnections) {
+
+        return executeOutput(componentName, componentVersion, actionName, inputParameters, componentConnections, null);
+    }
+
+    @Override
+    @WithTokenRefresh(
+        errorTypeClass = ActionDefinitionErrorType.class,
+        errorTypeField = "EXECUTE_OUTPUT")
+    public @Nullable OutputResponse executeOutput(
+        @ComponentNameParam String componentName, int componentVersion, String actionName,
+        Map<String, ?> inputParameters, @ConnectionParam Map<String, ComponentConnection> componentConnections,
+        @Nullable String workflowId) {
 
         BaseOutputFunction baseOutputFunction = (BaseOutputFunction) componentDefinitionRegistry
             .getActionDefinition(componentName, componentVersion, actionName)
@@ -193,14 +234,15 @@ public class ActionDefinitionServiceImpl implements ActionDefinitionService {
             ComponentConnection firstComponentConnection = getFirstComponentConnection(componentConnections);
 
             ActionContext actionContext = contextFactory.createActionContext(
-                componentName, componentVersion, actionName, null, null, null, null, null, firstComponentConnection,
-                null, null, true);
+                componentName, componentVersion, actionName, null, null, null, null, workflowId,
+                firstComponentConnection, null, null, true);
 
             return executeSingleConnectionOutput(
                 outputFunction, inputParameters, firstComponentConnection, actionContext);
         } else {
             ActionContext actionContext = contextFactory.createActionContext(
-                componentName, componentVersion, actionName, null, null, null, null, null, null, null, null, true);
+                componentName, componentVersion, actionName, null, null, null, null, workflowId, null, null, null,
+                true);
 
             return executeMultipleConnectionsOutput(
                 (MultipleConnectionsOutputFunction) baseOutputFunction, inputParameters, componentConnections, Map.of(),
@@ -340,15 +382,32 @@ public class ActionDefinitionServiceImpl implements ActionDefinitionService {
     public Object executePerformForPolyglot(
         @ComponentNameParam String componentName, int componentVersion, String actionName,
         Map<String, ?> inputParameters, @ConnectionParam @Nullable ComponentConnection componentConnection,
+        Map<String, ? extends ComponentConnection> componentConnections, Map<String, ?> extensions,
         @Nullable Long environmentId, ActionContext context) {
 
-        PerformFunction performFunction =
-            (PerformFunction) componentDefinitionRegistry
-                .getActionDefinition(componentName, componentVersion, actionName)
-                .getPerform()
-                .orElseThrow(() -> new IllegalArgumentException("Perform function is not defined."));
+        BasePerformFunction basePerformFunction = componentDefinitionRegistry
+            .getActionDefinition(componentName, componentVersion, actionName)
+            .getPerform()
+            .orElseThrow(() -> new IllegalArgumentException("Perform function is not defined."));
 
-        return executeSingleConnectionPerform(performFunction, inputParameters, componentConnection, context);
+        if (basePerformFunction instanceof PerformFunction performFunction) {
+            return executeSingleConnectionPerform(performFunction, inputParameters, componentConnection, context);
+        }
+
+        if (basePerformFunction instanceof MultipleConnectionsPerformFunction performFunction) {
+            Map<String, ComponentConnection> connections = new HashMap<>(componentConnections);
+
+            if (componentConnection != null) {
+                connections.putIfAbsent(componentName, componentConnection);
+            }
+
+            return executeMultipleConnectionsPerform(
+                performFunction, inputParameters, connections, extensions, context);
+        }
+
+        throw new IllegalArgumentException(
+            ("Action %s of component %s cannot be invoked from code: its perform streams its result to a sink that "
+                + "only a workflow node provides").formatted(actionName, componentName));
     }
 
     @Override

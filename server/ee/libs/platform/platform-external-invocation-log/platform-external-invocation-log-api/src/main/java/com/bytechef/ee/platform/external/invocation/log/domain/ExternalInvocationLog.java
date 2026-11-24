@@ -9,8 +9,8 @@ package com.bytechef.ee.platform.external.invocation.log.domain;
 
 import com.bytechef.platform.constant.PlatformType;
 import com.bytechef.platform.external.invocation.ExternalInvocationKind;
-import com.bytechef.platform.external.invocation.ExternalInvocationOutcome;
 import com.bytechef.platform.external.invocation.ExternalInvocationSource;
+import com.bytechef.platform.external.invocation.ExternalInvocationStatus;
 import java.time.Instant;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
@@ -38,8 +38,8 @@ public class ExternalInvocationLog {
     @Column("kind")
     private int kind;
 
-    @Column("tool_name")
-    private String toolName;
+    @Column("invocation_name")
+    private String invocationName;
 
     @Column("component_name")
     private String componentName;
@@ -77,8 +77,8 @@ public class ExternalInvocationLog {
     @Column("job_id")
     private Long jobId;
 
-    @Column("outcome")
-    private int outcome;
+    @Column("status")
+    private int status;
 
     @Column("error_type")
     private String errorType;
@@ -111,8 +111,8 @@ public class ExternalInvocationLog {
         return ExternalInvocationKind.values()[kind];
     }
 
-    public @Nullable String getToolName() {
-        return toolName;
+    public @Nullable String getInvocationName() {
+        return invocationName;
     }
 
     public @Nullable String getComponentName() {
@@ -163,8 +163,8 @@ public class ExternalInvocationLog {
         return jobId;
     }
 
-    public ExternalInvocationOutcome getOutcome() {
-        return ExternalInvocationOutcome.values()[outcome];
+    public ExternalInvocationStatus getStatus() {
+        return ExternalInvocationStatus.values()[status];
     }
 
     public @Nullable String getErrorType() {
@@ -199,8 +199,8 @@ public class ExternalInvocationLog {
         this.kind = kind.ordinal();
     }
 
-    public void setToolName(String toolName) {
-        this.toolName = toolName;
+    public void setInvocationName(String invocationName) {
+        this.invocationName = invocationName;
     }
 
     public void setComponentName(String componentName) {
@@ -251,8 +251,8 @@ public class ExternalInvocationLog {
         this.jobId = jobId;
     }
 
-    public void setOutcome(ExternalInvocationOutcome outcome) {
-        this.outcome = outcome.ordinal();
+    public void setStatus(ExternalInvocationStatus status) {
+        this.status = status.ordinal();
     }
 
     public void setErrorType(String errorType) {
@@ -296,8 +296,8 @@ public class ExternalInvocationLog {
             ", type=" + type +
             ", source=" + source +
             ", kind=" + kind +
-            ", toolName='" + toolName + '\'' +
-            ", outcome=" + outcome +
+            ", invocationName='" + invocationName + '\'' +
+            ", status=" + status +
             ", durationMs=" + durationMs +
             '}';
     }

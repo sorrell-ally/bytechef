@@ -18,6 +18,7 @@ package com.bytechef.atlas.configuration.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyIterable;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doThrow;
@@ -37,6 +38,8 @@ import com.bytechef.liquibase.config.LiquibaseConfiguration;
 import com.bytechef.tenant.util.TenantCacheKeyUtils;
 import com.bytechef.test.config.jdbc.AbstractIntTestJdbcConfiguration;
 import com.bytechef.test.config.testcontainers.PostgreSQLContainerConfiguration;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -58,6 +61,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.data.jdbc.repository.config.EnableJdbcAuditing;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 /**
@@ -80,8 +84,16 @@ public class WorkflowServiceIntTest {
     private static final String WORKFLOW_CACHE = WorkflowService.class.getName() + ".workflow";
     private static final String WORKFLOWS_CACHE = WorkflowService.class.getName() + ".workflows";
 
+    private static final String BACKDATED_CREATED_BY = "creator@localhost.com";
+    private static final Instant BACKDATED_CREATED_DATE = Instant.parse("2026-01-02T03:04:05Z");
+    private static final String BACKDATED_LAST_MODIFIED_BY = "modifier@localhost.com";
+    private static final Instant BACKDATED_LAST_MODIFIED_DATE = Instant.parse("2026-02-03T04:05:06Z");
+
     @Autowired
     private RecordingCacheManager cacheManager;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @MockitoSpyBean
     private JdbcWorkflowRepository jdbcWorkflowRepository;
@@ -235,6 +247,80 @@ public class WorkflowServiceIntTest {
     }
 
     @Test
+    public void testGetWorkflowsReturnsOnlyTheGivenWorkflowsWithoutLoadingAll() {
+        Workflow firstWorkflow = workflowCrudRepository.save(getWorkflow());
+        Workflow secondWorkflow = workflowCrudRepository.save(getWorkflow());
+
+        workflowCrudRepository.save(getWorkflow());
+
+        String firstWorkflowId = Validate.notNull(firstWorkflow.getId(), "id");
+        String secondWorkflowId = Validate.notNull(secondWorkflow.getId(), "id");
+
+        clearInvocations(probingWorkflowRepository, jdbcWorkflowRepository);
+
+        List<Workflow> workflows = workflowService.getWorkflows(
+            List.of(firstWorkflowId, secondWorkflowId, "missing-" + System.nanoTime()));
+
+        assertThat(workflows).extracting(Workflow::getId)
+            .containsExactlyInAnyOrder(firstWorkflowId, secondWorkflowId);
+        assertThat(workflows).allSatisfy(
+            workflow -> assertThat(workflow.getSourceType()).isEqualTo(Workflow.SourceType.JDBC));
+
+        verify(probingWorkflowRepository, never()).findAll();
+
+        WorkflowRepository jdbcRepository = jdbcWorkflowRepository;
+
+        verify(jdbcRepository, never()).findAll();
+        verify(jdbcRepository, never()).findById(anyString());
+    }
+
+    @Test
+    public void testGetWorkflowsReturnsCachedWorkflowsWithoutQueryingRepositories() {
+        Workflow workflow = workflowCrudRepository.save(getWorkflow());
+
+        String workflowId = Validate.notNull(workflow.getId(), "id");
+
+        assertThat(workflowService.getWorkflows(List.of(workflowId))).hasSize(1);
+
+        workflowCrudRepository.deleteById(workflowId);
+
+        clearInvocations(probingWorkflowRepository, jdbcWorkflowRepository);
+
+        assertThat(workflowService.getWorkflows(List.of(workflowId))).extracting(Workflow::getId)
+            .containsExactly(workflowId);
+
+        verify(probingWorkflowRepository, never()).findAllById(anyIterable());
+
+        WorkflowRepository jdbcRepository = jdbcWorkflowRepository;
+
+        verify(jdbcRepository, never()).findAllById(anyIterable());
+    }
+
+    @Test
+    public void testGetWorkflowsFallsBackToLaterRepositoryWhenEarlierThrows() {
+        Workflow workflow = workflowCrudRepository.save(getWorkflow());
+
+        String workflowId = Validate.notNull(workflow.getId(), "id");
+
+        doThrow(new IllegalStateException("datasource unavailable")).when(probingWorkflowRepository)
+            .findAllById(anyIterable());
+
+        assertThat(workflowService.getWorkflows(List.of(workflowId))).extracting(Workflow::getId)
+            .containsExactly(workflowId);
+    }
+
+    @Test
+    public void testGetWorkflowsRethrowsRepositoryFailureWhenAWorkflowIsNotFound() {
+        IllegalStateException failure = new IllegalStateException("datasource unavailable");
+
+        doThrow(failure).when(probingWorkflowRepository)
+            .findAllById(anyIterable());
+
+        assertThatThrownBy(() -> workflowService.getWorkflows(List.of("missing-" + System.nanoTime())))
+            .isSameAs(failure);
+    }
+
+    @Test
     public void testUpdateEvictsWorkflowEntriesNotCachedLocally() {
         Workflow workflow = workflowCrudRepository.save(getWorkflow());
 
@@ -251,6 +337,40 @@ public class WorkflowServiceIntTest {
     }
 
     @Test
+    public void testDuplicateWorkflowPreservingAuditKeepsSourceAuditFields() {
+        Workflow workflow = workflowCrudRepository.save(getWorkflow());
+
+        String workflowId = Validate.notNull(workflow.getId(), "id");
+
+        backdateAuditFields(workflowId);
+
+        Workflow duplicatedWorkflow = workflowService.duplicateWorkflowPreservingAudit(workflowId);
+
+        assertThat(duplicatedWorkflow.getId()).isNotEqualTo(workflowId);
+        assertThat(duplicatedWorkflow.getDefinition()).isEqualTo(workflow.getDefinition());
+        assertBackdatedAuditFields(duplicatedWorkflow);
+
+        Workflow persistedWorkflow = workflowCrudRepository.findById(duplicatedWorkflow.getId())
+            .orElseThrow();
+
+        assertBackdatedAuditFields(persistedWorkflow);
+    }
+
+    @Test
+    public void testDuplicateWorkflowStampsFreshAuditFields() {
+        Workflow workflow = workflowCrudRepository.save(getWorkflow());
+
+        String workflowId = Validate.notNull(workflow.getId(), "id");
+
+        backdateAuditFields(workflowId);
+
+        Workflow duplicatedWorkflow = workflowService.duplicateWorkflow(workflowId);
+
+        assertThat(duplicatedWorkflow.getCreatedDate()).isAfter(BACKDATED_CREATED_DATE);
+        assertThat(duplicatedWorkflow.getLastModifiedDate()).isAfter(BACKDATED_LAST_MODIFIED_DATE);
+    }
+
+    @Test
     public void testDeleteEvictsWorkflowEntries() {
         Workflow workflow = workflowCrudRepository.save(getWorkflow());
 
@@ -261,6 +381,23 @@ public class WorkflowServiceIntTest {
         assertWorkflowEntriesEvicted(workflowId);
 
         assertThat(workflowCrudRepository.findById(workflowId)).isEmpty();
+    }
+
+    private void backdateAuditFields(String workflowId) {
+        jdbcTemplate.update(
+            "UPDATE workflow SET created_by = ?, created_date = ?, last_modified_by = ?, last_modified_date = ? " +
+                "WHERE id = ?",
+            BACKDATED_CREATED_BY, Timestamp.from(BACKDATED_CREATED_DATE), BACKDATED_LAST_MODIFIED_BY,
+            Timestamp.from(BACKDATED_LAST_MODIFIED_DATE), workflowId);
+
+        cacheManager.clear();
+    }
+
+    private static void assertBackdatedAuditFields(Workflow workflow) {
+        assertThat(workflow.getCreatedBy()).isEqualTo(BACKDATED_CREATED_BY);
+        assertThat(workflow.getCreatedDate()).isEqualTo(BACKDATED_CREATED_DATE);
+        assertThat(workflow.getLastModifiedBy()).isEqualTo(BACKDATED_LAST_MODIFIED_BY);
+        assertThat(workflow.getLastModifiedDate()).isEqualTo(BACKDATED_LAST_MODIFIED_DATE);
     }
 
     private void assertWorkflowEntriesEvicted(String workflowId) {

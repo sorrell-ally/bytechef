@@ -20,10 +20,13 @@ import com.bytechef.platform.configuration.domain.Environment;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.util.unit.DataSize;
 
@@ -104,6 +107,11 @@ public class ApplicationProperties {
      * Data storage provider configuration
      */
     private DataStorage dataStorage;
+
+    /**
+     * Data table storage configuration
+     */
+    private DataTable dataTable = new DataTable();
 
     /**
      * Service discovery configuration
@@ -191,6 +199,11 @@ public class ApplicationProperties {
      * Static resources configuration
      */
     private Resources resources = new Resources();
+
+    /**
+     * Script execution configuration: the guest polyglot sandbox and the task runner allowlist.
+     */
+    private Script script = new Script();
 
     /**
      * Security configuration
@@ -296,6 +309,10 @@ public class ApplicationProperties {
         return dataStorage;
     }
 
+    public DataTable getDataTable() {
+        return dataTable;
+    }
+
     public DiscoveryService getDiscoveryService() {
         return discoveryService;
     }
@@ -366,6 +383,10 @@ public class ApplicationProperties {
 
     public Resources getResources() {
         return resources;
+    }
+
+    public Script getScript() {
+        return script;
     }
 
     public Security getSecurity() {
@@ -464,6 +485,10 @@ public class ApplicationProperties {
         this.dataStorage = dataStorage;
     }
 
+    public void setDataTable(DataTable dataTable) {
+        this.dataTable = dataTable;
+    }
+
     public void setDiscoveryService(DiscoveryService discoveryService) {
         this.discoveryService = discoveryService;
     }
@@ -534,6 +559,10 @@ public class ApplicationProperties {
 
     public void setResources(Resources resources) {
         this.resources = resources;
+    }
+
+    public void setScript(Script script) {
+        this.script = script;
     }
 
     public void setSecurity(Security security) {
@@ -3578,6 +3607,11 @@ public class ApplicationProperties {
         private ClaudeCode claudeCode = new ClaudeCode();
 
         /**
+         * Custom component configuration
+         */
+        private CustomComponent customComponent = new CustomComponent();
+
+        /**
          * Component registry configuration
          */
         private Registry registry = new Registry();
@@ -3586,12 +3620,20 @@ public class ApplicationProperties {
             return claudeCode;
         }
 
+        public CustomComponent getCustomComponent() {
+            return customComponent;
+        }
+
         public Registry getRegistry() {
             return registry;
         }
 
         public void setClaudeCode(ClaudeCode claudeCode) {
             this.claudeCode = claudeCode;
+        }
+
+        public void setCustomComponent(CustomComponent customComponent) {
+            this.customComponent = customComponent;
         }
 
         public void setRegistry(Registry registry) {
@@ -3681,6 +3723,43 @@ public class ApplicationProperties {
 
                 public void setTestRetention(Duration testRetention) {
                     this.testRetention = testRetention;
+                }
+            }
+        }
+
+        /**
+         * Custom component settings.
+         */
+        public static class CustomComponent {
+
+            private Java java = new Java();
+
+            public Java getJava() {
+                return java;
+            }
+
+            public void setJava(Java java) {
+                this.java = java;
+            }
+
+            /**
+             * Java custom component settings.
+             */
+            public static class Java {
+
+                /**
+                 * Whether uploading of Java (jar) custom components is enabled. When disabled, Java custom component
+                 * upload requests are rejected while other languages and previously uploaded Java custom components
+                 * keep working.
+                 */
+                private boolean enabled;
+
+                public boolean isEnabled() {
+                    return enabled;
+                }
+
+                public void setEnabled(boolean enabled) {
+                    this.enabled = enabled;
                 }
             }
         }
@@ -4081,6 +4160,25 @@ public class ApplicationProperties {
 
         public void setProvider(Provider provider) {
             this.provider = provider;
+        }
+    }
+
+    /**
+     * Data table storage configuration.
+     */
+    public static class DataTable {
+
+        /**
+         * Maximum total size in bytes of all data tables in a tenant. 0 means unlimited. Default 50 MB.
+         */
+        private long maxSizeBytes;
+
+        public long getMaxSizeBytes() {
+            return maxSizeBytes;
+        }
+
+        public void setMaxSizeBytes(long maxSizeBytes) {
+            this.maxSizeBytes = maxSizeBytes;
         }
     }
 
@@ -4682,7 +4780,7 @@ public class ApplicationProperties {
     public static class Oauth2 {
 
         /**
-         * Embedded OAuth2 authorization server configuration.
+         * Built-in OAuth2 authorization server configuration.
          */
         private AuthorizationServer authorizationServer = new AuthorizationServer();
 
@@ -4731,13 +4829,13 @@ public class ApplicationProperties {
         }
 
         /**
-         * Embedded OAuth2 authorization server configuration. When disabled (the default), the authorization server
-         * endpoints are not exposed.
+         * Built-in OAuth2 authorization server configuration. When disabled, the authorization server endpoints are not
+         * exposed.
          */
         public static class AuthorizationServer {
 
             /**
-             * Whether the embedded OAuth2 authorization server is enabled.
+             * Whether the built-in OAuth2 authorization server is enabled.
              */
             private boolean enabled;
 
@@ -5004,6 +5102,258 @@ public class ApplicationProperties {
 
         public void setWeb(String web) {
             this.web = web;
+        }
+    }
+
+    /**
+     * Script execution configuration.
+     */
+    public static class Script {
+
+        private Sandbox sandbox = new Sandbox();
+
+        private Trusted trusted = new Trusted();
+
+        private boolean injectConnections;
+
+        private RunnerLimits runnerLimits = new RunnerLimits();
+
+        private Map<String, Runner> runners = new HashMap<>();
+
+        public Runner findRunner(String type) {
+            if (runners == null) {
+                return null;
+            }
+
+            String canonicalType = toCanonicalName(type);
+
+            Runner configuredRunner = null;
+            Runner environmentRunner = null;
+
+            for (Map.Entry<String, Runner> entry : runners.entrySet()) {
+                String key = entry.getKey();
+
+                if (!canonicalType.equals(toCanonicalName(key))) {
+                    continue;
+                }
+
+                if (key.equals(canonicalType)) {
+                    environmentRunner = entry.getValue();
+                } else {
+                    configuredRunner = entry.getValue();
+                }
+            }
+
+            if (configuredRunner == null || environmentRunner == null) {
+                return environmentRunner == null ? configuredRunner : environmentRunner;
+            }
+
+            return Runner.merge(configuredRunner, environmentRunner);
+        }
+
+        public RunnerLimits getRunnerLimits() {
+            return runnerLimits;
+        }
+
+        public Map<String, Runner> getRunners() {
+            return runners;
+        }
+
+        public Sandbox getSandbox() {
+            return sandbox;
+        }
+
+        public Trusted getTrusted() {
+            return trusted;
+        }
+
+        public boolean isInjectConnections() {
+            return injectConnections;
+        }
+
+        public void setInjectConnections(boolean injectConnections) {
+            this.injectConnections = injectConnections;
+        }
+
+        public void setRunnerLimits(RunnerLimits runnerLimits) {
+            this.runnerLimits = runnerLimits;
+        }
+
+        public void setRunners(Map<String, Runner> runners) {
+            this.runners = runners;
+        }
+
+        public void setSandbox(Sandbox sandbox) {
+            this.sandbox = sandbox;
+        }
+
+        public void setTrusted(Trusted trusted) {
+            this.trusted = trusted;
+        }
+
+        private static String toCanonicalName(String name) {
+            StringBuilder sb = new StringBuilder(name.length());
+
+            for (char character : name.toCharArray()) {
+                if (Character.isLetterOrDigit(character)) {
+                    sb.append(Character.toLowerCase(character));
+                }
+            }
+
+            return sb.toString();
+        }
+
+        public static class Sandbox {
+
+            private boolean enabled;
+
+            private int maxConcurrentExecutions;
+
+            private Duration maxCpuTime;
+
+            private DataSize maxHeapMemory;
+
+            public int getMaxConcurrentExecutions() {
+                return maxConcurrentExecutions;
+            }
+
+            public Duration getMaxCpuTime() {
+                return maxCpuTime;
+            }
+
+            public DataSize getMaxHeapMemory() {
+                return maxHeapMemory;
+            }
+
+            public boolean isEnabled() {
+                return enabled;
+            }
+
+            public void setEnabled(boolean enabled) {
+                this.enabled = enabled;
+            }
+
+            public void setMaxConcurrentExecutions(int maxConcurrentExecutions) {
+                this.maxConcurrentExecutions = maxConcurrentExecutions;
+            }
+
+            public void setMaxCpuTime(Duration maxCpuTime) {
+                this.maxCpuTime = maxCpuTime;
+            }
+
+            public void setMaxHeapMemory(DataSize maxHeapMemory) {
+                this.maxHeapMemory = maxHeapMemory;
+            }
+        }
+
+        public static class Trusted {
+
+            private boolean enabled;
+
+            public boolean isEnabled() {
+                return enabled;
+            }
+
+            public void setEnabled(boolean enabled) {
+                this.enabled = enabled;
+            }
+        }
+
+        public static class Runner {
+
+            private Boolean enabled;
+
+            private Map<String, String> properties = new HashMap<>();
+
+            public Map<String, String> getProperties() {
+                return properties;
+            }
+
+            public Map<String, String> propertiesByCanonicalName() {
+                if (properties == null) {
+                    return Map.of();
+                }
+
+                Map<String, String> canonicalProperties = new TreeMap<>(
+                    Comparator.comparing(Script::toCanonicalName));
+
+                canonicalProperties.putAll(properties);
+
+                return Collections.unmodifiableMap(canonicalProperties);
+            }
+
+            public boolean isEnabled() {
+                return Boolean.TRUE.equals(enabled);
+            }
+
+            public void setEnabled(boolean enabled) {
+                this.enabled = enabled;
+            }
+
+            public void setProperties(Map<String, String> properties) {
+                this.properties = properties;
+            }
+
+            private static Runner merge(Runner lowerPrecedenceRunner, Runner higherPrecedenceRunner) {
+                Runner runner = new Runner();
+
+                runner.enabled = higherPrecedenceRunner.enabled == null
+                    ? lowerPrecedenceRunner.enabled : higherPrecedenceRunner.enabled;
+
+                Map<String, String> mergedProperties = new HashMap<>();
+
+                if (lowerPrecedenceRunner.properties != null) {
+                    mergedProperties.putAll(lowerPrecedenceRunner.properties);
+                }
+
+                if (higherPrecedenceRunner.properties != null) {
+                    for (Map.Entry<String, String> entry : higherPrecedenceRunner.properties.entrySet()) {
+                        String canonicalName = toCanonicalName(entry.getKey());
+
+                        mergedProperties.keySet()
+                            .removeIf(name -> toCanonicalName(name).equals(canonicalName));
+
+                        mergedProperties.put(entry.getKey(), entry.getValue());
+                    }
+                }
+
+                runner.properties = mergedProperties;
+
+                return runner;
+            }
+        }
+
+        public static class RunnerLimits {
+
+            private Duration maxWait;
+
+            private DataSize maxLogBytes;
+
+            private DataSize maxTransferBytes;
+
+            public DataSize getMaxLogBytes() {
+                return maxLogBytes;
+            }
+
+            public DataSize getMaxTransferBytes() {
+                return maxTransferBytes;
+            }
+
+            public Duration getMaxWait() {
+                return maxWait;
+            }
+
+            public void setMaxLogBytes(DataSize maxLogBytes) {
+                this.maxLogBytes = maxLogBytes;
+            }
+
+            public void setMaxTransferBytes(DataSize maxTransferBytes) {
+                this.maxTransferBytes = maxTransferBytes;
+            }
+
+            public void setMaxWait(Duration maxWait) {
+                this.maxWait = maxWait;
+            }
         }
     }
 
@@ -5674,6 +6024,11 @@ public class ApplicationProperties {
     public static class Workflow {
 
         /**
+         * Code workflow configuration
+         */
+        private CodeWorkflow codeWorkflow = new CodeWorkflow();
+
+        /**
          * Workflow execution configuration
          */
         private Execution execution = new Execution();
@@ -5693,6 +6048,10 @@ public class ApplicationProperties {
          */
         private TestOutput testOutput = new TestOutput();
 
+        public CodeWorkflow getCodeWorkflow() {
+            return codeWorkflow;
+        }
+
         public Execution getExecution() {
             return execution;
         }
@@ -5707,6 +6066,10 @@ public class ApplicationProperties {
 
         public TestOutput getTestOutput() {
             return testOutput;
+        }
+
+        public void setCodeWorkflow(CodeWorkflow codeWorkflow) {
+            this.codeWorkflow = codeWorkflow;
         }
 
         public void setExecution(Execution execution) {
@@ -5741,6 +6104,41 @@ public class ApplicationProperties {
 
             public void setMaxSampleItems(int maxSampleItems) {
                 this.maxSampleItems = maxSampleItems;
+            }
+        }
+
+        /**
+         * Code workflow configuration.
+         */
+        public static class CodeWorkflow {
+
+            private Java java = new Java();
+
+            public Java getJava() {
+                return java;
+            }
+
+            public void setJava(Java java) {
+                this.java = java;
+            }
+
+            /**
+             * Java code workflow settings.
+             */
+            public static class Java {
+
+                /**
+                 * Whether uploading of Java (jar) code workflows is enabled
+                 */
+                private boolean enabled;
+
+                public boolean isEnabled() {
+                    return enabled;
+                }
+
+                public void setEnabled(boolean enabled) {
+                    this.enabled = enabled;
+                }
             }
         }
 

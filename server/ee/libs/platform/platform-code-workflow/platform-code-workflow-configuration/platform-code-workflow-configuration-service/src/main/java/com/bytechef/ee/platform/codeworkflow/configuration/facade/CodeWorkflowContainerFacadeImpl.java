@@ -16,13 +16,36 @@ import com.bytechef.ee.platform.codeworkflow.configuration.service.CodeWorkflowC
 import com.bytechef.ee.platform.codeworkflow.file.storage.CodeWorkflowFileStorage;
 import com.bytechef.file.storage.domain.FileEntry;
 import com.bytechef.platform.annotation.ConditionalOnEEVersion;
+import com.bytechef.platform.component.domain.ActionDefinition;
+import com.bytechef.platform.component.domain.ComponentDefinition;
+import com.bytechef.platform.component.service.ComponentDefinitionService;
+import com.bytechef.platform.configuration.constant.WorkflowExtConstants;
 import com.bytechef.platform.constant.PlatformType;
+import com.bytechef.workflow.definition.ComponentTaskDefinition;
+import com.bytechef.workflow.definition.CompositeTaskDefinition;
+import com.bytechef.workflow.definition.ConnectionRequirement;
+import com.bytechef.workflow.definition.Input;
+import com.bytechef.workflow.definition.Output;
 import com.bytechef.workflow.definition.TaskDefinition;
+import com.bytechef.workflow.definition.TriggerDefinition;
 import com.bytechef.workflow.definition.WorkflowDefinition;
+import com.bytechef.workflow.definition.WorkflowTaskDefinition;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.OptionalInt;
+import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import org.jspecify.annotations.Nullable;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
@@ -39,18 +62,29 @@ import tools.jackson.databind.node.ObjectNode;
 @ConditionalOnEEVersion
 public class CodeWorkflowContainerFacadeImpl implements CodeWorkflowContainerFacade {
 
+    private static final Pattern COMPONENT_TASK_TYPE_PATTERN =
+        Pattern.compile("([^/\\s]+)/v([1-9]\\d{0,8})/([^/\\s]+)");
+    private static final Pattern EXPRESSION_PATTERN = Pattern.compile("\\$\\{([^}]*)}");
+    private static final Pattern EXPRESSION_NAME_PATTERN = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
+    private static final Pattern NAME_SEPARATOR_PATTERN = Pattern.compile("[^A-Za-z0-9_]+");
+
     private final CodeWorkflowContainerService codeWorkflowContainerService;
     private final CodeWorkflowFileStorage codeWorkflowFileStorage;
+    private final @Nullable ComponentDefinitionService componentDefinitionService;
     private final ObjectMapper objectMapper;
     private final WorkflowService workflowService;
 
-    @SuppressFBWarnings("EI")
+    @SuppressFBWarnings({
+        "CT_CONSTRUCTOR_THROW", "EI"
+    })
     public CodeWorkflowContainerFacadeImpl(
         CodeWorkflowContainerService codeWorkflowContainerService, CodeWorkflowFileStorage codeWorkflowFileStorage,
-        ObjectMapper objectMapper, WorkflowService workflowService) {
+        ObjectProvider<ComponentDefinitionService> componentDefinitionServiceProvider, ObjectMapper objectMapper,
+        WorkflowService workflowService) {
 
         this.codeWorkflowContainerService = codeWorkflowContainerService;
         this.codeWorkflowFileStorage = codeWorkflowFileStorage;
+        this.componentDefinitionService = componentDefinitionServiceProvider.getIfAvailable();
         this.objectMapper = objectMapper;
         this.workflowService = workflowService;
     }
@@ -60,30 +94,58 @@ public class CodeWorkflowContainerFacadeImpl implements CodeWorkflowContainerFac
         String name, String externalVersion, List<WorkflowDefinition> workflowDefinitions, Language language,
         byte[] bytes, PlatformType type) {
 
-        try {
-            UUID codeWorkflowContainerId = UUID.randomUUID();
+        return create(name, externalVersion, workflowDefinitions, language, bytes, type, Map.of())
+            .codeWorkflowContainer();
+    }
 
-            CodeWorkflowContainer codeWorkflowContainer = new CodeWorkflowContainer(codeWorkflowContainerId);
+    @Override
+    public CodeWorkflowReconciliation create(
+        String name, String externalVersion, List<WorkflowDefinition> workflowDefinitions, Language language,
+        byte[] bytes, PlatformType type, Map<String, String> reusableWorkflowNameIds) {
+
+        try {
+            UUID codeWorkflowContainerUuid = UUID.randomUUID();
+
+            CodeWorkflowContainer codeWorkflowContainer = new CodeWorkflowContainer(codeWorkflowContainerUuid);
+
+            Map<String, String> addedWorkflowNameIds = new HashMap<>();
 
             for (WorkflowDefinition workflowDefinition : workflowDefinitions) {
-                String definition = getDefinition(String.valueOf(codeWorkflowContainerId), workflowDefinition, type);
+                String definition = getDefinition(String.valueOf(codeWorkflowContainerUuid), workflowDefinition, type);
 
-                Workflow workflow = workflowService.create(definition, Workflow.Format.JSON, Workflow.SourceType.JDBC);
+                String reusableWorkflowId = reusableWorkflowNameIds.get(workflowDefinition.getName());
 
-                codeWorkflowContainer.addCodeWorkflow(
-                    UUID.fromString(Objects.requireNonNull(workflow.getId())), workflowDefinition.getName());
+                if (reusableWorkflowId == null) {
+                    Workflow workflow = workflowService.create(
+                        definition, Workflow.Format.JSON, Workflow.SourceType.JDBC);
+
+                    addedWorkflowNameIds.put(workflowDefinition.getName(), workflow.getId());
+                    codeWorkflowContainer.addCodeWorkflow(
+                        UUID.fromString(Objects.requireNonNull(workflow.getId())), workflowDefinition.getName());
+                } else {
+                    Workflow workflow = workflowService.getWorkflow(reusableWorkflowId);
+
+                    workflowService.update(reusableWorkflowId, definition, workflow.getVersion());
+
+                    codeWorkflowContainer.addCodeWorkflow(
+                        UUID.fromString(reusableWorkflowId), workflowDefinition.getName());
+                }
             }
+
+            Map<String, String> removedWorkflowNameIds = removedFrom(reusableWorkflowNameIds, workflowDefinitions);
 
             codeWorkflowContainer.setExternalVersion(externalVersion);
             codeWorkflowContainer.setLanguage(language);
             codeWorkflowContainer.setName(name);
 
             FileEntry workflowsFileEntry = codeWorkflowFileStorage.storeCodeWorkflowFile(
-                codeWorkflowContainerId + "." + language.getExtension(), bytes);
+                codeWorkflowContainerUuid + "." + language.getExtension(), bytes);
 
             codeWorkflowContainer.setWorkflows(workflowsFileEntry);
 
-            return codeWorkflowContainerService.create(codeWorkflowContainer);
+            return new CodeWorkflowReconciliation(
+                codeWorkflowContainerService.create(codeWorkflowContainer), addedWorkflowNameIds,
+                removedWorkflowNameIds);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -98,50 +160,513 @@ public class CodeWorkflowContainerFacadeImpl implements CodeWorkflowContainerFac
         codeWorkflowFileStorage.deleteCodeWorkflowFile(codeWorkflowContainer.getWorkflows());
     }
 
+    @Override
+    public CodeWorkflowReconciliation update(
+        CodeWorkflowContainer codeWorkflowContainer, String externalVersion,
+        List<WorkflowDefinition> workflowDefinitions, byte[] bytes, PlatformType type) {
+
+        try {
+            Map<String, String> existingWorkflowNameIds = codeWorkflowContainer.getWorkflowNameIds();
+            Map<String, String> addedWorkflowNameIds = new HashMap<>();
+
+            for (WorkflowDefinition workflowDefinition : workflowDefinitions) {
+                String definition = getDefinition(
+                    String.valueOf(codeWorkflowContainer.getUuid()), workflowDefinition, type);
+
+                String existingWorkflowId = existingWorkflowNameIds.get(workflowDefinition.getName());
+
+                if (existingWorkflowId == null) {
+                    Workflow workflow = workflowService.create(
+                        definition, Workflow.Format.JSON, Workflow.SourceType.JDBC);
+
+                    addedWorkflowNameIds.put(workflowDefinition.getName(), workflow.getId());
+                    codeWorkflowContainer.addCodeWorkflow(
+                        UUID.fromString(Objects.requireNonNull(workflow.getId())), workflowDefinition.getName());
+                } else {
+                    Workflow workflow = workflowService.getWorkflow(existingWorkflowId);
+
+                    workflowService.update(existingWorkflowId, definition, workflow.getVersion());
+                }
+            }
+
+            Map<String, String> removedWorkflowNameIds = removedFrom(existingWorkflowNameIds, workflowDefinitions);
+
+            for (String workflowName : removedWorkflowNameIds.keySet()) {
+                codeWorkflowContainer.removeCodeWorkflow(workflowName);
+            }
+
+            codeWorkflowContainer.setExternalVersion(externalVersion);
+
+            FileEntry oldWorkflowsFileEntry = codeWorkflowContainer.getWorkflows();
+
+            FileEntry workflowsFileEntry = codeWorkflowFileStorage.storeCodeWorkflowFile(
+                codeWorkflowContainer.getUuid() + "." + codeWorkflowContainer.getLanguage()
+                    .getExtension(),
+                bytes);
+
+            codeWorkflowContainer.setWorkflows(workflowsFileEntry);
+
+            CodeWorkflowContainer updatedCodeWorkflowContainer = codeWorkflowContainerService.update(
+                codeWorkflowContainer);
+
+            if (oldWorkflowsFileEntry != null &&
+                !Objects.equals(oldWorkflowsFileEntry.getUrl(), workflowsFileEntry.getUrl())) {
+
+                codeWorkflowFileStorage.deleteCodeWorkflowFile(oldWorkflowsFileEntry);
+            }
+
+            return new CodeWorkflowReconciliation(
+                updatedCodeWorkflowContainer, addedWorkflowNameIds, removedWorkflowNameIds);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static Map<String, String> removedFrom(
+        Map<String, String> knownWorkflowNameIds, List<WorkflowDefinition> workflowDefinitions) {
+
+        Set<String> incomingNames = workflowDefinitions.stream()
+            .map(WorkflowDefinition::getName)
+            .collect(Collectors.toSet());
+
+        return knownWorkflowNameIds.entrySet()
+            .stream()
+            .filter(entry -> !incomingNames.contains(entry.getKey()))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
     private ArrayNode toArrayNode(
-        String codeWorkflowContainerUuid, WorkflowDefinition workflowDefinition, List<? extends TaskDefinition> tasks,
-        PlatformType type) {
+        String codeWorkflowContainerUuid, WorkflowDefinition workflowDefinition,
+        List<? extends WorkflowTaskDefinition> tasks, PlatformType type) {
 
         ArrayNode arrayNode = objectMapper.createArrayNode();
 
-        for (TaskDefinition taskDefinition : tasks) {
-            arrayNode.add(
-                objectMapper.createObjectNode()
-                    .put("description", OptionalUtils.orElse(taskDefinition.getDescription(), null))
-                    .put("label", OptionalUtils.orElse(taskDefinition.getLabel(), null))
-                    .put("name", taskDefinition.getName())
-                    .put("type", "codeWorkflow/v1/perform")
-                    // TODO taskDefinition.getParameters()
-                    .set(
-                        "parameters",
-                        objectMapper.createObjectNode()
-                            .put("codeWorkflowContainerUuid", codeWorkflowContainerUuid)
-                            .put("workflowName", workflowDefinition.getName())
-                            .put("taskName", taskDefinition.getName())
-                            .put("type", type.ordinal())));
+        for (WorkflowTaskDefinition taskDefinition : tasks) {
+            if (taskDefinition instanceof CompositeTaskDefinition compositeTaskDefinition) {
+                arrayNode.add(
+                    toCompositeTaskNode(
+                        codeWorkflowContainerUuid, workflowDefinition, compositeTaskDefinition, type));
+            } else if (taskDefinition instanceof ComponentTaskDefinition componentTaskDefinition) {
+                arrayNode.add(toComponentTaskNode(componentTaskDefinition));
+            } else {
+                arrayNode.add(
+                    toTaskNode(
+                        codeWorkflowContainerUuid, workflowDefinition, (TaskDefinition) taskDefinition, type));
+            }
         }
 
         return arrayNode;
     }
 
+    private ObjectNode toCompositeTaskNode(
+        String codeWorkflowContainerUuid, WorkflowDefinition workflowDefinition,
+        CompositeTaskDefinition compositeTaskDefinition, PlatformType type) {
+
+        ObjectNode taskNode = objectMapper.createObjectNode()
+            .put("description", OptionalUtils.orElse(compositeTaskDefinition.getDescription(), null))
+            .put("label", OptionalUtils.orElse(compositeTaskDefinition.getLabel(), null))
+            .put("name", compositeTaskDefinition.getName());
+
+        ObjectNode parametersNode = objectMapper.createObjectNode();
+
+        if (compositeTaskDefinition.getType() == CompositeTaskDefinition.Type.PARALLEL) {
+            taskNode.put("type", "parallel/v1");
+
+            ArrayNode tasksNode = objectMapper.createArrayNode();
+
+            for (WorkflowTaskDefinition taskDefinition : compositeTaskDefinition.getTasks()) {
+                tasksNode.add(toNestedTaskNode(codeWorkflowContainerUuid, workflowDefinition, taskDefinition, type));
+            }
+
+            parametersNode.set("tasks", tasksNode);
+        } else {
+            taskNode.put("type", "fork-join/v1");
+
+            ArrayNode branchesNode = objectMapper.createArrayNode();
+
+            for (List<? extends WorkflowTaskDefinition> branch : compositeTaskDefinition.getBranches()) {
+                ArrayNode branchNode = objectMapper.createArrayNode();
+
+                for (WorkflowTaskDefinition taskDefinition : branch) {
+                    branchNode.add(
+                        toNestedTaskNode(codeWorkflowContainerUuid, workflowDefinition, taskDefinition, type));
+                }
+
+                branchesNode.add(branchNode);
+            }
+
+            parametersNode.set("branches", branchesNode);
+        }
+
+        taskNode.set("parameters", parametersNode);
+
+        return taskNode;
+    }
+
+    private ObjectNode toNestedTaskNode(
+        String codeWorkflowContainerUuid, WorkflowDefinition workflowDefinition,
+        WorkflowTaskDefinition workflowTaskDefinition, PlatformType type) {
+
+        if (workflowTaskDefinition instanceof TaskDefinition taskDefinition) {
+            return toTaskNode(codeWorkflowContainerUuid, workflowDefinition, taskDefinition, type);
+        }
+
+        if (workflowTaskDefinition instanceof ComponentTaskDefinition componentTaskDefinition) {
+            return toComponentTaskNode(componentTaskDefinition);
+        }
+
+        if (workflowTaskDefinition instanceof CompositeTaskDefinition) {
+            throw new IllegalArgumentException(
+                "Task %s is nested inside a group, and a group inside a group is not supported"
+                    .formatted(workflowTaskDefinition.getName()));
+        }
+
+        Class<?> taskDefinitionClass = workflowTaskDefinition.getClass();
+
+        throw new IllegalArgumentException(
+            "Task %s has an unsupported task type %s; a group holds only perform tasks and component tasks"
+                .formatted(workflowTaskDefinition.getName(), taskDefinitionClass.getName()));
+    }
+
+    private ObjectNode toComponentTaskNode(ComponentTaskDefinition componentTaskDefinition) {
+        validateComponentTask(componentTaskDefinition);
+
+        ObjectNode taskNode = objectMapper.createObjectNode()
+            .put("description", OptionalUtils.orElse(componentTaskDefinition.getDescription(), null))
+            .put("label", OptionalUtils.orElse(componentTaskDefinition.getLabel(), null))
+            .put("name", componentTaskDefinition.getName())
+            .put("type", componentTaskDefinition.getType());
+
+        taskNode.set("parameters", objectMapper.valueToTree(componentTaskDefinition.getParameters()));
+
+        return taskNode;
+    }
+
+    private void validateComponentTask(ComponentTaskDefinition componentTaskDefinition) {
+        if (componentDefinitionService == null) {
+            return;
+        }
+
+        String name = componentTaskDefinition.getName();
+        String type = componentTaskDefinition.getType();
+
+        Matcher matcher = COMPONENT_TASK_TYPE_PATTERN.matcher(type == null ? "" : type);
+
+        if (!matcher.matches()) {
+            throw new IllegalArgumentException(
+                ("Task %s declares type %s; a component task type reads <component>/v<version>/<action>, e.g. " +
+                    "apiPlatform/v1/responseToAPIRequest").formatted(name, type));
+        }
+
+        String componentName = matcher.group(1);
+        int componentVersion = Integer.parseInt(matcher.group(2));
+        String actionName = matcher.group(3);
+
+        Optional<ComponentDefinition> componentDefinitionOptional = componentDefinitionService
+            .fetchComponentDefinition(componentName, componentVersion);
+
+        if (componentDefinitionOptional.isEmpty()) {
+            throw new IllegalArgumentException(
+                "Task %s names component %s version %d, which this instance does not have"
+                    .formatted(name, componentName, componentVersion));
+        }
+
+        ComponentDefinition componentDefinition = componentDefinitionOptional.get();
+
+        List<ActionDefinition> actionDefinitions = componentDefinition.getActions();
+
+        boolean hasAction = actionDefinitions.stream()
+            .anyMatch(actionDefinition -> Objects.equals(actionDefinition.getName(), actionName));
+
+        if (!hasAction) {
+            throw new IllegalArgumentException(
+                "Task %s names action %s, which component %s version %d does not have"
+                    .formatted(name, actionName, componentName, componentVersion));
+        }
+    }
+
+    private ObjectNode toTaskNode(
+        String codeWorkflowContainerUuid, WorkflowDefinition workflowDefinition, TaskDefinition taskDefinition,
+        PlatformType type) {
+
+        ObjectNode taskNode = objectMapper.createObjectNode()
+            .put("description", OptionalUtils.orElse(taskDefinition.getDescription(), null))
+            .put("label", OptionalUtils.orElse(taskDefinition.getLabel(), null))
+            .put("name", taskDefinition.getName())
+            .put("type", "codeWorkflow/v1/perform");
+
+        OptionalUtils.ifPresent(
+            taskDefinition.getConnections(),
+            connections -> taskNode.set(WorkflowExtConstants.CONNECTIONS, toConnectionsNode(connections)));
+
+        ObjectNode parametersNode = objectMapper.createObjectNode()
+            .put("codeWorkflowContainerUuid", codeWorkflowContainerUuid)
+            .put("workflowName", workflowDefinition.getName())
+            .put("taskName", taskDefinition.getName())
+            .put("input", "=#root")
+            .put("type", type.ordinal());
+
+        taskNode.set("parameters", parametersNode);
+
+        return taskNode;
+    }
+
+    private ObjectNode toConnectionsNode(List<? extends ConnectionRequirement> connections) {
+        ObjectNode connectionsNode = objectMapper.createObjectNode();
+
+        for (ConnectionRequirement connectionRequirement : connections) {
+            String componentName = connectionRequirement.getComponentName();
+
+            OptionalInt componentVersion = connectionRequirement.getComponentVersion();
+
+            connectionsNode.set(
+                connectionRequirement.getName(),
+                objectMapper.createObjectNode()
+                    .put(WorkflowExtConstants.COMPONENT_NAME, componentName)
+                    .put(
+                        WorkflowExtConstants.COMPONENT_VERSION,
+                        componentVersion.isPresent() ? componentVersion.getAsInt()
+                            : resolveLatestComponentVersion(componentName)));
+        }
+
+        return connectionsNode;
+    }
+
+    private int resolveLatestComponentVersion(String componentName) {
+        if (componentDefinitionService == null) {
+            return 1;
+        }
+
+        ComponentDefinition componentDefinition = componentDefinitionService.getComponentDefinition(
+            componentName, null);
+
+        return componentDefinition.getVersion();
+    }
+
+    private static String toWorkflowInputType(String type) {
+        return type.toLowerCase(Locale.ROOT);
+    }
+
+    private ArrayNode toInputsNode(List<? extends Input> inputs) {
+        ArrayNode inputsNode = objectMapper.createArrayNode();
+
+        for (Input input : inputs) {
+            ObjectNode inputNode = objectMapper.createObjectNode()
+                .put("name", input.getName())
+                .put("type", toWorkflowInputType(input.getType()))
+                .put("required", input.isRequired());
+
+            if (input.getLabel() != null) {
+                inputNode.put("label", input.getLabel());
+            }
+
+            if (input.isInternalOnly()) {
+                inputNode.put(WorkflowExtConstants.INTERNAL_ONLY, true);
+            }
+
+            OptionalUtils.ifPresent(
+                input.getComponentInput(),
+                componentInput -> inputNode
+                    .put(WorkflowExtConstants.COMPONENT_NAME, componentInput.componentName())
+                    .put(WorkflowExtConstants.COMPONENT_VERSION, componentInput.componentVersion())
+                    .put(WorkflowExtConstants.GROUP_NAME, componentInput.groupName()));
+
+            inputsNode.add(inputNode);
+        }
+
+        return inputsNode;
+    }
+
+    private ArrayNode toOutputsNode(List<? extends Output> outputs) {
+        ArrayNode outputsNode = objectMapper.createArrayNode();
+
+        for (Output output : outputs) {
+            ObjectNode outputNode = objectMapper.createObjectNode()
+                .put("name", output.getName());
+
+            if (output.getTask() != null) {
+                outputNode.put("value", "=#root['" + output.getTask() + "']");
+            } else {
+                outputNode.putPOJO("value", output.getValue());
+            }
+
+            outputsNode.add(outputNode);
+        }
+
+        return outputsNode;
+    }
+
+    private ArrayNode toTriggersNode(List<? extends TriggerDefinition> triggers) {
+        ArrayNode triggersNode = objectMapper.createArrayNode();
+
+        for (TriggerDefinition trigger : triggers) {
+            validateTriggerType(trigger);
+
+            ObjectNode triggerNode = objectMapper.createObjectNode()
+                .put("name", trigger.getName())
+                .put("type", trigger.getType());
+
+            triggerNode.set("parameters", objectMapper.valueToTree(trigger.getParameters()));
+
+            triggersNode.add(triggerNode);
+        }
+
+        return triggersNode;
+    }
+
+    private void validateTriggerType(TriggerDefinition trigger) {
+        String type = trigger.getType();
+
+        if (type == null || componentDefinitionService == null) {
+            return;
+        }
+
+        String[] typeParts = type.split("/");
+
+        if (typeParts.length != 3) {
+            throw new IllegalArgumentException(
+                "Trigger %s declares type %s; a trigger type reads <component>/v<version>/<trigger>, e.g. "
+                    .formatted(trigger.getName(), type) + "schedule/v1/interval");
+        }
+
+        if (componentDefinitionService.fetchComponentDefinition(typeParts[0], null)
+            .isEmpty()) {
+
+            throw new IllegalArgumentException(
+                "Trigger %s names component %s, which this instance does not have"
+                    .formatted(trigger.getName(), typeParts[0]));
+        }
+    }
+
     private String getDefinition(
         String codeWorkflowContainerUuid, WorkflowDefinition workflowDefinition, PlatformType type) {
+
+        validateExpressionReferences(workflowDefinition);
 
         ObjectNode objectNode = objectMapper.createObjectNode();
 
         OptionalUtils.ifPresent(workflowDefinition.getLabel(), label -> objectNode.put("label", label));
         OptionalUtils.ifPresent(workflowDefinition.getDescription(),
             description -> objectNode.put("description", description));
+        OptionalUtils.ifPresent(workflowDefinition.getInputs(),
+            inputs -> objectNode.set("inputs", toInputsNode(inputs)));
         OptionalUtils.ifPresent(
-            workflowDefinition.getInputs(), inputs -> objectNode.set("inputs", objectMapper.createObjectNode()));
+            workflowDefinition.getOutputs(), outputs -> objectNode.set("outputs", toOutputsNode(outputs)));
         OptionalUtils.ifPresent(
-            workflowDefinition.getOutputs(), outputs -> objectNode.set("outputs", objectMapper.createObjectNode()));
-        OptionalUtils.ifPresent(
-            workflowDefinition.getTriggers(), triggers -> objectNode.set("triggers", objectMapper.createArrayNode()));
+            workflowDefinition.getTriggers(), triggers -> objectNode.set("triggers", toTriggersNode(triggers)));
         OptionalUtils.ifPresent(
             workflowDefinition.getTasks(),
             tasks -> objectNode.set("tasks", toArrayNode(codeWorkflowContainerUuid, workflowDefinition, tasks, type)));
 
         return objectMapper.writeValueAsString(objectNode);
+    }
+
+    private static void validateExpressionReferences(WorkflowDefinition workflowDefinition) {
+        List<String> names = new ArrayList<>();
+        List<ComponentTaskDefinition> componentTaskDefinitions = new ArrayList<>();
+
+        OptionalUtils.ifPresent(
+            workflowDefinition.getTriggers(),
+            triggers -> triggers.forEach(trigger -> names.add(trigger.getName())));
+        OptionalUtils.ifPresent(
+            workflowDefinition.getTasks(), tasks -> collectTasks(tasks, names, componentTaskDefinitions));
+
+        List<String> unsafeNames = names.stream()
+            .filter(Objects::nonNull)
+            .filter(name -> !isExpressionName(name))
+            .toList();
+
+        if (unsafeNames.isEmpty()) {
+            return;
+        }
+
+        for (ComponentTaskDefinition componentTaskDefinition : componentTaskDefinitions) {
+            validateExpressionReferences(
+                componentTaskDefinition.getName(), componentTaskDefinition.getParameters(), unsafeNames);
+        }
+    }
+
+    private static void collectTasks(
+        List<? extends WorkflowTaskDefinition> tasks, List<String> names,
+        List<ComponentTaskDefinition> componentTaskDefinitions) {
+
+        for (WorkflowTaskDefinition taskDefinition : tasks) {
+            names.add(taskDefinition.getName());
+
+            if (taskDefinition instanceof ComponentTaskDefinition componentTaskDefinition) {
+                componentTaskDefinitions.add(componentTaskDefinition);
+            } else if (taskDefinition instanceof CompositeTaskDefinition compositeTaskDefinition) {
+                if (compositeTaskDefinition.getType() == CompositeTaskDefinition.Type.PARALLEL) {
+                    collectTasks(compositeTaskDefinition.getTasks(), names, componentTaskDefinitions);
+                } else {
+                    for (List<? extends WorkflowTaskDefinition> branch : compositeTaskDefinition.getBranches()) {
+                        collectTasks(branch, names, componentTaskDefinitions);
+                    }
+                }
+            }
+        }
+    }
+
+    private static void validateExpressionReferences(String taskName, Object value, List<String> unsafeNames) {
+        if (value instanceof Map<?, ?> map) {
+            for (Object entryValue : map.values()) {
+                validateExpressionReferences(taskName, entryValue, unsafeNames);
+            }
+        } else if (value instanceof List<?> list) {
+            for (Object item : list) {
+                validateExpressionReferences(taskName, item, unsafeNames);
+            }
+        } else if (value instanceof String text) {
+            Matcher matcher = EXPRESSION_PATTERN.matcher(text);
+
+            while (matcher.find()) {
+                String expression = matcher.group(1);
+
+                for (String unsafeName : unsafeNames) {
+                    Pattern referencePattern = Pattern.compile(
+                        "(?<![A-Za-z0-9_-])" + Pattern.quote(unsafeName) + "(?![A-Za-z0-9_-])");
+
+                    Matcher referenceMatcher = referencePattern.matcher(expression);
+
+                    if (referenceMatcher.find()) {
+                        throw new IllegalArgumentException(
+                            ("Task %s references %s in %s; an expression can name a task or trigger only when the " +
+                                "name has letters, digits and underscores, so rename %s, e.g. to %s")
+                                    .formatted(taskName, unsafeName, matcher.group(), unsafeName,
+                                        toExpressionName(unsafeName)));
+                    }
+                }
+            }
+        }
+    }
+
+    private static boolean isExpressionName(String name) {
+        Matcher matcher = EXPRESSION_NAME_PATTERN.matcher(name);
+
+        return matcher.matches();
+    }
+
+    private static String toExpressionName(String name) {
+        String[] parts = NAME_SEPARATOR_PATTERN.split(name);
+        StringBuilder sb = new StringBuilder();
+
+        for (String part : parts) {
+            if (part.isEmpty()) {
+                continue;
+            }
+
+            if (sb.isEmpty()) {
+                sb.append(part);
+            } else {
+                sb.append(Character.toUpperCase(part.charAt(0)));
+                sb.append(part.substring(1));
+            }
+        }
+
+        if (sb.isEmpty() || Character.isDigit(sb.charAt(0))) {
+            sb.insert(0, "task");
+        }
+
+        return sb.toString();
     }
 }

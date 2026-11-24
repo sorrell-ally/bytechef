@@ -3,11 +3,12 @@ import EmptyState from '@/components/EmptyState/EmptyState';
 import JourneySteps, {type JourneyStepI} from '@/components/JourneySteps/JourneySteps';
 import {KNOWLEDGE_BASES_DOCUMENTATION_URL} from '@/pages/automation/journey/automationJourneySteps';
 import CreateKnowledgeBaseDialog from '@/pages/automation/knowledge-bases/components/CreateKnowledgeBaseDialog';
+import {AI_PROVIDERS_SETTINGS_PATH} from '@/shared/navigation/settingsPaths';
 import {BookOpenTextIcon} from 'lucide-react';
 import {useMemo} from 'react';
 import {useNavigate} from 'react-router-dom';
 
-export const AI_PROVIDERS_PATH = '/automation/settings/ai-providers';
+export const AI_PROVIDERS_PATH = AI_PROVIDERS_SETTINGS_PATH;
 
 interface KnowledgeBasesEmptyStateProps {
     embeddingActive: boolean;
@@ -59,7 +60,12 @@ const KnowledgeBasesEmptyState = ({embeddingActive, workspaceId}: KnowledgeBases
             icon={<BookOpenTextIcon />}
             title="Create your first knowledge base"
         >
-            <JourneySteps aria-label="Getting started" className="max-w-md" orientation="vertical" steps={steps} />
+            <JourneySteps
+                aria-label="Getting started"
+                className="w-full max-w-xl"
+                orientation="vertical"
+                steps={steps}
+            />
         </EmptyState>
     );
 };

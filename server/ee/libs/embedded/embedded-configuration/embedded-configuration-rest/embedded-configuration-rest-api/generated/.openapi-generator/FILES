@@ -2,12 +2,14 @@ README.md
 pom.xml
 src/main/java/com/bytechef/ee/embedded/configuration/web/rest/ApiUtil.java
 src/main/java/com/bytechef/ee/embedded/configuration/web/rest/AppEventApi.java
+src/main/java/com/bytechef/ee/embedded/configuration/web/rest/AutomationProjectCodeWorkflowApi.java
 src/main/java/com/bytechef/ee/embedded/configuration/web/rest/CategoryApi.java
 src/main/java/com/bytechef/ee/embedded/configuration/web/rest/ComponentDefinitionApi.java
 src/main/java/com/bytechef/ee/embedded/configuration/web/rest/ConnectedUserProjectWorkflowApi.java
 src/main/java/com/bytechef/ee/embedded/configuration/web/rest/ConnectionApi.java
 src/main/java/com/bytechef/ee/embedded/configuration/web/rest/ConnectionTagApi.java
 src/main/java/com/bytechef/ee/embedded/configuration/web/rest/IntegrationApi.java
+src/main/java/com/bytechef/ee/embedded/configuration/web/rest/IntegrationCodeWorkflowApi.java
 src/main/java/com/bytechef/ee/embedded/configuration/web/rest/IntegrationInstanceApi.java
 src/main/java/com/bytechef/ee/embedded/configuration/web/rest/IntegrationInstanceConfigurationApi.java
 src/main/java/com/bytechef/ee/embedded/configuration/web/rest/IntegrationInstanceConfigurationTagApi.java
@@ -16,11 +18,13 @@ src/main/java/com/bytechef/ee/embedded/configuration/web/rest/WebhookTriggerTest
 src/main/java/com/bytechef/ee/embedded/configuration/web/rest/WorkflowApi.java
 src/main/java/com/bytechef/ee/embedded/configuration/web/rest/model/AppEventModel.java
 src/main/java/com/bytechef/ee/embedded/configuration/web/rest/model/AuthorizationTypeModel.java
+src/main/java/com/bytechef/ee/embedded/configuration/web/rest/model/AutomationProjectCodeWorkflowDeployResultModel.java
 src/main/java/com/bytechef/ee/embedded/configuration/web/rest/model/CategoryModel.java
 src/main/java/com/bytechef/ee/embedded/configuration/web/rest/model/ComponentCategoryModel.java
 src/main/java/com/bytechef/ee/embedded/configuration/web/rest/model/ComponentConnectionModel.java
 src/main/java/com/bytechef/ee/embedded/configuration/web/rest/model/ComponentDefinitionBasicModel.java
 src/main/java/com/bytechef/ee/embedded/configuration/web/rest/model/ComponentInputReferenceModel.java
+src/main/java/com/bytechef/ee/embedded/configuration/web/rest/model/ConfigurationChangeVersionRequestModel.java
 src/main/java/com/bytechef/ee/embedded/configuration/web/rest/model/ConfigurationConnectedUserModel.java
 src/main/java/com/bytechef/ee/embedded/configuration/web/rest/model/ConfigurationMoveImpactModel.java
 src/main/java/com/bytechef/ee/embedded/configuration/web/rest/model/ConfigurationMoveImpactWorkflowModel.java
@@ -56,6 +60,8 @@ src/main/java/com/bytechef/ee/embedded/configuration/web/rest/model/StartWebhook
 src/main/java/com/bytechef/ee/embedded/configuration/web/rest/model/TagModel.java
 src/main/java/com/bytechef/ee/embedded/configuration/web/rest/model/UpdateConnectionCredentialsRequestModel.java
 src/main/java/com/bytechef/ee/embedded/configuration/web/rest/model/UpdateConnectionRequestModel.java
+src/main/java/com/bytechef/ee/embedded/configuration/web/rest/model/UpdateIntegrationInstanceConnectionRequestModel.java
+src/main/java/com/bytechef/ee/embedded/configuration/web/rest/model/UpdateIntegrationInstanceWorkflowRequestModel.java
 src/main/java/com/bytechef/ee/embedded/configuration/web/rest/model/UpdateTagsRequestModel.java
 src/main/java/com/bytechef/ee/embedded/configuration/web/rest/model/Workflow1Model.java
 src/main/java/com/bytechef/ee/embedded/configuration/web/rest/model/WorkflowBasic1Model.java

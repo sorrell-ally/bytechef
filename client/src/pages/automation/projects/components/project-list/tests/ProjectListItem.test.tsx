@@ -2,7 +2,7 @@ import {Collapsible} from '@/components/ui/collapsible';
 import {TooltipProvider} from '@/components/ui/tooltip';
 import ProjectListItem from '@/pages/automation/projects/components/project-list/ProjectListItem';
 import {ProjectListItemTabType} from '@/pages/automation/projects/components/project-list/ProjectListItemTabs';
-import {Project} from '@/shared/middleware/automation/configuration';
+import {Project, ProjectStatus} from '@/shared/middleware/automation/configuration';
 import {environmentStore} from '@/shared/stores/useEnvironmentStore';
 import {fireEvent, render, screen} from '@/shared/util/test-utils';
 import userEvent from '@testing-library/user-event';
@@ -22,14 +22,18 @@ vi.mock('@/pages/automation/project-deployments/components/project-deployment-di
     default: ({
         onSuccess,
         redirectOnSubmit,
+        showTabs,
         triggerNode,
     }: {
         onSuccess: (deploymentId: number, environmentId?: number) => void;
         redirectOnSubmit?: boolean;
+        showTabs?: boolean;
         triggerNode: React.ReactNode;
     }) => (
         <>
             {triggerNode}
+
+            {showTabs && <span>New or Change Version tabs</span>}
 
             <button onClick={() => onSuccess(42, 0)}>{`Save deployment ${redirectOnSubmit}`}</button>
 
@@ -220,6 +224,15 @@ it('opens the file picker from the Import Workflow menu item', async () => {
     expect(clickSpy).toHaveBeenCalled();
 });
 
+it('opens New Deployment from the menu without offering to change the version of an existing deployment', async () => {
+    renderProjectListItem();
+
+    await openNewDeploymentFromMenu();
+
+    expect(screen.getByText('Save deployment false')).toBeInTheDocument();
+    expect(screen.queryByText('New or Change Version tabs')).not.toBeInTheDocument();
+});
+
 it('opens the deployments tab on a saved development deployment', async () => {
     renderProjectListItem();
 
@@ -245,4 +258,25 @@ it('opens the deployments page in production after deploying to production', asy
         state: {projectDeploymentId: 43},
     });
     expect(onTabChange).not.toHaveBeenCalledWith('deployments', 43);
+});
+
+it('shows the published version when the draft matches it', () => {
+    renderProjectListItem(undefined, {
+        lastProjectVersion: 3,
+        lastStatus: ProjectStatus.Draft,
+        unpublishedChanges: false,
+    });
+
+    expect(screen.getByText('PUBLISHED').parentElement).toHaveTextContent('V2PUBLISHED');
+});
+
+it('shows the draft version when the draft has unpublished changes', () => {
+    renderProjectListItem(undefined, {
+        lastProjectVersion: 3,
+        lastStatus: ProjectStatus.Draft,
+        unpublishedChanges: true,
+    });
+
+    expect(screen.getByText('DRAFT').parentElement).toHaveTextContent('V3DRAFT');
+    expect(screen.queryByText('PUBLISHED')).not.toBeInTheDocument();
 });

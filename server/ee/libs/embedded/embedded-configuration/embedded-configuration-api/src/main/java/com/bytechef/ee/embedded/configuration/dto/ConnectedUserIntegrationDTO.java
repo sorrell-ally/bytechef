@@ -29,6 +29,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 import org.jspecify.annotations.Nullable;
 
@@ -42,7 +43,18 @@ public record ConnectedUserIntegrationDTO(
     ConnectionConfig connectionConfig, IntegrationInstanceConfigurationDTO integrationInstanceConfiguration,
     List<ConnectedUserIntegrationInstance> integrationInstances,
     OAuth2AuthorizationParameters oAuth2AuthorizationParameters, String redirectUri,
-    List<McpToolInfo> mcpTools, List<McpWorkflowInfo> mcpWorkflows) {
+    List<McpToolInfo> mcpTools, List<McpWorkflowInfo> mcpWorkflows, Set<String> staticWebhookWorkflowUuids) {
+
+    public ConnectedUserIntegrationDTO(
+        ConnectionConfig connectionConfig, IntegrationInstanceConfigurationDTO integrationInstanceConfiguration,
+        List<ConnectedUserIntegrationInstance> integrationInstances,
+        OAuth2AuthorizationParameters oAuth2AuthorizationParameters, String redirectUri,
+        List<McpToolInfo> mcpTools, List<McpWorkflowInfo> mcpWorkflows) {
+
+        this(
+            connectionConfig, integrationInstanceConfiguration, integrationInstances, oAuth2AuthorizationParameters,
+            redirectUri, mcpTools, mcpWorkflows, Set.of());
+    }
 
     public ConnectedUserIntegrationDTO(
         List<Connection> connections, IntegrationInstanceConfigurationDTO integrationInstanceConfiguration,
@@ -86,7 +98,13 @@ public record ConnectedUserIntegrationDTO(
 
         return new ConnectedUserIntegrationDTO(
             connectionConfig, integrationInstanceConfiguration, integrationInstances, oAuth2AuthorizationParameters,
-            redirectUri, mcpTools, mcpWorkflows);
+            redirectUri, mcpTools, mcpWorkflows, staticWebhookWorkflowUuids);
+    }
+
+    public ConnectedUserIntegrationDTO withStaticWebhookWorkflowUuids(Set<String> staticWebhookWorkflowUuids) {
+        return new ConnectedUserIntegrationDTO(
+            connectionConfig, integrationInstanceConfiguration, integrationInstances, oAuth2AuthorizationParameters,
+            redirectUri, mcpTools, mcpWorkflows, Set.copyOf(staticWebhookWorkflowUuids));
     }
 
     private static List<ConnectedUserIntegrationInstance> toIntegrationInstances(
@@ -130,7 +148,19 @@ public record ConnectedUserIntegrationDTO(
     }
 
     public record ConnectedUserIntegrationInstanceWorkflow(
-        IntegrationInstanceWorkflow integrationInstanceWorkflow, String workflowUuid) {
+        IntegrationInstanceWorkflow integrationInstanceWorkflow, String workflowUuid,
+        @Nullable String staticWebhookUrl) {
+
+        public ConnectedUserIntegrationInstanceWorkflow(
+            IntegrationInstanceWorkflow integrationInstanceWorkflow, String workflowUuid) {
+
+            this(integrationInstanceWorkflow, workflowUuid, null);
+        }
+
+        public ConnectedUserIntegrationInstanceWorkflow withStaticWebhookUrl(@Nullable String staticWebhookUrl) {
+            return new ConnectedUserIntegrationInstanceWorkflow(
+                integrationInstanceWorkflow, workflowUuid, staticWebhookUrl);
+        }
     }
 
     public record ConnectionConfig(AuthorizationType authorizationType, List<Input> inputs, OAuth2 oauth2) {
@@ -163,10 +193,10 @@ public record ConnectedUserIntegrationDTO(
     }
 
     public record McpWorkflowInfo(
-        String label, String description, List<WorkflowInputInfo> inputs, String workflowUuid) {
+        String label, String description, List<WorkflowInputInfo> inputs, String workflowUuid, boolean toolOnly) {
     }
 
-    public record WorkflowInputInfo(String name, String label, boolean required, String type) {
+    public record WorkflowInputInfo(String name, String label, boolean required, String type, boolean internalOnly) {
     }
 
     public record McpInstanceToolInfo(Long mcpToolId, boolean enabled) {

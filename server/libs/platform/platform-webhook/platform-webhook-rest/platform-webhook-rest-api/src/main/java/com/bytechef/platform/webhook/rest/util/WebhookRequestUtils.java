@@ -49,6 +49,7 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MimeType;
 import org.springframework.util.MultiValueMap;
 import org.springframework.util.StreamUtils;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.util.ForwardedHeaderUtils;
 import org.springframework.web.util.UriComponents;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -60,6 +61,12 @@ import org.springframework.web.util.UriComponentsBuilder;
  */
 public class WebhookRequestUtils {
 
+    /**
+     * A multipart part without a content type is read into memory as text. The server's multipart limit is sized for
+     * custom component uploads, so text parts keep Spring Boot's default 1 MB file limit.
+     */
+    private static final long MAX_TEXT_PART_SIZE = 1024 * 1024;
+
     private WebhookRequestUtils() {
     }
 
@@ -67,7 +74,7 @@ public class WebhookRequestUtils {
         HttpServletRequest httpServletRequest, TempFileStorage tempFileStorage) throws IOException, ServletException {
 
         return getWebhookRequest(
-            httpServletRequest, tempFileStorage, new WebhookTriggerFlags(false, false, false, false));
+            httpServletRequest, tempFileStorage, new WebhookTriggerFlags(false, false, false, false, false));
     }
 
     public static WebhookRequest getWebhookRequest(
@@ -200,6 +207,10 @@ public class WebhookRequestUtils {
                 List<Object> value = multipartFormDataMap.getOrDefault(part.getName(), new ArrayList<>());
 
                 if (part.getContentType() == null) {
+                    if (part.getSize() > MAX_TEXT_PART_SIZE) {
+                        throw new MaxUploadSizeExceededException(MAX_TEXT_PART_SIZE);
+                    }
+
                     try (InputStream inputStream = part.getInputStream()) {
                         value.add(StreamUtils.copyToString(inputStream, StandardCharsets.UTF_8));
                     }

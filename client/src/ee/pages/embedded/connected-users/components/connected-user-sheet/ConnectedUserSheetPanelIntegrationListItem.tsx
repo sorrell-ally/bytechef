@@ -1,26 +1,36 @@
 import AlertDialog from '@/components/AlertDialog';
-import Badge from '@/components/Badge/Badge';
-import Button from '@/components/Button/Button';
 import LoadingIcon from '@/components/LoadingIcon';
 import Switch from '@/components/Switch/Switch';
 import {Collapsible, CollapsibleContent, CollapsibleTrigger} from '@/components/ui/collapsible';
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip';
 import ConnectedUserCredentialStatus from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserCredentialStatus';
-import ConnectedUserIntegrationCredentialsDialog from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserIntegrationCredentialsDialog';
+import ConnectedUserOriginBadge from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserOriginBadge';
 import ConnectedUserSheetDeleteDropdownMenu from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserSheetDeleteDropdownMenu';
 import ConnectedUserSheetPanelIntegrationWorkflowList from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserSheetPanelIntegrationWorkflowList';
+import ConnectedUserVersionBadge from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserVersionBadge';
+import ConnectedUserChangeVersionDialog, {
+    NO_OTHER_VERSION_REASON,
+    VERSIONS_LOAD_FAILED_REASON,
+    getOtherVersions,
+} from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/change-version-dialog/ConnectedUserChangeVersionDialog';
+import useNewerIntegrationVersionAvailable from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/hooks/useNewerIntegrationVersionAvailable';
+import {MoveConnectedUsersResultI} from '@/ee/pages/embedded/connected-users/components/move-connected-users-dialog/MoveConnectedUsersDialog';
 import {
     CONFIGURATIONS_LOAD_FAILED_REASON,
     NO_OTHER_CONFIGURATION_REASON,
 } from '@/ee/pages/embedded/connected-users/components/move-connected-users-dialog/moveConnectedUsersReasons';
 import IntegrationInstanceConfigurationMoveUsersDialog from '@/ee/pages/embedded/integration-instance-configurations/components/integration-instance-configuration-list/IntegrationInstanceConfigurationMoveUsersDialog';
+import {IntegrationStatus} from '@/ee/shared/middleware/embedded/configuration';
 import {ConnectedUser, ConnectedUserIntegrationInstance} from '@/ee/shared/middleware/embedded/connected-user';
+import {useChangeIntegrationInstanceConfigurationConnectedUserVersionMutation} from '@/ee/shared/mutations/embedded/integrationInstanceConfigurations.mutations';
 import {
     useDeleteIntegrationInstanceMutation,
     useEnableIntegrationInstanceMutation,
 } from '@/ee/shared/mutations/embedded/integrationInstances.mutations';
 import {ConnectedUserKeys} from '@/ee/shared/queries/embedded/connectedUsers.queries';
 import {
+    IntegrationInstanceConfigurationKeys,
+    useGetIntegrationInstanceConfigurationMoveImpactQuery,
     useGetIntegrationInstanceConfigurationQuery,
     useGetIntegrationInstanceConfigurationsQuery,
 } from '@/ee/shared/queries/embedded/integrationInstanceConfigurations.queries';
@@ -28,13 +38,14 @@ import {
     IntegrationInstanceKeys,
     useGetIntegrationInstanceQuery,
 } from '@/ee/shared/queries/embedded/integrationInstances.queries';
+import {useGetIntegrationVersionsQuery} from '@/ee/shared/queries/embedded/integrationVersions.queries';
 import {useGetIntegrationVersionWorkflowsQuery} from '@/ee/shared/queries/embedded/integrationWorkflows.queries';
 import {useGetProvisionableIntegrationsQuery} from '@/ee/shared/queries/embedded/provisionableIntegrations.queries';
+import ListItemExpandButton from '@/shared/components/ListItemExpandButton';
+import isCollapsibleRowClick from '@/shared/components/mcp-server/utils/isCollapsibleRowClick';
 import {ComponentDefinitionBasic} from '@/shared/middleware/platform/configuration';
 import {useQueryClient} from '@tanstack/react-query';
-import {ComponentIcon, KeyRoundIcon} from 'lucide-react';
-import {useMemo, useState} from 'react';
-import InlineSVG from 'react-inlinesvg';
+import {type MouseEvent, useMemo, useState} from 'react';
 import {twMerge} from 'tailwind-merge';
 
 const ConnectedUserSheetPanelIntegrationListItem = ({
@@ -48,7 +59,7 @@ const ConnectedUserSheetPanelIntegrationListItem = ({
     connectedUserIntegrationInstance: ConnectedUserIntegrationInstance;
     connectedUserId: number;
 }) => {
-    const {data: workflows} = useGetIntegrationVersionWorkflowsQuery(
+    const {data: integrationVersionWorkflows} = useGetIntegrationVersionWorkflowsQuery(
         connectedUserIntegrationInstance.integrationId!,
         connectedUserIntegrationInstance.integrationVersion!
     );
@@ -61,9 +72,21 @@ const ConnectedUserSheetPanelIntegrationListItem = ({
 
     const {data: provisionableIntegrations} = useGetProvisionableIntegrationsQuery(connectedUserId);
 
+    const newerIntegrationVersionAvailable = useNewerIntegrationVersionAvailable(
+        connectedUserIntegrationInstance.integrationId,
+        integrationInstance?.integrationInstanceConfiguration?.integrationVersion
+    );
+
+    const {data: integrationVersions, isError: integrationVersionsError} = useGetIntegrationVersionsQuery(
+        connectedUserIntegrationInstance.integrationId ?? 0,
+        connectedUserIntegrationInstance.integrationId != null
+    );
+
     const [showChangeConfigurationDialog, setShowChangeConfigurationDialog] = useState(false);
-    const [showCredentialsDialog, setShowCredentialsDialog] = useState(false);
+    const [showChangeVersionDialog, setShowChangeVersionDialog] = useState(false);
+    const [changeVersionTargetId, setChangeVersionTargetId] = useState<string>();
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+    const [open, setOpen] = useState(false);
 
     const queryClient = useQueryClient();
 
@@ -96,6 +119,53 @@ const ConnectedUserSheetPanelIntegrationListItem = ({
             : undefined;
     }, [integrationConfigurations, integrationConfigurationsError, targetConfigurations.length]);
 
+    const currentIntegrationVersion =
+        integrationInstanceConfiguration?.integrationVersion ?? connectedUserIntegrationInstance.integrationVersion;
+
+    const publishedVersions = useMemo(
+        () =>
+            (integrationVersions ?? [])
+                .filter((integrationVersion) => integrationVersion.status === IntegrationStatus.Published)
+                .map((integrationVersion) => integrationVersion.version)
+                .filter((version): version is number => version != null),
+        [integrationVersions]
+    );
+
+    const changeVersionDisabledReason = useMemo(() => {
+        if (integrationConfigurationsError) {
+            return CONFIGURATIONS_LOAD_FAILED_REASON;
+        }
+
+        if (integrationVersionsError) {
+            return VERSIONS_LOAD_FAILED_REASON;
+        }
+
+        if (!integrationVersions || currentIntegrationVersion == null) {
+            return undefined;
+        }
+
+        return getOtherVersions(publishedVersions, currentIntegrationVersion).length === 0
+            ? NO_OTHER_VERSION_REASON
+            : undefined;
+    }, [
+        currentIntegrationVersion,
+        integrationConfigurationsError,
+        integrationVersions,
+        integrationVersionsError,
+        publishedVersions,
+    ]);
+
+    const changeVersionConfigurations = useMemo(
+        () =>
+            targetConfigurations.map((targetConfiguration) => ({
+                enabled: !!targetConfiguration.enabled,
+                id: String(targetConfiguration.id),
+                name: targetConfiguration.name ?? '',
+                version: targetConfiguration.integrationVersion ?? 0,
+            })),
+        [targetConfigurations]
+    );
+
     const presetConnectedUsers = useMemo(
         () => [
             {
@@ -110,13 +180,25 @@ const ConnectedUserSheetPanelIntegrationListItem = ({
 
     const initialSelectedConnectedUserIds = useMemo(() => [connectedUserId], [connectedUserId]);
 
-    const mcpWorkflowUuids = useMemo(
+    const provisionableIntegration = useMemo(
         () =>
             provisionableIntegrations?.find(
-                (provisionableIntegration) =>
-                    provisionableIntegration.integration?.id === connectedUserIntegrationInstance.integrationId
-            )?.mcpWorkflowUuids,
+                (currentProvisionableIntegration) =>
+                    currentProvisionableIntegration.integration?.id === connectedUserIntegrationInstance.integrationId
+            ),
         [connectedUserIntegrationInstance.integrationId, provisionableIntegrations]
+    );
+
+    const mcpWorkflowUuids = provisionableIntegration?.mcpWorkflowUuids;
+
+    const workflows = useMemo(
+        () =>
+            integrationVersionWorkflows?.filter(
+                (workflow) =>
+                    !workflow.workflowUuid ||
+                    !provisionableIntegration?.toolOnlyMcpWorkflowUuids?.includes(workflow.workflowUuid)
+            ),
+        [integrationVersionWorkflows, provisionableIntegration]
     );
 
     const deleteIntegrationInstanceMutation = useDeleteIntegrationInstanceMutation({
@@ -140,150 +222,195 @@ const ConnectedUserSheetPanelIntegrationListItem = ({
         },
     });
 
-    return (
-        <Collapsible className="mb-2 rounded border border-border/50" key={connectedUserIntegrationInstance.id}>
-            {componentDefinition && (
-                <div className="flex items-center justify-between rounded-md px-3 hover:bg-surface-neutral-primary-hover">
-                    <CollapsibleTrigger className="flex-1 py-3">
-                        <div className="flex flex-col items-start justify-center gap-y-2">
-                            <div className="flex min-h-8 flex-1 items-center gap-2">
-                                {componentDefinition.icon ? (
-                                    <InlineSVG
-                                        aria-hidden="true"
-                                        className="size-6 shrink-0"
-                                        key={componentDefinition.name!}
-                                        src={componentDefinition.icon}
-                                    />
-                                ) : (
-                                    <ComponentIcon
-                                        aria-hidden="true"
-                                        className="size-6 shrink-0 text-content-neutral-secondary"
-                                    />
-                                )}
+    const changeVersionMutation = useChangeIntegrationInstanceConfigurationConnectedUserVersionMutation({
+        onSuccess: () => {
+            void queryClient.invalidateQueries({
+                queryKey: ConnectedUserKeys.connectedUser(connectedUserId),
+            });
+            void queryClient.invalidateQueries({
+                queryKey: IntegrationInstanceConfigurationKeys.integrationInstanceConfigurations,
+            });
+            void queryClient.invalidateQueries({
+                queryKey: IntegrationInstanceKeys.integrationInstance(connectedUserIntegrationInstance.id!),
+            });
+        },
+    });
 
+    const {mutateAsync: changeConnectedUserVersion} = changeVersionMutation;
+
+    const {
+        data: changeVersionMoveImpact,
+        isError: changeVersionMoveImpactError,
+        isLoading: changeVersionMoveImpactLoading,
+    } = useGetIntegrationInstanceConfigurationMoveImpactQuery(
+        connectedUserIntegrationInstance.integrationInstanceConfigurationId!,
+        {
+            connectedUserIds: [connectedUserId],
+            targetId: Number(changeVersionTargetId),
+        },
+        showChangeVersionDialog && !!changeVersionTargetId
+    );
+
+    const handleChangeVersion = (version: number, targetId?: string): Promise<MoveConnectedUsersResultI> =>
+        changeConnectedUserVersion({
+            configurationChangeVersionRequest: {
+                connectedUserId,
+                targetId: targetId === undefined ? undefined : Number(targetId),
+                version,
+            },
+            id: connectedUserIntegrationInstance.integrationInstanceConfigurationId!,
+        });
+
+    const handleChangeVersionClose = () => {
+        setChangeVersionTargetId(undefined);
+        setShowChangeVersionDialog(false);
+    };
+
+    const workflowCount = workflows?.length ?? 0;
+
+    const handleRowClick = (event: MouseEvent<HTMLDivElement>) => {
+        if (workflowCount > 0 && isCollapsibleRowClick(event)) {
+            setOpen((previousOpen) => !previousOpen);
+        }
+    };
+
+    const configurationName = integrationInstance?.integrationInstanceConfiguration?.name ?? componentDefinition.title;
+
+    return (
+        <Collapsible
+            className="mb-2 rounded border border-border/50"
+            key={connectedUserIntegrationInstance.id}
+            onOpenChange={setOpen}
+            open={open}
+        >
+            {componentDefinition && (
+                <div
+                    className="flex cursor-pointer items-center justify-between gap-x-4 rounded-md px-3 hover:bg-surface-neutral-primary-hover"
+                    onClick={handleRowClick}
+                    role="presentation"
+                >
+                    <ListItemExpandButton disabled={workflowCount === 0} label="Toggle integration" />
+
+                    <CollapsibleTrigger className="min-w-0 flex-1 py-3" disabled={workflowCount === 0}>
+                        <div className="flex min-w-0 items-center gap-x-3">
+                            <div className="flex min-w-0 flex-col items-start justify-center gap-y-1">
                                 <div
                                     className={twMerge(
-                                        'flex items-baseline gap-x-2 text-base font-semibold',
+                                        'flex min-h-6 max-w-full min-w-0 items-baseline gap-x-2 text-base font-semibold',
                                         !connectedUserIntegrationInstance.enabled && 'text-muted-foreground'
                                     )}
                                 >
-                                    <span>{componentDefinition.title}</span>
+                                    <span className="min-w-0 truncate" title={configurationName}>
+                                        {configurationName}
+                                    </span>
+                                </div>
 
-                                    {integrationInstance?.integrationInstanceConfiguration?.name && (
-                                        <span className="text-sm font-normal text-muted-foreground">
-                                            {integrationInstance.integrationInstanceConfiguration.name}
-                                        </span>
+                                <div className="flex min-h-6 items-center text-xs font-semibold text-muted-foreground">
+                                    <ConnectedUserCredentialStatus
+                                        componentTitle={componentDefinition.title!}
+                                        credentialStatus={connectedUserIntegrationInstance.credentialStatus}
+                                    />
+
+                                    {integrationInstance && (
+                                        <>
+                                            <span aria-hidden="true" className="mx-2">
+                                                -
+                                            </span>
+
+                                            <span>
+                                                {workflows?.length === 1
+                                                    ? `${workflows?.length} workflow`
+                                                    : `${workflows?.length} workflows`}
+                                            </span>
+                                        </>
                                     )}
                                 </div>
-                            </div>
-
-                            <div className="flex min-h-7 items-center text-xs font-semibold text-muted-foreground">
-                                <ConnectedUserCredentialStatus
-                                    componentTitle={componentDefinition.title!}
-                                    credentialStatus={connectedUserIntegrationInstance.credentialStatus}
-                                />
-
-                                {integrationInstance && (
-                                    <>
-                                        <span aria-hidden="true" className="mx-2">
-                                            -
-                                        </span>
-
-                                        <span>
-                                            {workflows?.length === 1
-                                                ? `${workflows?.length} workflow`
-                                                : `${workflows?.length} workflows`}
-                                        </span>
-                                    </>
-                                )}
                             </div>
                         </div>
                     </CollapsibleTrigger>
 
                     <div className="flex items-center gap-x-2">
                         <div className="flex items-center gap-x-4">
-                            {integrationInstance && (
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Badge
-                                            label={`V${integrationInstance.integrationInstanceConfiguration?.integrationVersion}`}
-                                            styleType="secondary-filled"
-                                            weight="semibold"
-                                        />
-                                    </TooltipTrigger>
+                            <div className="flex w-48 items-center justify-end gap-x-2">
+                                <ConnectedUserOriginBadge
+                                    provisioned={!!connectedUserIntegrationInstance.provisioned}
+                                    provisionedBy={connectedUserIntegrationInstance.provisionedBy}
+                                    resourceName="integration"
+                                />
 
-                                    <TooltipContent>The integration version</TooltipContent>
-                                </Tooltip>
-                            )}
+                                {integrationInstance && (
+                                    <ConnectedUserVersionBadge
+                                        newerVersionAvailable={newerIntegrationVersionAvailable}
+                                        tooltip="The integration version"
+                                        version={
+                                            integrationInstance.integrationInstanceConfiguration?.integrationVersion
+                                        }
+                                    />
+                                )}
+                            </div>
 
-                            <div className="flex min-w-52 flex-col items-end gap-y-2">
-                                <div className="flex min-h-8 items-center gap-x-4">
-                                    {connectedUserIntegrationInstance.provisioned && (
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <Button
-                                                    aria-label="Credentials"
-                                                    icon={<KeyRoundIcon />}
-                                                    onClick={() => setShowCredentialsDialog(true)}
-                                                    size="icon"
-                                                    variant="ghost"
-                                                />
-                                            </TooltipTrigger>
+                            <div className="flex w-72 items-center justify-end gap-x-2">
+                                <div className="flex flex-col items-end gap-y-1">
+                                    <div className="flex min-h-6 items-center">
+                                        <div className="relative flex items-center">
+                                            {enableIntegrationInstanceMutation.isPending && (
+                                                <LoadingIcon className="absolute top-[3px] left-[-15px]" />
+                                            )}
 
-                                            <TooltipContent>Credentials</TooltipContent>
-                                        </Tooltip>
-                                    )}
-
-                                    <div className="relative flex items-center">
-                                        {enableIntegrationInstanceMutation.isPending && (
-                                            <LoadingIcon className="absolute top-[3px] left-[-15px]" />
-                                        )}
-
-                                        <Switch
-                                            checked={connectedUserIntegrationInstance.enabled}
-                                            disabled={!integrationInstance?.integrationInstanceConfiguration?.enabled}
-                                            onCheckedChange={(value) => {
-                                                enableIntegrationInstanceMutation.mutate({
-                                                    enable: value,
-                                                    id: connectedUserIntegrationInstance.id!,
-                                                });
-                                            }}
-                                        />
+                                            <Switch
+                                                checked={connectedUserIntegrationInstance.enabled}
+                                                disabled={
+                                                    !integrationInstance?.integrationInstanceConfiguration?.enabled
+                                                }
+                                                onCheckedChange={(value) => {
+                                                    enableIntegrationInstanceMutation.mutate({
+                                                        enable: value,
+                                                        id: connectedUserIntegrationInstance.id!,
+                                                    });
+                                                }}
+                                            />
+                                        </div>
                                     </div>
+
+                                    <Tooltip>
+                                        <TooltipTrigger className="flex min-h-6 items-center text-sm text-content-neutral-secondary">
+                                            {integrationInstance?.lastExecutionDate ? (
+                                                <span className="text-xs">
+                                                    {`Executed at ${integrationInstance.lastExecutionDate?.toLocaleDateString()} ${integrationInstance.lastExecutionDate?.toLocaleTimeString()}`}
+                                                </span>
+                                            ) : (
+                                                <span className="text-xs">No executions</span>
+                                            )}
+                                        </TooltipTrigger>
+
+                                        <TooltipContent side="left">Last Execution Date</TooltipContent>
+                                    </Tooltip>
                                 </div>
-
-                                <Tooltip>
-                                    <TooltipTrigger className="flex min-h-7 items-center text-sm text-content-neutral-secondary">
-                                        {integrationInstance?.lastExecutionDate ? (
-                                            <span className="text-xs">
-                                                {`Executed at ${integrationInstance.lastExecutionDate?.toLocaleDateString()} ${integrationInstance.lastExecutionDate?.toLocaleTimeString()}`}
-                                            </span>
-                                        ) : (
-                                            <span className="text-xs">No executions</span>
-                                        )}
-                                    </TooltipTrigger>
-
-                                    <TooltipContent side="left">Last Execution Date</TooltipContent>
-                                </Tooltip>
                             </div>
                         </div>
 
                         <ConnectedUserSheetDeleteDropdownMenu
                             changeConfigurationDisabled={!integrationConfigurations}
                             changeConfigurationDisabledReason={changeConfigurationDisabledReason}
+                            changeVersionDisabled={
+                                !integrationVersions || !integrationConfigurations || currentIntegrationVersion == null
+                            }
+                            changeVersionDisabledReason={changeVersionDisabledReason}
                             onChangeConfigurationClick={() => setShowChangeConfigurationDialog(true)}
+                            onChangeVersionClick={() => setShowChangeVersionDialog(true)}
                             onDeleteClick={() => setShowDeleteDialog(true)}
                         />
                     </div>
                 </div>
             )}
 
-            <CollapsibleContent>
+            <CollapsibleContent className="ml-[68px]">
                 {workflows && integrationInstance && integrationInstanceConfiguration && (
                     <ConnectedUserSheetPanelIntegrationWorkflowList
                         integrationInstance={integrationInstance}
                         integrationInstanceConfiguration={integrationInstanceConfiguration}
                         mcpWorkflowUuids={mcpWorkflowUuids}
+                        provisioned={!!connectedUserIntegrationInstance.provisioned}
                         workflows={workflows}
                     />
                 )}
@@ -295,16 +422,28 @@ const ConnectedUserSheetPanelIntegrationListItem = ({
                     connectedUsers={presetConnectedUsers}
                     initialSelectedConnectedUserIds={initialSelectedConnectedUserIds}
                     onClose={() => setShowChangeConfigurationDialog(false)}
+                    singleConnectedUser
                     targetConfigurations={targetConfigurations}
                     title="Change configuration"
                 />
             )}
 
-            {showCredentialsDialog && (
-                <ConnectedUserIntegrationCredentialsDialog
-                    connectedUserId={connectedUserId}
-                    integrationInstance={connectedUserIntegrationInstance}
-                    onClose={() => setShowCredentialsDialog(false)}
+            {showChangeVersionDialog && currentIntegrationVersion != null && (
+                <ConnectedUserChangeVersionDialog
+                    configurations={changeVersionConfigurations}
+                    connectedUserLabel={connectedUser.name || connectedUser.email || connectedUser.externalId}
+                    currentConfigurationName={configurationName ?? ''}
+                    currentVersion={currentIntegrationVersion}
+                    impact={changeVersionMoveImpact?.workflows}
+                    mcpServerCount={changeVersionMoveImpact?.mcpServerCount}
+                    onChange={handleChangeVersion}
+                    onClose={handleChangeVersionClose}
+                    onTargetChange={setChangeVersionTargetId}
+                    pending={changeVersionMutation.isPending}
+                    previewError={changeVersionMoveImpactError}
+                    previewLoading={changeVersionMoveImpactLoading}
+                    previewSkipped={changeVersionMoveImpact?.skipped}
+                    versions={publishedVersions}
                 />
             )}
 

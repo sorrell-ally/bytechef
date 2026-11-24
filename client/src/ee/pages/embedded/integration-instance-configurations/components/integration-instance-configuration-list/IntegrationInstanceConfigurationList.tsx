@@ -9,6 +9,7 @@ import IntegrationInstanceConfigurationListItem from './IntegrationInstanceConfi
 
 const IntegrationInstanceConfigurationList = ({
     componentDefinitions,
+    divided = false,
     expandAll = false,
     integration,
     integrationInstanceConfigurations,
@@ -19,6 +20,7 @@ const IntegrationInstanceConfigurationList = ({
     taskDispatcherDefinitions,
 }: {
     componentDefinitions?: ComponentDefinitionBasic[];
+    divided?: boolean;
     expandAll?: boolean;
     integration: Integration;
     integrationInstanceConfigurations: IntegrationInstanceConfiguration[];
@@ -61,7 +63,7 @@ const IntegrationInstanceConfigurationList = ({
     return (
         <>
             {integrationInstanceConfigurations.length > 0 && (
-                <>
+                <div className={divided ? 'divide-y divide-stroke-neutral-primary' : undefined}>
                     {integrationInstanceConfigurations.map((integrationInstanceConfiguration) => {
                         const integrationTagIds = integrationInstanceConfiguration.tags?.map((tag) => tag.id);
 
@@ -71,16 +73,13 @@ const IntegrationInstanceConfigurationList = ({
 
                         return (
                             <Collapsible
-                                className="group mb-2 rounded border border-border/50 last:mb-0"
+                                className={divided ? 'group' : 'group mb-2 rounded border border-border/50 last:mb-0'}
                                 defaultOpen={expandAll}
                                 key={integrationInstanceConfiguration.id}
                             >
                                 <IntegrationInstanceConfigurationListItem
                                     integrationInstanceConfiguration={integrationInstanceConfiguration}
                                     key={integrationInstanceConfiguration.id}
-                                    mcpWorkflowIds={mcpWorkflowIdsByConfigurationId.get(
-                                        integrationInstanceConfiguration.id!
-                                    )}
                                     remainingTags={tags?.filter((tag) => !integrationTagIds?.includes(tag.id))}
                                     showIntegrationIcon={showIntegrationIcon}
                                     showTags={showTags}
@@ -108,7 +107,7 @@ const IntegrationInstanceConfigurationList = ({
                             </Collapsible>
                         );
                     })}
-                </>
+                </div>
             )}
         </>
     );

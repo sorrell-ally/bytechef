@@ -32,7 +32,7 @@ import jakarta.annotation.Generated;
 
 @Schema(name = "ConnectedUserProjectWorkflow", description = "A group of tasks that make one logical workflow.")
 @JsonTypeName("ConnectedUserProjectWorkflow")
-@Generated(value = "org.openapitools.codegen.languages.SpringCodegen", date = "2026-11-10T16:12:12.795950+01:00[Europe/Zagreb]", comments = "Generator version: 7.27.0")
+@Generated(value = "org.openapitools.codegen.languages.SpringCodegen", date = "2026-11-20T21:37:42.770599+01:00[Europe/Zagreb]", comments = "Generator version: 7.27.0")
 public class ConnectedUserProjectWorkflowModel {
 
   @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
@@ -102,7 +102,15 @@ public class ConnectedUserProjectWorkflowModel {
 
   private Map<String, Object> inputValues = new HashMap<>();
 
+  private Map<String, Long> connections = new HashMap<>();
+
   private @Nullable String attentionReason;
+
+  private @Nullable Boolean mcpEnabled;
+
+  private @Nullable Boolean toolOnly;
+
+  private @Nullable String staticWebhookUrl;
 
   public ConnectedUserProjectWorkflowModel createdDate(@Nullable OffsetDateTime createdDate) {
     this.createdDate = createdDate;
@@ -443,17 +451,46 @@ public class ConnectedUserProjectWorkflowModel {
     this.inputValues = inputValues;
   }
 
+  public ConnectedUserProjectWorkflowModel connections(Map<String, Long> connections) {
+    this.connections = connections;
+    return this;
+  }
+
+  public ConnectedUserProjectWorkflowModel putConnectionsItem(String key, Long connectionsItem) {
+    if (this.connections == null) {
+      this.connections = new HashMap<>();
+    }
+    this.connections.put(key, connectionsItem);
+    return this;
+  }
+
+  /**
+   * For REFERENCE rows, the id of the connection each component uses, keyed by component name: the same shape as the connections of a provision request. Components whose connection the configuration provides are left out. Empty for COPY rows.
+   * @return connections
+   */
+  
+  @Schema(name = "connections", description = "For REFERENCE rows, the id of the connection each component uses, keyed by component name: the same shape as the connections of a provision request. Components whose connection the configuration provides are left out. Empty for COPY rows.", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+  @JsonProperty("connections")
+  public Map<String, Long> getConnections() {
+    return connections;
+  }
+
+  @JsonProperty("connections")
+  public void setConnections(Map<String, Long> connections) {
+    this.connections = connections;
+  }
+
   public ConnectedUserProjectWorkflowModel attentionReason(@Nullable String attentionReason) {
     this.attentionReason = attentionReason;
     return this;
   }
 
   /**
-   * Why the automation needs attention: MISSING_CONNECTION:<component>, INPUT_REQUIRED:<input>, UPDATE_PENDING or INVALID_WORKFLOW:<errorCount>. A COPY only reports INVALID_WORKFLOW. Null when healthy.
+   * Why the automation needs attention: MISSING_CONNECTION:<component>, INPUT_REQUIRED:<input>, UPDATE_PENDING, INVALID_WORKFLOW:<errorCount> or AWAITING_CONFIGURATION (the administrator has not finished the configuration yet). A COPY only reports INVALID_WORKFLOW. Null when healthy.
    * @return attentionReason
    */
   
-  @Schema(name = "attentionReason", description = "Why the automation needs attention: MISSING_CONNECTION:<component>, INPUT_REQUIRED:<input>, UPDATE_PENDING or INVALID_WORKFLOW:<errorCount>. A COPY only reports INVALID_WORKFLOW. Null when healthy.", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+  @Schema(name = "attentionReason", description = "Why the automation needs attention: MISSING_CONNECTION:<component>, INPUT_REQUIRED:<input>, UPDATE_PENDING, INVALID_WORKFLOW:<errorCount> or AWAITING_CONFIGURATION (the administrator has not finished the configuration yet). A COPY only reports INVALID_WORKFLOW. Null when healthy.", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
   @JsonProperty("attentionReason")
   public @Nullable String getAttentionReason() {
     return attentionReason;
@@ -462,6 +499,69 @@ public class ConnectedUserProjectWorkflowModel {
   @JsonProperty("attentionReason")
   public void setAttentionReason(@Nullable String attentionReason) {
     this.attentionReason = attentionReason;
+  }
+
+  public ConnectedUserProjectWorkflowModel mcpEnabled(@Nullable Boolean mcpEnabled) {
+    this.mcpEnabled = mcpEnabled;
+    return this;
+  }
+
+  /**
+   * Whether the workflow is available to AI agents. Null when no MCP server offers it to the user, otherwise true when it is on for at least one server.
+   * @return mcpEnabled
+   */
+  
+  @Schema(name = "mcpEnabled", description = "Whether the workflow is available to AI agents. Null when no MCP server offers it to the user, otherwise true when it is on for at least one server.", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+  @JsonProperty("mcpEnabled")
+  public @Nullable Boolean getMcpEnabled() {
+    return mcpEnabled;
+  }
+
+  @JsonProperty("mcpEnabled")
+  public void setMcpEnabled(@Nullable Boolean mcpEnabled) {
+    this.mcpEnabled = mcpEnabled;
+  }
+
+  public ConnectedUserProjectWorkflowModel toolOnly(@Nullable Boolean toolOnly) {
+    this.toolOnly = toolOnly;
+    return this;
+  }
+
+  /**
+   * True when the workflow can only be started as an MCP tool, because its only enabled trigger is the workflow call trigger.
+   * @return toolOnly
+   */
+  
+  @Schema(name = "toolOnly", description = "True when the workflow can only be started as an MCP tool, because its only enabled trigger is the workflow call trigger.", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+  @JsonProperty("toolOnly")
+  public @Nullable Boolean getToolOnly() {
+    return toolOnly;
+  }
+
+  @JsonProperty("toolOnly")
+  public void setToolOnly(@Nullable Boolean toolOnly) {
+    this.toolOnly = toolOnly;
+  }
+
+  public ConnectedUserProjectWorkflowModel staticWebhookUrl(@Nullable String staticWebhookUrl) {
+    this.staticWebhookUrl = staticWebhookUrl;
+    return this;
+  }
+
+  /**
+   * The url that starts the workflow when it begins with a static webhook trigger, for example Webhook. Null when the workflow is not deployed or starts with another trigger.
+   * @return staticWebhookUrl
+   */
+  
+  @Schema(name = "staticWebhookUrl", description = "The url that starts the workflow when it begins with a static webhook trigger, for example Webhook. Null when the workflow is not deployed or starts with another trigger.", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+  @JsonProperty("staticWebhookUrl")
+  public @Nullable String getStaticWebhookUrl() {
+    return staticWebhookUrl;
+  }
+
+  @JsonProperty("staticWebhookUrl")
+  public void setStaticWebhookUrl(@Nullable String staticWebhookUrl) {
+    this.staticWebhookUrl = staticWebhookUrl;
   }
 
   @Override
@@ -488,12 +588,16 @@ public class ConnectedUserProjectWorkflowModel {
         Objects.equals(this.components, connectedUserProjectWorkflow.components) &&
         Objects.equals(this.inputs, connectedUserProjectWorkflow.inputs) &&
         Objects.equals(this.inputValues, connectedUserProjectWorkflow.inputValues) &&
-        Objects.equals(this.attentionReason, connectedUserProjectWorkflow.attentionReason);
+        Objects.equals(this.connections, connectedUserProjectWorkflow.connections) &&
+        Objects.equals(this.attentionReason, connectedUserProjectWorkflow.attentionReason) &&
+        Objects.equals(this.mcpEnabled, connectedUserProjectWorkflow.mcpEnabled) &&
+        Objects.equals(this.toolOnly, connectedUserProjectWorkflow.toolOnly) &&
+        Objects.equals(this.staticWebhookUrl, connectedUserProjectWorkflow.staticWebhookUrl);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(createdDate, description, definition, lastModifiedDate, enabled, label, workflowUuid, workflowVersion, kind, automationUuid, copiedFromWorkflowUuid, dangling, components, inputs, inputValues, attentionReason);
+    return Objects.hash(createdDate, description, definition, lastModifiedDate, enabled, label, workflowUuid, workflowVersion, kind, automationUuid, copiedFromWorkflowUuid, dangling, components, inputs, inputValues, connections, attentionReason, mcpEnabled, toolOnly, staticWebhookUrl);
   }
 
   @Override
@@ -515,7 +619,11 @@ public class ConnectedUserProjectWorkflowModel {
     sb.append("    components: ").append(toIndentedString(components)).append("\n");
     sb.append("    inputs: ").append(toIndentedString(inputs)).append("\n");
     sb.append("    inputValues: ").append(toIndentedString(inputValues)).append("\n");
+    sb.append("    connections: ").append(toIndentedString(connections)).append("\n");
     sb.append("    attentionReason: ").append(toIndentedString(attentionReason)).append("\n");
+    sb.append("    mcpEnabled: ").append(toIndentedString(mcpEnabled)).append("\n");
+    sb.append("    toolOnly: ").append(toIndentedString(toolOnly)).append("\n");
+    sb.append("    staticWebhookUrl: ").append(toIndentedString(staticWebhookUrl)).append("\n");
     sb.append("}");
     return sb.toString();
   }

@@ -11,7 +11,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -22,12 +25,14 @@ import com.bytechef.ee.embedded.security.service.SigningKeyService;
 import com.bytechef.ee.embedded.security.web.authentication.EmbeddedApiKeyAuthenticationToken;
 import com.bytechef.platform.configuration.domain.Environment;
 import com.bytechef.platform.security.service.ApiKeyService;
+import com.bytechef.tenant.TenantContext;
 import io.jsonwebtoken.JwtBuilder;
 import io.jsonwebtoken.Jwts;
 import jakarta.servlet.http.HttpServletRequest;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -191,6 +196,50 @@ class EmbeddedApiKeyAuthenticationConverterTest {
     }
 
     @Test
+    void testConvertWithJwtTokenRecordsSigningKeyUseInTheTokenTenant() throws NoSuchAlgorithmException {
+        List<String> tenantIds = new ArrayList<>();
+
+        doAnswer(invocation -> tenantIds.add(TenantContext.getCurrentTenantId()))
+            .when(signingKeyService)
+            .updateLastUsedDate(anyString(), anyLong());
+
+        convertWithJwt("jwt-user", "/api/embedded/v1/me");
+
+        verify(signingKeyService).updateLastUsedDate(
+            EncodingUtils.base64EncodeToString(JWT_TENANT_ID + ":keyId"), Environment.PRODUCTION.ordinal());
+
+        assertThat(tenantIds).containsExactly(JWT_TENANT_ID);
+    }
+
+    @Test
+    void testConvertWithJwtTokenWithWrongSignatureDoesNotRecordSigningKeyUse() throws NoSuchAlgorithmException {
+        KeyPair keyPair = generateKeyPair();
+
+        String jwtToken = Jwts.builder()
+            .header()
+            .keyId(EncodingUtils.base64EncodeToString(JWT_TENANT_ID + ":keyId"))
+            .and()
+            .subject("user-a")
+            .signWith(keyPair.getPrivate())
+            .compact();
+
+        when(signingKeyService.getPublicKey(anyString(), anyLong())).thenReturn(generateKeyPair().getPublic());
+
+        assertThatThrownBy(() -> convertWithJwt(jwtToken, "/api/embedded/v1/connections", "DEVELOPMENT"))
+            .isInstanceOf(BadCredentialsException.class);
+
+        verify(signingKeyService, never()).updateLastUsedDate(anyString(), anyLong());
+    }
+
+    @Test
+    void testConvertWithJwtTokenOnAnotherExternalUserPathDoesNotRecordSigningKeyUse() {
+        assertThatThrownBy(() -> convertWithJwt("user-a", "/api/embedded/v1/user-b/automation/workflows"))
+            .isInstanceOf(BadCredentialsException.class);
+
+        verify(signingKeyService, never()).updateLastUsedDate(anyString(), anyLong());
+    }
+
+    @Test
     void testConvertWithJwtTokenOnAnotherExternalUserPathThrowsBadCredentialsException() {
         assertThatThrownBy(() -> convertWithJwt("user-a", "/api/embedded/v1/user-b/automation/workflows"))
             .isInstanceOf(BadCredentialsException.class);
@@ -311,6 +360,54 @@ class EmbeddedApiKeyAuthenticationConverterTest {
             jwtToken, "/api/embedded/v1/connections", "DEVELOPMENT");
 
         assertThat(token.getEnvironmentId()).isEqualTo(Environment.DEVELOPMENT.ordinal());
+    }
+
+    @Test
+    void testConvertWithJwtTokenWithoutConnectionDialogAllowedClaimAllowsTheConnectionDialog()
+        throws NoSuchAlgorithmException {
+
+        EmbeddedApiKeyAuthenticationToken token = (EmbeddedApiKeyAuthenticationToken) convertWithJwt(
+            "user-a", "/api/embedded/v1/connections");
+
+        assertThat(token.connectionDialogAllowed()).isTrue();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {
+        false, true
+    })
+    void testConvertWithJwtTokenWithConnectionDialogAllowedClaimCarriesTheClaim(boolean connectionDialogAllowed)
+        throws NoSuchAlgorithmException {
+
+        String jwtToken = createJwtWithConnectionDialogAllowedClaim(connectionDialogAllowed);
+
+        EmbeddedApiKeyAuthenticationToken token = (EmbeddedApiKeyAuthenticationToken) convertWithJwt(
+            jwtToken, "/api/embedded/v1/connections", "PRODUCTION");
+
+        assertThat(token.connectionDialogAllowed()).isEqualTo(connectionDialogAllowed);
+    }
+
+    @Test
+    void testConvertWithJwtTokenWithNonBooleanConnectionDialogAllowedClaimThrowsBadCredentialsException()
+        throws NoSuchAlgorithmException {
+
+        String jwtToken = createJwtWithConnectionDialogAllowedClaim("false");
+
+        assertThatThrownBy(() -> convertWithJwt(jwtToken, "/api/embedded/v1/connections", "PRODUCTION"))
+            .isInstanceOf(BadCredentialsException.class);
+    }
+
+    @Test
+    void testConvertWithNonJwtTokenAllowsTheConnectionDialog() {
+        String tenantKey = EncodingUtils.base64EncodeToString("test-tenant:randomData");
+
+        when(request.getHeader("Authorization")).thenReturn("Bearer " + tenantKey);
+        when(request.getHeader("X-ENVIRONMENT")).thenReturn(null);
+        when(request.getRequestURI()).thenReturn("/api/embedded/v1/user123/connections");
+
+        EmbeddedApiKeyAuthenticationToken token = (EmbeddedApiKeyAuthenticationToken) converter.convert(request);
+
+        assertThat(token.connectionDialogAllowed()).isTrue();
     }
 
     @Test
@@ -500,6 +597,86 @@ class EmbeddedApiKeyAuthenticationConverterTest {
     }
 
     @Test
+    void testConvertWithNonJwtTokenAndBareExternalUserPathReturnsAuthentication() {
+        Authentication result = convertWithApiKey("/api/embedded/v1/user-1");
+
+        EmbeddedApiKeyAuthenticationToken token = (EmbeddedApiKeyAuthenticationToken) result;
+
+        assertThat(token.getExternalUserId()).isEqualTo("user-1");
+        assertThat(token.getTenantId()).isEqualTo("test-tenant");
+    }
+
+    @Test
+    void testConvertWithNonJwtTokenAndExternalUserSubPathReturnsAuthentication() {
+        Authentication result = convertWithApiKey("/api/embedded/v1/user-1/integrations");
+
+        EmbeddedApiKeyAuthenticationToken token = (EmbeddedApiKeyAuthenticationToken) result;
+
+        assertThat(token.getExternalUserId()).isEqualTo("user-1");
+    }
+
+    @Test
+    void testConvertWithNonJwtTokenAndContextPathBareExternalUserPathReturnsAuthentication() {
+        when(request.getContextPath()).thenReturn("/context");
+
+        Authentication result = convertWithApiKey("/context/api/embedded/v1/user-1");
+
+        EmbeddedApiKeyAuthenticationToken token = (EmbeddedApiKeyAuthenticationToken) result;
+
+        assertThat(token.getExternalUserId()).isEqualTo("user-1");
+    }
+
+    @Test
+    void testConvertWithNonJwtTokenAndPercentEncodedExternalUserPathReturnsDecodedExternalUserId() {
+        Authentication result = convertWithApiKey("/api/embedded/v1/user%40example.com");
+
+        EmbeddedApiKeyAuthenticationToken token = (EmbeddedApiKeyAuthenticationToken) result;
+
+        assertThat(token.getExternalUserId()).isEqualTo("user@example.com");
+    }
+
+    @Test
+    void testConvertWithNonJwtTokenAndNestedVersionSegmentUsesTheFirstPathSegment() {
+        Authentication result = convertWithApiKey("/api/embedded/v1/user-1/automation/workflows/v2/other-user/x");
+
+        EmbeddedApiKeyAuthenticationToken token = (EmbeddedApiKeyAuthenticationToken) result;
+
+        assertThat(token.getExternalUserId()).isEqualTo("user-1");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "app-events", "automation", "components", "connections", "external", "integration-instances", "integrations",
+        "me", "unified", "workflows"
+    })
+    void testConvertWithNonJwtTokenAndBareReservedSegmentThrowsBadCredentialsException(String reservedSegment) {
+        assertThatThrownBy(() -> convertWithApiKey("/api/embedded/v1/" + reservedSegment))
+            .isInstanceOf(BadCredentialsException.class)
+            .hasMessage("Non-JWT tokens are not accepted on this endpoint");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "/api/embedded/v1/%69ntegrations", "/api/embedded/v1/%69ntegrations/1", "/api/embedded/v1/%6De"
+    })
+    void testConvertWithNonJwtTokenAndPercentEncodedReservedSegmentThrowsBadCredentialsException(String requestUri) {
+        assertThatThrownBy(() -> convertWithApiKey(requestUri))
+            .isInstanceOf(BadCredentialsException.class)
+            .hasMessage("Non-JWT tokens are not accepted on this endpoint");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "/api/embedded/v1", "/api/embedded/v1/", "/api/platform/internal/workflows/v1/user-1/x",
+        "/api/embedded/internal/v1/user-1/connections"
+    })
+    void testConvertWithNonJwtTokenAndNonExternalUserPathThrowsBadCredentialsException(String requestUri) {
+        assertThatThrownBy(() -> convertWithApiKey(requestUri))
+            .isInstanceOf(BadCredentialsException.class)
+            .hasMessage("externalUserId parameter is required");
+    }
+
+    @Test
     void testFrontendPathNeverReachesProviderSoNoConnectedUserIsCreated() {
         ApiKeyService apiKeyService = mock(ApiKeyService.class);
         ConnectedUserService connectedUserService = mock(ConnectedUserService.class);
@@ -514,6 +691,16 @@ class EmbeddedApiKeyAuthenticationConverterTest {
 
         verifyNoInteractions(connectedUserService);
         verifyNoInteractions(apiKeyService);
+    }
+
+    private Authentication convertWithApiKey(String requestUri) {
+        String tenantKey = EncodingUtils.base64EncodeToString("test-tenant" + ":randomData");
+
+        when(request.getHeader("Authorization")).thenReturn("Bearer " + tenantKey);
+        when(request.getHeader("X-ENVIRONMENT")).thenReturn(null);
+        when(request.getRequestURI()).thenReturn(requestUri);
+
+        return converter.convert(request);
     }
 
     private Authentication convertWithJwt(String jwtToken, String requestUri, String environment) {
@@ -538,6 +725,23 @@ class EmbeddedApiKeyAuthenticationConverterTest {
             .subject(subject)
             .claim(JwtTokenService.ENVIRONMENT_ID_CLAIM, environmentIdClaim)
             .claim("integrationId", 1L)
+            .signWith(keyPair.getPrivate())
+            .compact();
+    }
+
+    private String createJwtWithConnectionDialogAllowedClaim(Object connectionDialogAllowedClaim)
+        throws NoSuchAlgorithmException {
+
+        KeyPair keyPair = generateKeyPair();
+
+        when(signingKeyService.getPublicKey(anyString(), anyLong())).thenReturn(keyPair.getPublic());
+
+        return Jwts.builder()
+            .header()
+            .keyId(EncodingUtils.base64EncodeToString(JWT_TENANT_ID + ":keyId"))
+            .and()
+            .subject("user-a")
+            .claim(JwtTokenService.CONNECTION_DIALOG_ALLOWED_CLAIM, connectionDialogAllowedClaim)
             .signWith(keyPair.getPrivate())
             .compact();
     }

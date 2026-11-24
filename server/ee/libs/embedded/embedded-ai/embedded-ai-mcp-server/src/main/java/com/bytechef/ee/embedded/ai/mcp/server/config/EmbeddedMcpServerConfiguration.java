@@ -12,12 +12,18 @@ import com.bytechef.atlas.execution.service.TaskExecutionService;
 import com.bytechef.atlas.file.storage.TaskFileStorage;
 import com.bytechef.commons.util.CollectionUtils;
 import com.bytechef.config.ApplicationProperties;
+import com.bytechef.ee.embedded.ai.mcp.server.facade.EmbeddedMcpToolCallback;
 import com.bytechef.ee.embedded.ai.mcp.server.facade.EmbeddedMcpToolFacade;
 import com.bytechef.ee.embedded.ai.mcp.server.security.web.configurer.EmbeddedMcpServerSecurityConfigurer;
+import com.bytechef.ee.embedded.ai.mcp.service.McpAutomationProjectConfigurationService;
+import com.bytechef.ee.embedded.ai.mcp.service.McpAutomationProjectConfigurationWorkflowService;
+import com.bytechef.ee.embedded.ai.mcp.service.McpConnectedUserProjectWorkflowService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationComponentService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceConfigurationService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceConfigurationWorkflowService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceToolService;
+import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceWorkflowService;
+import com.bytechef.ee.embedded.configuration.facade.ConnectedUserMcpAutomationResolver;
 import com.bytechef.ee.embedded.configuration.service.IntegrationInstanceConfigurationService;
 import com.bytechef.ee.embedded.configuration.service.IntegrationInstanceConfigurationWorkflowService;
 import com.bytechef.ee.embedded.configuration.service.IntegrationInstanceService;
@@ -57,6 +63,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.mcp.McpToolUtils;
 import org.springframework.ai.mcp.server.webmvc.transport.WebMvcStreamableServerTransportProvider;
+import org.springframework.ai.tool.ToolCallback;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.HttpSecurityBuilder;
@@ -101,33 +108,41 @@ public class EmbeddedMcpServerConfiguration {
     EmbeddedMcpToolFacade embeddedMcpToolFacade(
         ApplicationProperties applicationProperties, ClusterElementDefinitionFacade clusterElementDefinitionFacade,
         ClusterElementDefinitionService clusterElementDefinitionService,
-        ComponentDefinitionService componentDefinitionService, ConnectedUserService connectedUserService,
-        TaskFileStorage durableTaskFileStorage, Evaluator evaluator,
+        ComponentDefinitionService componentDefinitionService,
+        ConnectedUserMcpAutomationResolver connectedUserMcpAutomationResolver,
+        ConnectedUserService connectedUserService, TaskFileStorage durableTaskFileStorage, Evaluator evaluator,
         IntegrationInstanceConfigurationService integrationInstanceConfigurationService,
         IntegrationInstanceConfigurationWorkflowService integrationInstanceConfigurationWorkflowService,
         IntegrationInstanceService integrationInstanceService,
         IntegrationInstanceWorkflowService integrationInstanceWorkflowService, IntegrationService integrationService,
         JobCompletionAwaiter jobCompletionAwaiter, JwtTokenService jwtTokenService,
-        McpComponentService mcpComponentService, McpIntegrationComponentService mcpIntegrationComponentService,
+        McpAutomationProjectConfigurationWorkflowService mcpAutomationProjectConfigurationWorkflowService,
+        McpComponentService mcpComponentService,
+        McpConnectedUserProjectWorkflowService mcpConnectedUserProjectWorkflowService,
+        McpIntegrationComponentService mcpIntegrationComponentService,
         McpIntegrationInstanceConfigurationWorkflowService mcpIntegrationInstanceConfigurationWorkflowService,
-        McpIntegrationInstanceToolService mcpIntegrationInstanceToolService, McpServerService mcpServerService,
+        McpIntegrationInstanceToolService mcpIntegrationInstanceToolService,
+        McpIntegrationInstanceWorkflowService mcpIntegrationInstanceWorkflowService, McpServerService mcpServerService,
         PrincipalJobFacade principalJobFacade, TaskExecutionService taskExecutionService,
         ExternalInvocationRecorder externalInvocationRecorder, WorkflowService workflowService) {
 
         return new EmbeddedMcpToolFacade(
             clusterElementDefinitionFacade, clusterElementDefinitionService, componentDefinitionService,
-            connectedUserService, evaluator, integrationInstanceConfigurationService,
-            integrationInstanceConfigurationWorkflowService, integrationInstanceService,
-            integrationInstanceWorkflowService, integrationService, jobCompletionAwaiter, jwtTokenService,
-            mcpComponentService, mcpIntegrationComponentService, mcpIntegrationInstanceConfigurationWorkflowService,
-            mcpIntegrationInstanceToolService, mcpServerService, principalJobFacade,
-            applicationProperties.getPublicUrl(), taskExecutionService, durableTaskFileStorage,
+            connectedUserMcpAutomationResolver, connectedUserService, evaluator,
+            integrationInstanceConfigurationService, integrationInstanceConfigurationWorkflowService,
+            integrationInstanceService, integrationInstanceWorkflowService, integrationService, jobCompletionAwaiter,
+            jwtTokenService, mcpAutomationProjectConfigurationWorkflowService, mcpComponentService,
+            mcpConnectedUserProjectWorkflowService, mcpIntegrationComponentService,
+            mcpIntegrationInstanceConfigurationWorkflowService,
+            mcpIntegrationInstanceToolService, mcpIntegrationInstanceWorkflowService, mcpServerService,
+            principalJobFacade, applicationProperties.getPublicUrl(), taskExecutionService, durableTaskFileStorage,
             externalInvocationRecorder,
             workflowService);
     }
 
     @Bean
     FilterableMcpAsyncServer embeddedMcpAsyncServer(
+        McpAutomationProjectConfigurationService mcpAutomationProjectConfigurationService,
         McpComponentService mcpComponentService,
         McpIntegrationInstanceConfigurationService mcpIntegrationInstanceConfigurationService,
         McpServerService mcpServerService, McpToolService mcpToolService,
@@ -166,7 +181,7 @@ public class EmbeddedMcpServerConfiguration {
                             mcpTool, externalUserId, environment, tenantId);
 
                         if (callback != null) {
-                            toolSpecifications.add(McpToolUtils.toAsyncToolSpecification(callback));
+                            toolSpecifications.add(toAsyncToolSpecification(callback));
                         }
                     });
 
@@ -176,7 +191,16 @@ public class EmbeddedMcpServerConfiguration {
                     .flatMap(mcpIntegrationInstanceConfiguration -> CollectionUtils.stream(
                         embeddedMcpToolFacade.getFunctionToolCallbacks(
                             mcpIntegrationInstanceConfiguration, externalUserId, environment, tenantId)))
-                    .map(McpToolUtils::toAsyncToolSpecification)
+                    .map(EmbeddedMcpServerConfiguration::toAsyncToolSpecification)
+                    .forEach(toolSpecifications::add);
+
+                mcpAutomationProjectConfigurationService
+                    .getMcpServerMcpAutomationProjectConfigurations(mcpServer.getId())
+                    .stream()
+                    .flatMap(mcpAutomationProjectConfiguration -> CollectionUtils.stream(
+                        embeddedMcpToolFacade.getAutomationToolCallbacks(
+                            mcpAutomationProjectConfiguration, externalUserId, environment, tenantId)))
+                    .map(EmbeddedMcpServerConfiguration::toAsyncToolSpecification)
                     .forEach(toolSpecifications::add);
 
                 return toolSpecifications;
@@ -219,6 +243,30 @@ public class EmbeddedMcpServerConfiguration {
         }
 
         return McpTransportContext.create(context);
+    }
+
+    static McpServerFeatures.AsyncToolSpecification toAsyncToolSpecification(ToolCallback toolCallback) {
+        McpServerFeatures.AsyncToolSpecification toolSpecification = McpToolUtils.toAsyncToolSpecification(
+            toolCallback);
+
+        if (!(toolCallback instanceof EmbeddedMcpToolCallback embeddedMcpToolCallback)) {
+            return toolSpecification;
+        }
+
+        McpSchema.Tool tool = toolSpecification.tool();
+
+        McpSchema.Tool toolWithMeta = McpSchema.Tool.builder()
+            .name(tool.name())
+            .title(tool.title())
+            .description(tool.description())
+            .inputSchema(tool.inputSchema())
+            .outputSchema(tool.outputSchema())
+            .annotations(tool.annotations())
+            .icons(tool.icons())
+            .meta(embeddedMcpToolCallback.meta())
+            .build();
+
+        return new McpServerFeatures.AsyncToolSpecification(toolWithMeta, toolSpecification.callHandler());
     }
 
     private com.bytechef.platform.configuration.domain.Environment getEnvironment(String environment) {

@@ -207,7 +207,7 @@ public class ModelUtils {
 
         ChatResponseMetadata metadata = chatResponse.getMetadata();
 
-        if (metadata == null || metadata.isEmpty()) {
+        if (metadata.isEmpty()) {
             return Map.of();
         }
 
@@ -287,7 +287,7 @@ public class ModelUtils {
 
     public static RestClient.Builder getRestClientBuilder() {
         HttpClientSettings requestFactorySettings = new HttpClientSettings(
-            null, Duration.of(1, ChronoUnit.MINUTES), Duration.of(5, ChronoUnit.MINUTES), SslBundle.of(null));
+            null, null, Duration.of(1, ChronoUnit.MINUTES), Duration.of(5, ChronoUnit.MINUTES), SslBundle.of(null));
 
         ClientHttpRequestFactory requestFactory = ClientHttpRequestFactoryBuilder.jdk()
             .build(requestFactorySettings);

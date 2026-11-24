@@ -26,10 +26,13 @@ import com.bytechef.commons.util.CollectionUtils;
 import com.bytechef.exception.ConfigurationException;
 import com.bytechef.tenant.util.TenantCacheKeyUtils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.Validate;
@@ -43,6 +46,7 @@ import org.springframework.util.Assert;
 
 /**
  * @author Ivica Cardic
+ * @author Igor Beslic
  */
 @Transactional
 public class WorkflowServiceImpl implements WorkflowService {
@@ -71,8 +75,6 @@ public class WorkflowServiceImpl implements WorkflowService {
         Assert.notNull(definition, "'definition' must not be null");
         Assert.notNull(format, "'format' must not be null");
         Assert.notNull(sourceType, "'sourceType' must not be null");
-
-        // TODO Validate definition considering format value
 
         final Workflow workflow = new Workflow(definition, format);
 
@@ -117,6 +119,28 @@ public class WorkflowServiceImpl implements WorkflowService {
         Workflow workflow = getWorkflow(id);
 
         return create(workflow.getDefinition(), workflow.getFormat(), workflow.getSourceType());
+    }
+
+    @Override
+    public Workflow duplicateWorkflowPreservingAudit(String id) {
+        Workflow workflow = getWorkflow(id);
+
+        Workflow duplicatedWorkflow = create(workflow.getDefinition(), workflow.getFormat(), workflow.getSourceType());
+
+        String duplicatedWorkflowId = Validate.notNull(duplicatedWorkflow.getId(), "id");
+
+        WorkflowCrudRepository workflowCrudRepository = CollectionUtils.getFirst(
+            workflowCrudRepositories,
+            curWorkflowCrudRepository -> Objects.equals(
+                curWorkflowCrudRepository.getSourceType(), duplicatedWorkflow.getSourceType()));
+
+        workflowCrudRepository.updateAuditFields(
+            duplicatedWorkflowId, workflow.getCreatedBy(), workflow.getCreatedDate(), workflow.getLastModifiedBy(),
+            workflow.getLastModifiedDate());
+
+        refreshCache(duplicatedWorkflowId);
+
+        return getWorkflow(duplicatedWorkflowId);
     }
 
     @Override
@@ -226,10 +250,52 @@ public class WorkflowServiceImpl implements WorkflowService {
     @Override
     @Transactional(readOnly = true)
     public List<Workflow> getWorkflows(List<String> workflowIds) {
-        List<Workflow> workflows = getWorkflows()
-            .stream()
-            .filter(workflow -> workflowIds.contains(workflow.getId()))
-            .toList();
+        Cache workflowCache = Validate.notNull(cacheManager.getCache(WORKFLOW_CACHE), WORKFLOW_CACHE);
+
+        List<Workflow> workflows = new ArrayList<>();
+        Set<String> missingWorkflowIds = new LinkedHashSet<>();
+
+        for (String workflowId : new LinkedHashSet<>(workflowIds)) {
+            Cache.ValueWrapper workflowValueWrapper = workflowCache.get(TenantCacheKeyUtils.getKey(workflowId));
+
+            if (workflowValueWrapper != null && workflowValueWrapper.get() instanceof Workflow cachedWorkflow) {
+                workflows.add(cachedWorkflow);
+            } else {
+                missingWorkflowIds.add(workflowId);
+            }
+        }
+
+        RuntimeException lookupException = null;
+
+        for (WorkflowRepository workflowRepository : workflowRepositories) {
+            if (missingWorkflowIds.isEmpty()) {
+                break;
+            }
+
+            try {
+                for (Workflow workflow : workflowRepository.findAllById(List.copyOf(missingWorkflowIds))) {
+                    String workflowId = Validate.notNull(workflow.getId(), "id");
+
+                    if (!missingWorkflowIds.remove(workflowId)) {
+                        continue;
+                    }
+
+                    workflow.setSourceType(workflowRepository.getSourceType());
+
+                    workflowCache.put(TenantCacheKeyUtils.getKey(workflowId), workflow);
+
+                    workflows.add(workflow);
+                }
+            } catch (RuntimeException exception) {
+                log.error(exception.getMessage(), exception);
+
+                lookupException = exception;
+            }
+        }
+
+        if (lookupException != null && !missingWorkflowIds.isEmpty()) {
+            throw lookupException;
+        }
 
         return CollectionUtils.sort(workflows, WorkflowServiceImpl::compare);
     }

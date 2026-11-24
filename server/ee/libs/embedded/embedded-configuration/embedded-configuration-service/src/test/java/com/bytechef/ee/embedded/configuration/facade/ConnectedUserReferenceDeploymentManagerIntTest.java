@@ -40,10 +40,13 @@ import com.bytechef.automation.configuration.facade.WorkspaceFacade;
 import com.bytechef.automation.configuration.service.ProjectDeploymentService;
 import com.bytechef.automation.configuration.service.ProjectDeploymentWorkflowService;
 import com.bytechef.automation.configuration.service.ProjectWorkflowService;
+import com.bytechef.ee.embedded.ai.mcp.facade.McpAutomationRowFacade;
+import com.bytechef.ee.embedded.ai.mcp.facade.McpIntegrationInstanceRowFacade;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationComponentService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceConfigurationService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceConfigurationWorkflowService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceToolService;
+import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceWorkflowService;
 import com.bytechef.ee.embedded.configuration.domain.AutomationProjectConfiguration;
 import com.bytechef.ee.embedded.configuration.domain.ConnectedUserProjectConfiguration;
 import com.bytechef.ee.embedded.configuration.domain.ConnectedUserProjectWorkflow;
@@ -139,6 +142,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
     JobFacade.class, JobService.class, McpComponentService.class, McpIntegrationComponentService.class,
     McpIntegrationInstanceConfigurationService.class,
     McpIntegrationInstanceConfigurationWorkflowService.class, McpIntegrationInstanceToolService.class,
+    McpIntegrationInstanceWorkflowService.class, McpAutomationRowFacade.class, McpIntegrationInstanceRowFacade.class,
     McpServerService.class, McpToolService.class, OAuth2ParametersFacade.class, OAuth2Service.class,
     PrincipalJobFacade.class, PrincipalJobService.class, ProjectFacade.class,
     TaskDispatcherDefinitionService.class, TaskExecutionService.class,
@@ -175,6 +179,25 @@ class ConnectedUserReferenceDeploymentManagerIntTest {
 
     private static final String SLACK_WORKFLOW_DEFINITION = """
         {"label":"Post","triggers":[],"tasks":[{"name":"postMessage1","type":"slack/v1/postMessage","parameters":{}}]}
+        """;
+
+    private static final String SLACK_WORKFLOW_WITH_OPTIONAL_INTERNAL_ONLY_INPUT_DEFINITION = """
+        {"label":"Post","inputs":[
+         {"name":"accountId","label":"Account","type":"string","required":false,"internalOnly":true}],
+         "triggers":[],"tasks":[{"name":"postMessage1","type":"slack/v1/postMessage","parameters":{}}]}
+        """;
+
+    private static final String SLACK_WORKFLOW_WITH_REQUIRED_INTERNAL_ONLY_INPUT_DEFINITION = """
+        {"label":"Post","inputs":[
+         {"name":"accountId","label":"Account","type":"string","required":true,"internalOnly":true}],
+         "triggers":[],"tasks":[{"name":"postMessage1","type":"slack/v1/postMessage","parameters":{}}]}
+        """;
+
+    private static final String SLACK_TRIGGER_WORKFLOW_WITH_CHANNEL_AND_INTERNAL_ONLY_INPUTS_DEFINITION = """
+        {"label":"Post","inputs":[{"name":"channel","label":"Channel","type":"string","required":true},
+         {"name":"accountId","label":"Account","type":"string","required":true,"internalOnly":true}],
+         "triggers":[{"name":"newMessage1","type":"slack/v1/newMessage","parameters":{}}],
+         "tasks":[{"name":"postMessage1","type":"slack/v1/postMessage","parameters":{}}]}
         """;
 
     private static final String SLACK_WORKFLOW_WITH_CHANNEL_INPUT_DEFINITION = """
@@ -330,6 +353,37 @@ class ConnectedUserReferenceDeploymentManagerIntTest {
             .enabled()).isFalse();
         assertThat(resolution.missingComponentName()).isNull();
         assertThat(resolution.missingInputName()).isEqualTo("channel");
+    }
+
+    @Test
+    void testResolveReferenceKeepsTheRowDisabledWhileTheConfigurationLacksARequiredInternalOnlyInput() {
+        String workflowId = createDraftWorkflow(
+            "Resolve Missing Internal Only Input", SLACK_WORKFLOW_WITH_REQUIRED_INTERNAL_ONLY_INPUT_DEFINITION);
+
+        ReferenceResolution resolution = connectedUserReferenceDeploymentManager.resolveReference(
+            connectedUserId, UNCONFIGURED_PROJECT_ID, UNCONFIGURED_WORKFLOW_UUID, workflowId,
+            true, Map.of(), List.of(), Map.of("accountId", "user-account"));
+
+        RowSpec rowSpec = resolution.rowSpec();
+
+        assertThat(rowSpec.enabled()).isFalse();
+        assertThat(rowSpec.inputs()).isEmpty();
+        assertThat(resolution.missingComponentName()).isNull();
+        assertThat(resolution.missingInputName()).isNull();
+    }
+
+    @Test
+    void testResolveReferenceAllowsAnEmptyOptionalInternalOnlyInput() {
+        String workflowId = createDraftWorkflow(
+            "Resolve Optional Internal Only Input", SLACK_WORKFLOW_WITH_OPTIONAL_INTERNAL_ONLY_INPUT_DEFINITION);
+
+        ReferenceResolution resolution = connectedUserReferenceDeploymentManager.resolveReference(
+            connectedUserId, UNCONFIGURED_PROJECT_ID, UNCONFIGURED_WORKFLOW_UUID, workflowId,
+            true, Map.of(), List.of(), Map.of());
+
+        assertThat(resolution.rowSpec()
+            .enabled()).isTrue();
+        assertThat(resolution.missingInputName()).isNull();
     }
 
     @Test
@@ -856,6 +910,27 @@ class ConnectedUserReferenceDeploymentManagerIntTest {
 
         verifyNoInteractions(triggerLifecycleFacade);
         verifyRunningJobsNeverStopped(projectDeploymentId, workflowId);
+    }
+
+    @Test
+    void testUpdateInputsIgnoresAnInternalOnlyInputFromTheUser() {
+        long automationProjectId = createAutomationProject("Internal Only Inputs");
+
+        String workflowUuid =
+            addWorkflow(automationProjectId, SLACK_TRIGGER_WORKFLOW_WITH_CHANNEL_AND_INTERNAL_ONLY_INPUTS_DEFINITION);
+
+        publishAndPinProject(automationProjectId);
+
+        ConnectedUserProjectWorkflow reference = provision(workflowUuid);
+
+        long projectDeploymentId = reference.getProjectDeploymentId();
+        String workflowId = getWorkflowId(automationProjectId, 1, workflowUuid);
+
+        assertThatCode(() -> connectedUserReferenceDeploymentManager.updateInputs(
+            projectDeploymentId, workflowUuid, Map.of("channel", "general", "accountId", "user-account")))
+                .doesNotThrowAnyException();
+
+        assertThat(getRow(projectDeploymentId, workflowId).getInputs()).isEqualTo(Map.of("channel", "general"));
     }
 
     @Test

@@ -27,36 +27,46 @@ vi.mock('@/ee/shared/queries/embedded/componentDefinitions.queries', () => ({
 
 const MCP_SERVERS = [
     {
+        coveredAutomationNames: [],
         coveredComponentNames: ['Slack', 'Jira'],
         id: '3',
+        missingAutomationNames: [],
         missingComponentNames: [],
         name: 'Full server',
         provisioned: false,
     },
     {
+        coveredAutomationNames: [],
         coveredComponentNames: ['Slack'],
         id: '4',
+        missingAutomationNames: [],
         missingComponentNames: ['Jira', 'Asana'],
         name: 'Partial server',
         provisioned: false,
     },
     {
+        coveredAutomationNames: [],
         coveredComponentNames: [],
         id: '5',
+        missingAutomationNames: [],
         missingComponentNames: ['Jira', 'Asana'],
         name: 'Uncovered server',
         provisioned: false,
     },
     {
+        coveredAutomationNames: [],
         coveredComponentNames: ['Slack'],
         id: '6',
+        missingAutomationNames: [],
         missingComponentNames: [],
         name: 'Existing server',
         provisioned: true,
     },
     {
+        coveredAutomationNames: [],
         coveredComponentNames: ['Jira'],
         id: '8',
+        missingAutomationNames: [],
         missingComponentNames: [],
         name: 'Last server',
         provisioned: false,
@@ -98,11 +108,17 @@ describe('ProvisionMcpServerDialog', () => {
         expect(
             screen.getByText('Expose an MCP server through the integrations this connected user already has.')
         ).toBeInTheDocument();
-        expect(screen.getByText('Uses Slack, Jira')).toBeInTheDocument();
+        expect(screen.getByText('Uses Slack and Jira')).toBeInTheDocument();
         expect(
-            screen.getByText('Uses Slack. Missing Jira, Asana: add those integrations first to expose them.')
+            screen.getByText(
+                'Uses Slack. Its Jira and Asana tools stay hidden until this user has the Jira and Asana integrations; add them with Provision Integration on the Integrations tab.'
+            )
         ).toBeInTheDocument();
-        expect(screen.getByText('Add Jira, Asana on the Integrations tab first.')).toBeInTheDocument();
+        expect(
+            screen.getByText(
+                'Unavailable: its tools use Jira and Asana, and this user has no Jira and Asana integrations yet. Add them with Provision Integration on the Integrations tab, then come back here.'
+            )
+        ).toBeInTheDocument();
         expect(screen.getByRole('radio', {name: /Full server/})).toBeEnabled();
         expect(screen.getByRole('radio', {name: /Partial server/})).toBeEnabled();
         expect(screen.getByRole('radio', {name: /Uncovered server/})).toBeDisabled();
@@ -113,8 +129,10 @@ describe('ProvisionMcpServerDialog', () => {
             data: {
                 provisionableConnectedUserMcpServers: [
                     {
+                        coveredAutomationNames: [],
                         coveredComponentNames: ['googleMail'],
                         id: '9',
+                        missingAutomationNames: [],
                         missingComponentNames: ['unknownComponent'],
                         name: 'Google',
                         provisioned: false,
@@ -126,22 +144,28 @@ describe('ProvisionMcpServerDialog', () => {
         renderDialog();
 
         expect(
-            screen.getByText('Uses Gmail. Missing unknownComponent: add those integrations first to expose them.')
+            screen.getByText(
+                'Uses Gmail. Its unknownComponent tools stay hidden until this user has the unknownComponent integration; add it with Provision Integration on the Integrations tab.'
+            )
         ).toBeInTheDocument();
     });
 
-    it('lists provisioned servers last with a badge and keeps them selectable', () => {
+    it('leaves out the servers already provisioned for the user', () => {
         renderDialog();
 
-        expect(screen.getByText('Provisioned')).toBeInTheDocument();
-        expect(screen.getByRole('radio', {name: /Existing server/})).toBeEnabled();
-        expect(screen.getAllByRole('radio').map((radio) => radio.getAttribute('value'))).toEqual([
-            '3',
-            '4',
-            '5',
-            '8',
-            '6',
-        ]);
+        expect(screen.queryByText('Existing server')).not.toBeInTheDocument();
+        expect(screen.getAllByRole('radio').map((radio) => radio.getAttribute('value'))).toEqual(['3', '4', '5', '8']);
+    });
+
+    it('says so when every server is already provisioned for the user', () => {
+        hoisted.provisionableQuery.mockReturnValue({
+            data: {provisionableConnectedUserMcpServers: MCP_SERVERS.filter((mcpServer) => mcpServer.provisioned)},
+        });
+
+        renderDialog();
+
+        expect(screen.getByText('Every MCP server is already provisioned for this user.')).toBeInTheDocument();
+        expect(screen.queryByRole('radio')).not.toBeInTheDocument();
     });
 
     it('keeps Save disabled until a selectable server is chosen', async () => {
@@ -177,5 +201,32 @@ describe('ProvisionMcpServerDialog', () => {
         expect(invalidateQueries).toHaveBeenCalledWith({queryKey: ['provisionableConnectedUserMcpServers']});
         expect(invalidateQueries).toHaveBeenCalledWith({queryKey: ['connectedUsers', 7]});
         expect(onClose).toHaveBeenCalled();
+    });
+
+    it('lists the covered and missing automations of a server', () => {
+        hoisted.provisionableQuery.mockReturnValue({
+            data: {
+                provisionableConnectedUserMcpServers: [
+                    {
+                        coveredAutomationNames: ['Support Desk'],
+                        coveredComponentNames: [],
+                        id: '10',
+                        missingAutomationNames: ['Billing', 'Onboarding'],
+                        missingComponentNames: [],
+                        name: 'Automation server',
+                        provisioned: false,
+                    },
+                ],
+            },
+        });
+
+        renderDialog();
+
+        expect(
+            screen.getByText(
+                'Uses the Support Desk automation. Its Billing and Onboarding automations stay hidden until this user has them; add them on the Automations tab.'
+            )
+        ).toBeInTheDocument();
+        expect(screen.getByRole('radio', {name: /Automation server/})).toBeEnabled();
     });
 });

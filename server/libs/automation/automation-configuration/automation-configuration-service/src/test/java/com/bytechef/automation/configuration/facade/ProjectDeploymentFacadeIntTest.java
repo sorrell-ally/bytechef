@@ -41,6 +41,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.bytechef.atlas.configuration.domain.Workflow;
+import com.bytechef.atlas.configuration.domain.WorkflowTask;
 import com.bytechef.atlas.configuration.repository.WorkflowRepository;
 import com.bytechef.atlas.execution.domain.Job;
 import com.bytechef.atlas.execution.facade.JobFacade;
@@ -315,6 +316,86 @@ public class ProjectDeploymentFacadeIntTest {
             });
     }
 
+    @Test
+    public void testEnableProjectDeploymentWorkflowIgnoresConnectionsOfDisabledTasks() {
+        ProjectDTO projectDTO = projectDeploymentFacadeHelper.createProject(workspace.getId());
+
+        projectDeploymentFacadeHelper.addTestWorkflow(
+            projectDTO,
+            """
+                {
+                    "label": "Disabled tasks",
+                    "tasks": [
+                        {"name": "logger_1", "type": "logger/v1/info", "parameters": {"text": "enabled"}},
+                        {
+                            "name": "logger_2",
+                            "type": "logger/v1/info",
+                            "disabled": true,
+                            "parameters": {"text": "disabled"}
+                        },
+                        {
+                            "name": "loop_1",
+                            "type": "loop/v1",
+                            "disabled": true,
+                            "parameters": {
+                                "items": [1, 2],
+                                "iteratee": [
+                                    {
+                                        "name": "logger_3",
+                                        "type": "logger/v1/info",
+                                        "parameters": {"text": "nested in a disabled loop"}
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }""");
+
+        projectFacade.publishProject(projectDTO.id(), "Published for test", false);
+
+        ProjectWorkflow publishedProjectWorkflow = projectWorkflowRepository.findAllByProjectIdAndProjectVersion(
+            projectDTO.id(), 1)
+            .getFirst();
+
+        when(componentConnectionFacade.getComponentConnections(any(WorkflowTask.class)))
+            .thenAnswer(invocation -> {
+                WorkflowTask workflowTask = invocation.getArgument(0);
+
+                String workflowTaskName = workflowTask.getName();
+
+                if (workflowTaskName.equals("logger_2") || workflowTaskName.equals("logger_3")) {
+                    return List.of(new ComponentConnection("oracle", 1, workflowTaskName, workflowTaskName, true));
+                }
+
+                return List.of();
+            });
+
+        ProjectDeploymentWorkflowDTO projectDeploymentWorkflowDTO = new ProjectDeploymentWorkflowDTO(
+            List.of(), null, null, Map.of(), true, null, null, null, null, null, null, null, 0,
+            publishedProjectWorkflow.getWorkflowId(), publishedProjectWorkflow.getUuidAsString());
+
+        ProjectDeploymentDTO projectDeploymentDTO = ProjectDeploymentDTO.builder()
+            .projectId(projectDTO.id())
+            .name("Disabled tasks")
+            .environment(Environment.DEVELOPMENT)
+            .projectVersion(1)
+            .projectDeploymentWorkflows(List.of(projectDeploymentWorkflowDTO))
+            .build();
+
+        long projectDeploymentId = projectDeploymentFacade.createProjectDeployment(projectDeploymentDTO);
+
+        projectDeploymentFacade.enableProjectDeploymentWorkflow(
+            projectDeploymentId, publishedProjectWorkflow.getWorkflowId(), true);
+
+        ProjectDeploymentDTO createdProjectDeployment = projectDeploymentFacade.getProjectDeployment(
+            projectDeploymentId);
+
+        assertThat(createdProjectDeployment.projectDeploymentWorkflows())
+            .hasSize(1)
+            .first()
+            .satisfies(projectDeploymentWorkflow -> assertThat(projectDeploymentWorkflow.enabled()).isTrue());
+    }
+
     @Disabled
     @Test
     public void testCreateProjectDeploymentJob() {
@@ -410,11 +491,33 @@ public class ProjectDeploymentFacadeIntTest {
         projectDeploymentFacade.updateProjectDeploymentTags(
             otherProjectDeploymentDTO.id(), List.of(new Tag("deployment-tag-z")));
 
-        List<Tag> tags = projectDeploymentFacade.getProjectDeploymentTags();
+        List<Tag> tags = projectDeploymentFacade.getProjectDeploymentTags(workspace.getId());
 
         assertThat(tags)
             .extracting(Tag::getName)
             .containsExactlyInAnyOrder("deployment-tag-x", "deployment-tag-y", "deployment-tag-z");
+    }
+
+    @Test
+    public void testGetProjectDeploymentTagsExcludesTagsOfOtherWorkspaces() {
+        Workspace otherWorkspace = workspaceRepository.save(new Workspace("other"));
+
+        ProjectDeploymentDTO projectDeploymentDTO = projectDeploymentFacadeHelper.createProjectDeployment(
+            workspace.getId(), projectDeploymentFacadeHelper.createProject(workspace.getId()));
+        ProjectDeploymentDTO otherProjectDeploymentDTO = projectDeploymentFacadeHelper.createProjectDeployment(
+            otherWorkspace.getId(), projectDeploymentFacadeHelper.createProject(otherWorkspace.getId()));
+
+        projectDeploymentFacade.updateProjectDeploymentTags(
+            projectDeploymentDTO.id(), List.of(new Tag("workspace-deployment-tag")));
+        projectDeploymentFacade.updateProjectDeploymentTags(
+            otherProjectDeploymentDTO.id(), List.of(new Tag("other-workspace-deployment-tag")));
+
+        assertThat(projectDeploymentFacade.getProjectDeploymentTags(workspace.getId()))
+            .extracting(Tag::getName)
+            .containsExactly("workspace-deployment-tag");
+        assertThat(projectDeploymentFacade.getProjectDeploymentTags(otherWorkspace.getId()))
+            .extracting(Tag::getName)
+            .containsExactly("other-workspace-deployment-tag");
     }
 
     @Test

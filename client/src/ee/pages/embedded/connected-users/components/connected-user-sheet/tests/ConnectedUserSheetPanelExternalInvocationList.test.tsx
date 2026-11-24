@@ -1,6 +1,6 @@
 import {TooltipProvider} from '@/components/ui/tooltip';
 import ConnectedUserSheetPanelExternalInvocationList from '@/ee/pages/embedded/connected-users/components/connected-user-sheet/ConnectedUserSheetPanelExternalInvocationList';
-import {fireEvent, render, screen} from '@testing-library/react';
+import {fireEvent, render, screen, within} from '@testing-library/react';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 
 const hoisted = vi.hoisted(() => ({
@@ -25,13 +25,13 @@ const externalInvocationLog = {
     externalUserId: 'external-user-1',
     id: '1',
     integrationInstanceId: 4,
+    invocationName: 'SLACK_SEND_MESSAGE',
     jobId: null,
     kind: 'COMPONENT',
     mcpServerId: 11,
     operationName: 'sendMessage',
-    outcome: 'SUCCESS',
     source: 'MCP_SERVER',
-    toolName: 'SLACK_SEND_MESSAGE',
+    status: 'SUCCESS',
 };
 
 describe('ConnectedUserSheetPanelExternalInvocationList', () => {
@@ -49,7 +49,14 @@ describe('ConnectedUserSheetPanelExternalInvocationList', () => {
         );
 
         expect(hoisted.externalInvocationLogsQuery).toHaveBeenCalledWith({connectedUserId: 7, type: 'EMBEDDED'});
-        expect(screen.getByText('Loading...')).toBeInTheDocument();
+        expect(screen.getByRole('status', {name: 'Loading external invocations'})).toBeInTheDocument();
+
+        expect(
+            within(screen.getByRole('status'))
+                .getAllByRole('columnheader')
+                .map((columnHeader) => columnHeader.textContent)
+        ).toEqual(['Status', 'Name', 'Type', 'Source', 'Server', 'Target', 'Duration', 'Date']);
+        expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
     });
 
     it('lists the recorded invocations', () => {
@@ -75,9 +82,34 @@ describe('ConnectedUserSheetPanelExternalInvocationList', () => {
         expect(screen.getByText('SLACK_SEND_MESSAGE')).toBeInTheDocument();
         expect(screen.getByText('MCP')).toBeInTheDocument();
         expect(screen.getByText('slack / sendMessage')).toBeInTheDocument();
-        expect(
-            screen.queryByText('No external invocations have been recorded for this user yet.')
-        ).not.toBeInTheDocument();
+        expect(screen.queryByRole('heading', {name: 'No external invocations yet'})).not.toBeInTheDocument();
+    });
+
+    it('opens the details of a call when its row is clicked', () => {
+        hoisted.externalInvocationLogsQuery.mockReturnValue({
+            data: {
+                externalInvocationLogs: {
+                    content: [externalInvocationLog],
+                    number: 0,
+                    size: 50,
+                    totalElements: 1,
+                    totalPages: 1,
+                },
+            },
+            isLoading: false,
+        });
+
+        render(
+            <TooltipProvider>
+                <ConnectedUserSheetPanelExternalInvocationList connectedUserId={7} />
+            </TooltipProvider>
+        );
+
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByText('SLACK_SEND_MESSAGE'));
+
+        expect(screen.getByRole('dialog', {name: 'SLACK_SEND_MESSAGE'})).toBeInTheDocument();
     });
 
     it('shows an error with a retry instead of the empty message when the invocations cannot be loaded', () => {
@@ -97,9 +129,7 @@ describe('ConnectedUserSheetPanelExternalInvocationList', () => {
         );
 
         expect(screen.getByText('External invocations could not be loaded.')).toBeInTheDocument();
-        expect(
-            screen.queryByText('No external invocations have been recorded for this user yet.')
-        ).not.toBeInTheDocument();
+        expect(screen.queryByRole('heading', {name: 'No external invocations yet'})).not.toBeInTheDocument();
 
         fireEvent.click(screen.getByRole('button', {name: 'Retry'}));
 
@@ -118,7 +148,11 @@ describe('ConnectedUserSheetPanelExternalInvocationList', () => {
             </TooltipProvider>
         );
 
-        expect(screen.getByText('No external invocations have been recorded for this user yet.')).toBeInTheDocument();
+        expect(screen.getByRole('heading', {name: 'No external invocations yet'})).toBeInTheDocument();
+        expect(screen.getByRole('link', {name: /How external invocations work/})).toHaveAttribute(
+            'href',
+            'https://docs.bytechef.io/platform/embedded/monitor/external-invocations'
+        );
         expect(screen.queryByRole('table')).not.toBeInTheDocument();
     });
 });

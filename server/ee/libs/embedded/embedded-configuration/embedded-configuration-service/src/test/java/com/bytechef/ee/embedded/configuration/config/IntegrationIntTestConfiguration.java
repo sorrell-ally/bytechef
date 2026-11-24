@@ -21,7 +21,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.bytechef.automation.configuration.service.ProjectVersionWorkflowChangeService;
+import com.bytechef.automation.configuration.facade.ProjectVersionWorkflowChangeFacade;
 import com.bytechef.commons.data.jdbc.converter.EncryptedMapWrapperToStringConverter;
 import com.bytechef.commons.data.jdbc.converter.EncryptedStringToMapWrapperConverter;
 import com.bytechef.commons.data.jdbc.converter.FileEntryToStringConverter;
@@ -29,13 +29,23 @@ import com.bytechef.commons.data.jdbc.converter.MapWrapperToStringConverter;
 import com.bytechef.commons.data.jdbc.converter.StringToFileEntryConverter;
 import com.bytechef.commons.data.jdbc.converter.StringToMapWrapperConverter;
 import com.bytechef.config.ApplicationProperties;
+import com.bytechef.ee.automation.configuration.facade.ProjectCodeWorkflowDraftFacade;
+import com.bytechef.ee.automation.configuration.facade.ProjectCodeWorkflowFacade;
+import com.bytechef.ee.automation.configuration.service.ProjectCodeWorkflowService;
 import com.bytechef.ee.embedded.connected.user.security.ConnectedUserSecurity;
+import com.bytechef.ee.platform.codeworkflow.configuration.facade.CodeWorkflowContainerFacade;
+import com.bytechef.ee.platform.codeworkflow.configuration.service.CodeWorkflowContainerService;
+import com.bytechef.ee.platform.codeworkflow.file.storage.CodeWorkflowFileStorage;
 import com.bytechef.encryption.Encryption;
 import com.bytechef.encryption.EncryptionKey;
 import com.bytechef.evaluator.Evaluator;
 import com.bytechef.evaluator.SpelEvaluator;
 import com.bytechef.jackson.config.JacksonConfiguration;
 import com.bytechef.liquibase.config.LiquibaseConfiguration;
+import com.bytechef.platform.configuration.repository.PropertyRepository;
+import com.bytechef.platform.configuration.service.PropertyService;
+import com.bytechef.platform.configuration.service.PropertyServiceImpl;
+import com.bytechef.platform.security.service.ApiKeyService;
 import com.bytechef.platform.workflow.validator.WorkflowValidatorFacade;
 import com.bytechef.platform.workflow.validator.WorkflowValidatorFacade.WorkflowValidationResult;
 import com.bytechef.test.config.jdbc.AbstractIntTestJdbcConfiguration;
@@ -81,8 +91,50 @@ import tools.jackson.databind.ObjectMapper;
 public class IntegrationIntTestConfiguration {
 
     @Bean
+    ProjectCodeWorkflowFacade projectCodeWorkflowFacade() {
+        return mock(ProjectCodeWorkflowFacade.class);
+    }
+
+    @Bean
+    ProjectCodeWorkflowService projectCodeWorkflowService() {
+        return mock(ProjectCodeWorkflowService.class);
+    }
+
+    @Bean
+    ProjectCodeWorkflowDraftFacade projectCodeWorkflowDraftFacade() {
+        return mock(ProjectCodeWorkflowDraftFacade.class);
+    }
+
+    @Bean
+    CodeWorkflowContainerFacade codeWorkflowContainerFacade() {
+        return mock(CodeWorkflowContainerFacade.class);
+    }
+
+    @Bean
+    CodeWorkflowContainerService codeWorkflowContainerService() {
+        return mock(CodeWorkflowContainerService.class);
+    }
+
+    @Bean
+    CodeWorkflowFileStorage codeWorkflowFileStorage() {
+        return mock(CodeWorkflowFileStorage.class);
+    }
+
+    @Bean
     Evaluator evaluator() {
         return SpelEvaluator.create();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    ApiKeyService apiKeyService() {
+        return mock(ApiKeyService.class);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    PropertyService propertyService(PropertyRepository propertyRepository) {
+        return new PropertyServiceImpl(propertyRepository);
     }
 
     @Bean
@@ -92,8 +144,8 @@ public class IntegrationIntTestConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    ProjectVersionWorkflowChangeService projectVersionWorkflowChangeService() {
-        return mock(ProjectVersionWorkflowChangeService.class);
+    ProjectVersionWorkflowChangeFacade projectVersionWorkflowChangeFacade() {
+        return mock(ProjectVersionWorkflowChangeFacade.class);
     }
 
     @Bean

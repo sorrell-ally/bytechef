@@ -1,4 +1,6 @@
 dependencies {
+    compileOnly("org.liquibase:liquibase-core")
+
     implementation("de.siegmar:fastcsv:2.2.2")
     implementation("org.slf4j:slf4j-api")
     implementation("org.springframework.boot:spring-boot-actuator")
@@ -9,6 +11,7 @@ dependencies {
     implementation(project(":server:libs:config:app-config"))
     implementation(project(":server:libs:platform:platform-data-table:platform-data-table-api"))
     implementation(project(":server:libs:platform:platform-api"))
+    implementation(project(":server:libs:core:commons:commons-data"))
     implementation(project(":server:libs:core:commons:commons-util"))
     implementation(project(":server:libs:core:tenant:tenant-api"))
     implementation(project(":server:libs:platform:platform-component:platform-component-api"))
@@ -35,7 +38,6 @@ dependencies {
     testImplementation(project(":server:libs:config:app-config"))
     testImplementation(project(":server:libs:config:jackson-config"))
     testImplementation(project(":server:libs:config:liquibase-config"))
-    testImplementation(project(":server:libs:core:commons:commons-data"))
     testImplementation(project(":server:libs:core:message:message-event:message-event-impl"))
     testImplementation(project(":server:libs:platform:platform-category:platform-category-service"))
     testImplementation(project(":server:libs:platform:platform-security:platform-security-service"))

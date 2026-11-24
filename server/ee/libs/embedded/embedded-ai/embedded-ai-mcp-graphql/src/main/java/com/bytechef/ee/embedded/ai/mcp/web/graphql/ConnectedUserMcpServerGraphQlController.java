@@ -8,6 +8,7 @@
 package com.bytechef.ee.embedded.ai.mcp.web.graphql;
 
 import com.bytechef.atlas.coordinator.annotation.ConditionalOnCoordinator;
+import com.bytechef.ee.embedded.ai.mcp.dto.ConnectedUserMcpServerAutomationDTO;
 import com.bytechef.ee.embedded.ai.mcp.dto.ConnectedUserMcpServerDTO;
 import com.bytechef.ee.embedded.ai.mcp.dto.ProvisionableConnectedUserMcpServerDTO;
 import com.bytechef.ee.embedded.ai.mcp.facade.ConnectedUserMcpServerFacade;
@@ -20,8 +21,6 @@ import org.springframework.graphql.data.method.annotation.QueryMapping;
 import org.springframework.stereotype.Controller;
 
 /**
- * GraphQL controller exposing MCP servers a connected user is reachable through.
- *
  * @author Ivica Cardic
  * @version ee
  */
@@ -50,6 +49,13 @@ class ConnectedUserMcpServerGraphQlController {
     }
 
     @MutationMapping
+    ConnectedUserMcpServerAutomationDTO enableConnectedUserMcpAutomation(
+        @Argument long connectedUserId, @Argument long id, @Argument boolean enable) {
+
+        return connectedUserMcpServerFacade.enableMcpAutomation(connectedUserId, id, enable);
+    }
+
+    @MutationMapping
     boolean enableConnectedUserMcpServer(
         @Argument long connectedUserId, @Argument long mcpServerId, @Argument boolean enable) {
 
@@ -61,6 +67,13 @@ class ConnectedUserMcpServerGraphQlController {
     @MutationMapping
     boolean enableConnectedUserMcpTool(@Argument long id, @Argument boolean enable) {
         connectedUserMcpServerFacade.enableMcpTool(id, enable);
+
+        return true;
+    }
+
+    @MutationMapping
+    boolean enableConnectedUserMcpWorkflow(@Argument long id, @Argument boolean enable) {
+        connectedUserMcpServerFacade.enableMcpWorkflow(id, enable);
 
         return true;
     }

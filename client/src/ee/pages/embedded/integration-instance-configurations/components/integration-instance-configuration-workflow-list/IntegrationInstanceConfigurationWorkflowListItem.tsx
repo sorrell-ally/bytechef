@@ -95,25 +95,22 @@ const IntegrationInstanceConfigurationWorkflowListItem = ({
 
     return (
         <li
-            className={twMerge(
-                'flex items-center justify-between rounded-md px-3 py-1 hover:bg-surface-neutral-primary-hover',
-                isMcpWorkflow && 'opacity-50'
-            )}
+            className="flex items-center justify-between gap-x-4 rounded-md px-3 py-1 hover:bg-surface-neutral-primary-hover"
             key={workflow.id}
         >
-            <div className="relative flex flex-1 items-center">
+            <div className="relative flex min-w-0 flex-1 items-center">
                 <div
                     className={twMerge(
-                        'flex w-80 items-center gap-2 text-sm font-semibold',
+                        'flex w-full max-w-80 min-w-0 shrink items-center gap-2 text-sm font-semibold sm:w-80 sm:shrink-0',
                         !integrationInstanceConfigurationWorkflow.enabled && 'text-muted-foreground'
                     )}
                 >
                     <button
-                        className="cursor-pointer text-left after:absolute after:inset-0"
+                        className="min-w-0 cursor-pointer text-left after:absolute after:inset-0"
                         onClick={handleWorkflowClick}
                         type="button"
                     >
-                        {workflow.label}
+                        <span className="line-clamp-1">{workflow.label}</span>
                     </button>
 
                     {showOpenInIntegration && (
@@ -123,10 +120,20 @@ const IntegrationInstanceConfigurationWorkflowListItem = ({
                         />
                     )}
 
-                    {isMcpWorkflow && <Badge label="MCP" styleType="secondary-outline" />}
+                    {isMcpWorkflow && (
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <span className="relative z-10">
+                                    <Badge label="MCP" styleType="secondary-outline" />
+                                </span>
+                            </TooltipTrigger>
+
+                            <TooltipContent>Exposed as a tool on an MCP server</TooltipContent>
+                        </Tooltip>
+                    )}
                 </div>
 
-                <div className="relative z-10 ml-6 flex items-center gap-1">
+                <div className="relative z-10 ml-6 flex min-w-0 items-center gap-1 overflow-hidden">
                     <WorkflowTriggerAndComponentsRow
                         className="hidden sm:flex"
                         filteredComponentNames={filteredComponentNames}
@@ -137,12 +144,12 @@ const IntegrationInstanceConfigurationWorkflowListItem = ({
                 </div>
             </div>
 
-            <div className="flex items-center gap-x-3">
+            <div className="flex shrink-0 items-center gap-x-3">
                 <div className="flex items-center gap-x-6">
                     {integrationInstanceConfigurationWorkflow?.lastExecutionDate ? (
                         <Tooltip>
                             <TooltipTrigger className="flex items-center text-sm text-content-neutral-secondary">
-                                <span className="text-xs">
+                                <span className="text-xs whitespace-nowrap">
                                     {`Executed at ${integrationInstanceConfigurationWorkflow.lastExecutionDate?.toLocaleDateString()} ${integrationInstanceConfigurationWorkflow.lastExecutionDate?.toLocaleTimeString()}`}
                                 </span>
                             </TooltipTrigger>
@@ -150,7 +157,7 @@ const IntegrationInstanceConfigurationWorkflowListItem = ({
                             <TooltipContent side="left">Last Execution Date</TooltipContent>
                         </Tooltip>
                     ) : (
-                        <span className="text-xs">No executions</span>
+                        <span className="text-xs whitespace-nowrap">No executions</span>
                     )}
 
                     <div className="relative flex items-center">
@@ -160,20 +167,16 @@ const IntegrationInstanceConfigurationWorkflowListItem = ({
 
                         <Switch
                             checked={integrationInstanceConfigurationWorkflow.enabled}
-                            disabled={isMcpWorkflow || enableIntegrationInstanceConfigurationWorkflowMutation.isPending}
+                            disabled={enableIntegrationInstanceConfigurationWorkflowMutation.isPending}
                             onCheckedChange={handleEnableIntegrationInstanceConfigurationWorkflow}
                         />
                     </div>
                 </div>
 
-                {isMcpWorkflow ? (
-                    <div aria-hidden="true" className="size-9 shrink-0" />
-                ) : (
-                    <IntegrationInstanceConfigurationWorkflowListItemDropDownMenu
-                        onEditClick={() => setShowEditWorkflowDialog(true)}
-                        workflow={workflow}
-                    />
-                )}
+                <IntegrationInstanceConfigurationWorkflowListItemDropDownMenu
+                    onEditClick={() => setShowEditWorkflowDialog(true)}
+                    workflow={workflow}
+                />
             </div>
 
             {showEditWorkflowDialog && integrationInstanceConfigurationWorkflow && fetchedWorkflow && (

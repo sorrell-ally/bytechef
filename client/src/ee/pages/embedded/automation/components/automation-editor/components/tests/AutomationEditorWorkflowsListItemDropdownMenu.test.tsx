@@ -73,6 +73,9 @@ const workflow = {
 
 const project = {
     categoryId: null,
+    codeWorkflowDraftPublishable: null,
+    codeWorkflowLanguage: null,
+    codeWorkflowProject: false,
     configurationCount: 0,
     description: null,
     id: 'project-1',
@@ -82,6 +85,7 @@ const project = {
     permissionExpression: null,
     published: false,
     tagIds: [],
+    unpublishedChanges: false,
     version: 1,
     workflowTemplates: [workflow, {...workflow, label: 'Workflow Two', workflowUuid: 'uuid-2'}],
 };
@@ -119,7 +123,7 @@ describe('AutomationEditorWorkflowsListItemDropdownMenu', () => {
         expect(screen.getByRole('menuitem', {name: 'Delete'})).toHaveClass('text-content-destructive-primary');
     });
 
-    it('offers Edit, Duplicate and Delete', async () => {
+    it('offers Edit, Duplicate, Export and Delete', async () => {
         renderMenu();
 
         await openMenu();
@@ -127,8 +131,26 @@ describe('AutomationEditorWorkflowsListItemDropdownMenu', () => {
         expect(screen.getAllByRole('menuitem').map((menuItem) => menuItem.textContent?.trim())).toEqual([
             'Edit',
             'Duplicate',
+            'Export',
             'Delete',
         ]);
+    });
+
+    it('exports the workflow through the workflow export endpoint', async () => {
+        const originalLocation = window.location;
+
+        Object.defineProperty(window, 'location', {configurable: true, value: {href: ''}, writable: true});
+
+        try {
+            renderMenu();
+
+            await openMenu();
+            await userEvent.click(screen.getByRole('menuitem', {name: 'Export'}));
+
+            expect(window.location.href).toBe('/api/automation/internal/workflows/draft-uuid-1/export');
+        } finally {
+            Object.defineProperty(window, 'location', {configurable: true, value: originalLocation, writable: true});
+        }
     });
 
     it('duplicates by workflow uuid', async () => {

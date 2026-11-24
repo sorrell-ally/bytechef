@@ -1,0 +1,267 @@
+---
+title: "SpecStream"
+description: "SpecStream is a live web data engine. It searches the web for answers with sources and extracts the main text of web pages and documents."
+---
+
+
+Categories: Helpers, Artificial Intelligence
+
+
+Type: specstream/v1
+
+<hr />
+
+
+
+
+## Connections
+
+Version: 1
+
+
+### API Key
+
+#### Properties
+
+|      Name       |      Label     |     Type     |     Description     | Required |
+|:---------------:|:--------------:|:------------:|:-------------------:|:--------:|
+| token | API Key | STRING | SpecStream API key. Create it in your SpecStream workspace under Agents &amp; API. The key must have the finds:spend scope. | true |
+
+
+
+## Connection Setup
+
+### Create an API Key
+
+1. Sign in to your [SpecStream](https://specstream.ai/) workspace. If you do not have an account, create one.
+2. Open **Agents & API** at [https://specstream.ai/workspace/agents?tab=keys](https://specstream.ai/workspace/agents?tab=keys).
+3. Create an API key.
+4. Give the `finds:spend` scope to the API key. Without this scope, SpecStream refuses each call.
+5. Set a spending limit for the API key.
+6. Copy the API key.
+7. Paste the API key into the **API Key** field.
+
+Keep the API key secret. Do not put the API key in workflow parameters or in logs.
+
+### Billing
+
+SpecStream charges each call to the balance of your workspace. The **Fast** search tier costs less than the **Default** search tier. SpecStream does not charge for a page that has no text. For the current prices, refer to [SpecStream Pricing](https://specstream.ai/pricing.md) and [Billing](https://specstream.ai/docs/billing.md).
+
+### Additional Resources
+
+- [SpecStream API overview](https://specstream.ai/docs/api)
+- [Search API reference](https://specstream.ai/docs/search-api.md)
+- [Extract API reference](https://specstream.ai/docs/extract-api.md)
+- [Account and API keys](https://specstream.ai/docs/account.md)
+- [OpenAPI specification](https://api.specstream.ai/openapi.json)
+
+
+
+<hr />
+
+
+## Actions
+
+
+### Web Search
+Name: webSearch
+
+`Searches the live web for a query. Returns an answer or structured rows, and the ranked source pages that support each value.`
+
+#### Properties
+
+|      Name       |      Label     |     Type     |     Description     | Required |
+|:---------------:|:--------------:|:------------:|:-------------------:|:--------:|
+| q | Search Query | STRING | Question or request in plain words, in any language, from 1 to 2000 characters. Accepts the operators site:, -site:, -word, -"phrase", filetype:, after: and before: (YYYY, YYYY-MM or YYYY-MM-DD). | true |
+| speed | Search Tier | STRING <details> <summary> Options </summary> <span>default</span>, <span>fast</span> </details> | Default reads the result pages and returns an answer, structured rows and sources. Fast returns only the search engine results with snippets in about 1 second, with no answer, rows or passages. Fast costs less per call. | false |
+| num | Number of Sources | INTEGER | Maximum number of sources to return: 1 to 100, or 1 to 200 when Image Search is true. If empty, the response contains all sources that the answer used. | false |
+| page | Result Page | INTEGER | Page of the ranked source list to return, from 1 to 10. Each page has Number of Sources results (10 if empty). Only page 1 contains the answer and the rows. | false |
+| passages | Return Page Passages | BOOLEAN <details> <summary> Options </summary> <span>true</span>, <span>false</span> </details> | If true, returns text passages from the top source pages that match the query. Adds up to about 1 second. Do not use together with News Search. | false |
+| news | News Search | BOOLEAN <details> <summary> Options </summary> <span>true</span>, <span>false</span> </details> | If true, returns news items, newest first, instead of web results. Always uses the Fast search tier. Do not use together with Return Page Passages. | false |
+| images | Image Search | BOOLEAN <details> <summary> Options </summary> <span>true</span>, <span>false</span> </details> | If true, returns image results instead of web results. Always uses the Fast search tier and HTTP POST. | false |
+| country | Country Code | STRING | Two-letter ISO 3166-1 code of the country that the results are for. SpecStream sends it to each search engine that can use a country code. | false |
+| language | Language Code | STRING | Two-letter ISO 639-1 code of the result language. SpecStream sends it to each search engine that can use a language code. | false |
+| safe | Safe Search Level | STRING <details> <summary> Options </summary> <span>off</span>, <span>moderate</span>, <span>strict</span> </details> | Filter level for explicit content. SpecStream sends it to each search engine that can use a level. If empty, each search engine uses its own default level. | false |
+| useHttpPost | Send as HTTP POST | BOOLEAN <details> <summary> Options </summary> <span>true</span>, <span>false</span> </details> | If true, sends the request as HTTP POST with the parameters in a JSON body. If false, sends the request as HTTP GET with the parameters in the URL query. Image Search always uses HTTP POST. | false |
+
+#### Example JSON Structure
+```json
+{
+  "label" : "Web Search",
+  "name" : "webSearch",
+  "parameters" : {
+    "q" : "",
+    "speed" : "",
+    "num" : 1,
+    "page" : 1,
+    "passages" : false,
+    "news" : false,
+    "images" : false,
+    "country" : "",
+    "language" : "",
+    "safe" : "",
+    "useHttpPost" : false
+  },
+  "type" : "specstream/v1/webSearch"
+}
+```
+
+#### Output
+
+
+
+Type: OBJECT
+
+
+#### Properties
+
+|     Name     |     Type     |     Description     |
+|:------------:|:------------:|:-------------------:|
+| data | OBJECT <details> <summary> Properties </summary> &#123;STRING\(id), STRING\(request_id), STRING\(query), STRING\(kind), [STRING]\(columns), &#123;STRING\(value), STRING\(page), STRING\(seen_at), BOOLEAN\(confirmed), [STRING]\(sources)&#125;\(answer), [&#123;STRING\(name), STRING\(page), STRING\(snippet), NUMBER\(probability), &#123;&#125;\(fields), [INTEGER]\(sources)&#125;]\(rows), [&#123;STRING\(url), STRING\(title), STRING\(site), STRING\(snippet), BOOLEAN\(cited), STRING\(published), STRING\(modified), STRING\(file_type)&#125;]\(sources), [&#123;STRING\(url), STRING\(title), STRING\(text)&#125;]\(passages), INTEGER\(page), INTEGER\(next_page), STRING\(corrected_query), INTEGER\(took_ms), NUMBER\(price_usd)&#125; </details> |  |
+
+
+
+
+#### Output Example
+```json
+{
+  "data" : {
+    "id" : "",
+    "request_id" : "",
+    "query" : "",
+    "kind" : "",
+    "columns" : [ "" ],
+    "answer" : {
+      "value" : "",
+      "page" : "",
+      "seen_at" : "",
+      "confirmed" : false,
+      "sources" : [ "" ]
+    },
+    "rows" : [ {
+      "name" : "",
+      "page" : "",
+      "snippet" : "",
+      "probability" : 0.0,
+      "fields" : { },
+      "sources" : [ 1 ]
+    } ],
+    "sources" : [ {
+      "url" : "",
+      "title" : "",
+      "site" : "",
+      "snippet" : "",
+      "cited" : false,
+      "published" : "",
+      "modified" : "",
+      "file_type" : ""
+    } ],
+    "passages" : [ {
+      "url" : "",
+      "title" : "",
+      "text" : ""
+    } ],
+    "page" : 1,
+    "next_page" : 1,
+    "corrected_query" : "",
+    "took_ms" : 1,
+    "price_usd" : 0.0
+  }
+}
+```
+
+
+
+
+### Extract Page Content
+Name: extract
+
+`Reads up to 20 web pages or documents (PDF, Word, Excel, EPUB) and returns the main text of each, without menus, footers and ads, as Markdown, plain text or HTML.`
+
+#### Properties
+
+|      Name       |      Label     |     Type     |     Description     | Required |
+|:---------------:|:--------------:|:------------:|:-------------------:|:--------:|
+| urls | Page URLs | ARRAY <details> <summary> Items </summary> [STRING] </details> | Public HTTP or HTTPS URLs of the web pages or documents to read, from 1 to 20. SpecStream reads a duplicate URL only once. | true |
+| format | Text Format | STRING <details> <summary> Options </summary> <span>markdown</span>, <span>text</span>, <span>html</span> </details> | Format of the main text in the text field of each result. | false |
+| include | Additional Result Fields | ARRAY <details> <summary> Items </summary> [STRING] </details> | Fields to add to each result: the raw page HTML, the links on the page, the HTTP response (status code and final URL after redirects), or the full page text. | false |
+
+#### Example JSON Structure
+```json
+{
+  "label" : "Extract Page Content",
+  "name" : "extract",
+  "parameters" : {
+    "urls" : [ "" ],
+    "format" : "",
+    "include" : [ "" ]
+  },
+  "type" : "specstream/v1/extract"
+}
+```
+
+#### Output
+
+
+
+Type: OBJECT
+
+
+#### Properties
+
+|     Name     |     Type     |     Description     |
+|:------------:|:------------:|:-------------------:|
+| data | OBJECT <details> <summary> Properties </summary> &#123;STRING\(request_id), [&#123;STRING\(url), STRING\(status), STRING\(reason), STRING\(title), STRING\(text), BOOLEAN\(text_truncated), STRING\(published), STRING\(modified), STRING\(read_from), STRING\(captured_at), STRING\(read_from_url), [&#123;STRING\(address), STRING\(found_in)&#125;]\(emails), STRING\(html), BOOLEAN\(html_truncated), STRING\(full_text), BOOLEAN\(full_text_truncated), [&#123;STRING\(url), STRING\(text)&#125;]\(links), INTEGER\(status_code), STRING\(final_url)&#125;]\(results), INTEGER\(took_ms), NUMBER\(price_usd)&#125; </details> |  |
+
+
+
+
+#### Output Example
+```json
+{
+  "data" : {
+    "request_id" : "",
+    "results" : [ {
+      "url" : "",
+      "status" : "",
+      "reason" : "",
+      "title" : "",
+      "text" : "",
+      "text_truncated" : false,
+      "published" : "",
+      "modified" : "",
+      "read_from" : "",
+      "captured_at" : "",
+      "read_from_url" : "",
+      "emails" : [ {
+        "address" : "",
+        "found_in" : ""
+      } ],
+      "html" : "",
+      "html_truncated" : false,
+      "full_text" : "",
+      "full_text_truncated" : false,
+      "links" : [ {
+        "url" : "",
+        "text" : ""
+      } ],
+      "status_code" : 1,
+      "final_url" : ""
+    } ],
+    "took_ms" : 1,
+    "price_usd" : 0.0
+  }
+}
+```
+
+
+
+
+
+
+## What to do if your action is not listed here?
+
+If this component doesn't have the action you need, you can use **Custom Action** to create your own. Custom Actions empower you to define HTTP requests tailored to your specific requirements, allowing for greater flexibility in integrating with external services or APIs.
+
+To create a Custom Action, simply specify the desired HTTP method, path, and any necessary parameters. This way, you can extend the functionality of your component beyond the predefined actions, ensuring that you can meet all your integration needs effectively.
+

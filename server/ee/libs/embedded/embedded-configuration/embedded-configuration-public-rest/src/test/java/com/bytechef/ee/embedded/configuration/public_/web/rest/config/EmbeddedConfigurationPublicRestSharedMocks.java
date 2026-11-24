@@ -8,11 +8,13 @@
 package com.bytechef.ee.embedded.configuration.public_.web.rest.config;
 
 import com.bytechef.atlas.configuration.service.WorkflowService;
+import com.bytechef.ee.embedded.ai.mcp.facade.McpAutomationWorkflowFacade;
 import com.bytechef.ee.embedded.ai.mcp.facade.McpIntegrationInstanceToolFacade;
 import com.bytechef.ee.embedded.ai.mcp.facade.McpIntegrationInstanceWorkflowFacade;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceConfigurationService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceConfigurationWorkflowService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceToolService;
+import com.bytechef.ee.embedded.configuration.facade.ConnectedUserComponentInputFacade;
 import com.bytechef.ee.embedded.configuration.facade.ConnectedUserConnectionFacade;
 import com.bytechef.ee.embedded.configuration.facade.ConnectedUserIntegrationFacade;
 import com.bytechef.ee.embedded.configuration.facade.ConnectedUserIntegrationInstanceFacade;
@@ -42,11 +44,13 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 @Retention(RetentionPolicy.RUNTIME)
 @MockitoBean(types = {
     ClusterElementDefinitionService.class, ComponentDefinitionService.class,
-    ConnectedUserWorkflowReferenceFacade.class, ConnectedUserConnectionFacade.class,
+    ConnectedUserComponentInputFacade.class, ConnectedUserWorkflowReferenceFacade.class,
+    ConnectedUserConnectionFacade.class,
     ConnectedUserIntegrationFacade.class,
     ConnectedUserIntegrationInstanceFacade.class, ConnectedUserProjectFacade.class, ConnectedUserService.class,
     IntegrationInstanceConfigurationWorkflowService.class, IntegrationInstanceWorkflowService.class,
-    IntegrationWorkflowService.class, McpComponentService.class, McpIntegrationInstanceConfigurationService.class,
+    IntegrationWorkflowService.class, McpAutomationWorkflowFacade.class, McpComponentService.class,
+    McpIntegrationInstanceConfigurationService.class,
     McpIntegrationInstanceConfigurationWorkflowService.class, McpIntegrationInstanceToolFacade.class,
     McpIntegrationInstanceToolService.class, McpIntegrationInstanceWorkflowFacade.class, McpServerService.class,
     McpToolService.class, WorkflowService.class

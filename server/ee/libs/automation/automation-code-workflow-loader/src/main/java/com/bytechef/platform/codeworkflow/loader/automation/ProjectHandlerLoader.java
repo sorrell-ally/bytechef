@@ -9,12 +9,8 @@ package com.bytechef.platform.codeworkflow.loader.automation;
 
 import com.bytechef.automation.project.ProjectHandler;
 import com.bytechef.ee.platform.codeworkflow.configuration.domain.CodeWorkflowContainer.Language;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import java.io.IOException;
-import java.net.URISyntaxException;
+import com.bytechef.platform.component.polyglot.AbstractHandlerLoader;
 import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import org.springframework.cache.CacheManager;
 
 /**
@@ -22,49 +18,27 @@ import org.springframework.cache.CacheManager;
  *
  * @author Ivica Cardic
  */
-public class ProjectHandlerLoader {
+public class ProjectHandlerLoader extends AbstractHandlerLoader<ProjectHandler> {
 
-    public static ProjectHandler loadProjectHandler(
-        URL url, Language language, String cacheKey, CacheManager cacheManager) {
+    private static final ProjectHandlerLoader INSTANCE = new ProjectHandlerLoader();
 
-        try {
-            return switch (language) {
-                case JAVA -> loadJavaProjectHandler(url, cacheKey, cacheManager);
-                case JAVASCRIPT, PYTHON, RUBY -> loadPolyglotProjectHandler(url, language);
-            };
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+    private ProjectHandlerLoader() {
     }
 
-    private static ProjectHandler loadJavaProjectHandler(URL url, String cacheKey, CacheManager cacheManager)
-        throws IOException {
-
-        try (ProjectHandlerClassLoader projectHandlerClassLoader = ProjectHandlerClassLoader.of(
-            url, cacheKey, cacheManager)) {
-
-            return projectHandlerClassLoader.loadWorkflowHandler();
-        }
+    public static ProjectHandler
+        loadProjectHandler(URL url, Language language, String cacheKey, CacheManager cacheManager) {
+        return INSTANCE.loadHandler(url, language, cacheKey, cacheManager);
     }
 
-    /**
-     * <b>Security Note:</b> Path traversal is intentional. The URL is derived from internal code workflow container
-     * configuration, not from untrusted user input.
-     */
-    @SuppressFBWarnings("PATH_TRAVERSAL_IN")
-    private static ProjectHandler loadPolyglotProjectHandler(URL url, Language language)
-        throws URISyntaxException, IOException {
+    @Override
+    protected ProjectHandler loadJavaHandler(URL url, String cacheKey, CacheManager cacheManager) {
+        ProjectHandlerClassLoader projectHandlerClassLoader = ProjectHandlerClassLoader.of(url, cacheKey, cacheManager);
 
-        return ProjectHandlerPolyglotEngine.load(getLanguageId(language), Files.readString(Paths.get(url.toURI())));
+        return projectHandlerClassLoader.loadHandler();
     }
 
-    private static String getLanguageId(Language language) {
-        return switch (language) {
-//            case JAVA -> "java";
-            case JAVASCRIPT -> "js";
-            case PYTHON -> "python";
-            case RUBY -> "ruby";
-            default -> throw new IllegalArgumentException("Unsupported language: " + language);
-        };
+    @Override
+    protected ProjectHandler loadPolyglotHandler(String languageId, String script) {
+        return ProjectHandlerPolyglotEngine.load(languageId, script);
     }
 }

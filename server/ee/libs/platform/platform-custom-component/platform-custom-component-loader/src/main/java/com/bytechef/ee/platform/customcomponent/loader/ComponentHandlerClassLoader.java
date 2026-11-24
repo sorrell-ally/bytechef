@@ -7,6 +7,7 @@
 
 package com.bytechef.ee.platform.customcomponent.loader;
 
+import com.bytechef.classloader.AbstractHandlerClassLoader;
 import com.bytechef.classloader.IsolatingClassLoader;
 import com.bytechef.classloader.util.ClassLoaderUtils;
 import com.bytechef.component.ComponentHandler;
@@ -17,8 +18,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
-import java.util.ServiceLoader;
 import org.springframework.cache.CacheManager;
 import org.springframework.util.StreamUtils;
 
@@ -27,28 +29,21 @@ import org.springframework.util.StreamUtils;
  *
  * @author Ivica Cardic
  */
-class ComponentHandlerClassLoader extends IsolatingClassLoader<ComponentHandler> {
+class ComponentHandlerClassLoader extends AbstractHandlerClassLoader<ComponentHandler> {
 
-    private final String cacheKey;
+    private static final String DEFAULT_ICON_PATH = "assets/sample.svg";
+    private static final String PATH_PREFIX = "path:";
 
-    @SuppressWarnings("PMD.AvoidBranchingStatementAsLastInLoop")
     private ComponentHandlerClassLoader(URL jarUrl, String cacheKey, CacheManager cacheManager) {
         super(
-            new URL[] {
-                jarUrl
-            }, ComponentHandlerClassLoader.class.getClassLoader(),
-            cacheManager,
-            (key, classLoader) -> {
-                ServiceLoader<ComponentHandler> loader = ServiceLoader.load(ComponentHandler.class, classLoader);
+            jarUrl, cacheKey, cacheManager, ComponentHandler.class,
+            (componentHandler, classLoader) -> {
+                ComponentDefinition componentDefinition = ClassLoaderUtils.loadWithClassLoader(
+                    classLoader, componentHandler::getDefinition);
 
-                for (ComponentHandler componentHandler : loader) {
-                    return new ContextClassLoaderComponentHandler(componentHandler, readIcon(classLoader), classLoader);
-                }
-
-                return null;
+                return new ContextClassLoaderComponentHandler(
+                    componentHandler, readIcon(componentDefinition, classLoader), classLoader);
             });
-
-        this.cacheKey = cacheKey;
     }
 
     @SuppressFBWarnings("DP")
@@ -56,15 +51,45 @@ class ComponentHandlerClassLoader extends IsolatingClassLoader<ComponentHandler>
         return new ComponentHandlerClassLoader(jarUrl, cacheKey, cacheManager);
     }
 
-    ComponentHandler loadComponentHandler() {
-        return get(cacheKey);
+    ComponentDefinition loadComponentDefinition() {
+        return applyUncached(getCacheKey(), ComponentHandler::getDefinition);
     }
 
-    private static String readIcon(IsolatingClassLoader<ComponentHandler> classLoader) {
-        try {
-            try (InputStream inputStream = classLoader.getResourceAsStream("assets/sample.svg")) {
-                return StreamUtils.copyToString(inputStream, StandardCharsets.UTF_8);
+    static String readIcon(ComponentDefinition componentDefinition, ClassLoader classLoader) {
+        String icon = componentDefinition.getIcon()
+            .orElse(null);
+
+        if (icon != null && !icon.startsWith(PATH_PREFIX)) {
+            return icon;
+        }
+
+        List<String> iconPaths = new ArrayList<>();
+
+        if (icon != null) {
+            iconPaths.add(icon.substring(PATH_PREFIX.length()));
+        }
+
+        iconPaths.add("assets/" + componentDefinition.getName() + ".svg");
+        iconPaths.add(DEFAULT_ICON_PATH);
+
+        for (String iconPath : iconPaths) {
+            String iconContent = readResource(classLoader, iconPath);
+
+            if (iconContent != null) {
+                return iconContent;
             }
+        }
+
+        return null;
+    }
+
+    private static String readResource(ClassLoader classLoader, String path) {
+        try (InputStream inputStream = classLoader.getResourceAsStream(path)) {
+            if (inputStream == null) {
+                return null;
+            }
+
+            return StreamUtils.copyToString(inputStream, StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -76,9 +101,10 @@ class ComponentHandlerClassLoader extends IsolatingClassLoader<ComponentHandler>
      *
      * @author Ivica Cardic
      */
+    @SuppressFBWarnings("EI_EXPOSE_REP")
     private record ContextClassLoaderComponentHandler(
         ComponentHandler componentHandler, String icon, IsolatingClassLoader<?> classLoader)
-        implements ComponentHandler {
+        implements ComponentHandler, IsolatingClassLoader.ClassLoaderOwner {
 
         @Override
         public ComponentDefinition getDefinition() {

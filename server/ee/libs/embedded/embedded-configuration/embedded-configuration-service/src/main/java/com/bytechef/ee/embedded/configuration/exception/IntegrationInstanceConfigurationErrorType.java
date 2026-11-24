@@ -25,8 +25,6 @@ public class IntegrationInstanceConfigurationErrorType extends AbstractErrorType
         new IntegrationInstanceConfigurationErrorType(102);
     public static final IntegrationInstanceConfigurationErrorType INVALID_INTEGRATION_VERSION =
         new IntegrationInstanceConfigurationErrorType(103);
-    public static final IntegrationInstanceConfigurationErrorType INSTANCE_CONFIGURATION_EXISTS =
-        new IntegrationInstanceConfigurationErrorType(104);
     public static final IntegrationInstanceConfigurationErrorType INSTANCE_CONFIGURATION_DISABLED =
         new IntegrationInstanceConfigurationErrorType(105);
     public static final IntegrationInstanceConfigurationErrorType WORKFLOW_NOT_IN_CONFIGURATION =
@@ -39,6 +37,8 @@ public class IntegrationInstanceConfigurationErrorType extends AbstractErrorType
         new IntegrationInstanceConfigurationErrorType(109);
     public static final IntegrationInstanceConfigurationErrorType BLANK_CONNECTION_PARAMETER =
         new IntegrationInstanceConfigurationErrorType(110);
+    public static final IntegrationInstanceConfigurationErrorType INTERNAL_ONLY_INPUT_MISSING =
+        new IntegrationInstanceConfigurationErrorType(111);
 
     private IntegrationInstanceConfigurationErrorType(int errorKey) {
         super(IntegrationInstanceConfiguration.class, errorKey);

@@ -8,9 +8,13 @@
 package com.bytechef.ee.embedded.configuration.facade;
 
 import com.bytechef.ee.embedded.configuration.domain.ConnectedUserProjectWorkflow;
+import com.bytechef.ee.embedded.configuration.dto.ConnectedUserWorkflowCopyDTO;
+import com.bytechef.ee.embedded.configuration.dto.ConnectedUserWorkflowReferenceDTO;
+import com.bytechef.ee.embedded.configuration.dto.ConnectedUserWorkflowReferenceValuesDTO;
 import com.bytechef.platform.configuration.domain.Environment;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -46,6 +50,25 @@ public interface ConnectedUserWorkflowReferenceFacade {
     ConnectedUserProjectWorkflow getOrCreateReference(
         String externalUserId, String automationUuid, Environment environment,
         Map<String, Long> requestedConnectionIds, @Nullable Map<String, ?> inputs);
+
+    ConnectedUserProjectWorkflow getOrCreateReference(
+        String externalUserId, String automationUuid, Environment environment,
+        Map<String, Long> requestedConnectionIds, @Nullable Map<String, ?> inputs, @Nullable String provisionedBy);
+
+    /**
+     * Returns the connections and inputs the reference currently runs with, leaving out the ones its configuration
+     * provides.
+     *
+     * @param referenceId the id of the connected user's reference workflow
+     * @return the current connections and inputs
+     */
+    ConnectedUserWorkflowReferenceValuesDTO getReferenceValues(long referenceId);
+
+    List<ConnectedUserWorkflowCopyDTO> getCopies(Set<String> automationUuids, Environment environment);
+
+    List<ConnectedUserWorkflowReferenceDTO> getReferences(Set<String> automationUuids);
+
+    List<ConnectedUserWorkflowReferenceDTO> getReferences(Set<String> automationUuids, Environment environment);
 
     void updateReferenceInputs(
         String externalUserId, String automationUuid, Map<String, ?> inputs, Environment environment);

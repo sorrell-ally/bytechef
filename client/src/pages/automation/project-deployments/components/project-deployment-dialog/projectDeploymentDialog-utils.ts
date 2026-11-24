@@ -1,3 +1,4 @@
+import {getEnabledWorkflowTasks} from '@/pages/platform/workflow-editor/utils/getEnabledWorkflowTasks';
 import {
     ComponentConnection,
     ProjectDeploymentWorkflow,
@@ -18,7 +19,9 @@ const collectSubflowConnections = (
     seenUuids: Set<string>,
     stubs: SubflowDuplicateStubI[]
 ): ComponentConnection[] => {
-    const taskConnections = subflowWorkflow.tasks?.flatMap((task) => task.connections ?? []) ?? [];
+    const subflowWorkflowTasks = getEnabledWorkflowTasks(subflowWorkflow);
+
+    const taskConnections = subflowWorkflowTasks.flatMap((task) => task.connections ?? []);
     const triggerConnections = subflowWorkflow.triggers?.flatMap((trigger) => trigger.connections ?? []) ?? [];
 
     const ownConnections: ComponentConnection[] = [...taskConnections, ...triggerConnections].map((connection) => ({
@@ -27,7 +30,7 @@ const collectSubflowConnections = (
         subflowWorkflowUuidPath: parentUuidPath,
     }));
 
-    const nestedSubflows = subflowWorkflow.tasks?.filter(
+    const nestedSubflows = subflowWorkflowTasks.filter(
         (task) => task.type.startsWith('subflow') && task.parameters?.workflowUuid
     );
 
@@ -77,10 +80,12 @@ const walkWorkflowConnections = (
     workflow: Workflow,
     workflows?: Workflow[]
 ): {connections: ComponentConnection[]; stubs: SubflowDuplicateStubI[]} => {
-    const taskConnections = workflow.tasks?.flatMap((task) => task.connections ?? []) ?? [];
+    const workflowTasks = getEnabledWorkflowTasks(workflow);
+
+    const taskConnections = workflowTasks.flatMap((task) => task.connections ?? []);
     const triggerConnections = workflow.triggers?.flatMap((trigger) => trigger.connections ?? []) ?? [];
 
-    const subflows = workflow.tasks?.filter((task) => task.type.startsWith('subflow') && task.parameters?.workflowUuid);
+    const subflows = workflowTasks.filter((task) => task.type.startsWith('subflow') && task.parameters?.workflowUuid);
 
     const subflowConnections: ComponentConnection[] = [];
     const seenUuids = new Set<string>();
@@ -146,7 +151,7 @@ const collectSubflowInputs = (
         subflowWorkflowUuidPath: parentUuidPath,
     }));
 
-    const nestedSubflows = subflowWorkflow.tasks?.filter(
+    const nestedSubflows = getEnabledWorkflowTasks(subflowWorkflow).filter(
         (task) => task.type.startsWith('subflow') && task.parameters?.workflowUuid
     );
 
@@ -198,7 +203,9 @@ const walkWorkflowInputs = (
 ): {inputs: WorkflowInput[]; stubs: SubflowDuplicateStubI[]} => {
     const ownInputs = workflow.inputs ?? [];
 
-    const subflows = workflow.tasks?.filter((task) => task.type.startsWith('subflow') && task.parameters?.workflowUuid);
+    const subflows = getEnabledWorkflowTasks(workflow).filter(
+        (task) => task.type.startsWith('subflow') && task.parameters?.workflowUuid
+    );
 
     const subflowInputs: WorkflowInput[] = [];
     const seenUuids = new Set<string>();

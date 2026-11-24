@@ -1,6 +1,10 @@
 import {Collapsible, CollapsibleContent, CollapsibleTrigger} from '@/components/ui/collapsible';
 import {Skeleton} from '@/components/ui/skeleton';
 import ProjectDeploymentWorkflowListItem from '@/pages/automation/project-deployments/components/project-deployment-workflow-list/ProjectDeploymentWorkflowListItem';
+import {
+    canRunWorkflowManually,
+    hasWorkflowTriggerUrl,
+} from '@/pages/automation/project-deployments/components/project-deployment-workflow-list/util/workflowActionSlot-utils';
 import {ProjectDeploymentWorkflow, Workflow} from '@/shared/middleware/automation/configuration';
 import {ComponentDefinitionBasic, TaskDispatcherDefinition} from '@/shared/middleware/platform/configuration';
 import {useGetProjectVersionWorkflowsQuery} from '@/shared/queries/automation/projectWorkflows.queries';
@@ -95,6 +99,12 @@ const ProjectDeploymentWorkflowList = ({
 
     const allRenderedWorkflows = [...enabledWorkflows, ...disabledWorkflows];
 
+    const showRunSlot = allRenderedWorkflows.some(({workflow}) => canRunWorkflowManually(workflow));
+
+    const showTriggerUrlSlot = allRenderedWorkflows.some(({projectDeploymentWorkflow}) =>
+        hasWorkflowTriggerUrl(projectDeploymentWorkflow)
+    );
+
     allRenderedWorkflows.forEach(({workflow}) => {
         const componentNames = [
             ...(workflow.workflowTriggerComponentNames ?? []),
@@ -116,6 +126,43 @@ const ProjectDeploymentWorkflowList = ({
         });
     });
 
+    const renderWorkflowListItem = ({
+        projectDeploymentWorkflow,
+        workflow,
+    }: {
+        projectDeploymentWorkflow: ProjectDeploymentWorkflow;
+        workflow: Workflow;
+    }) => {
+        const componentNames = [
+            ...(workflow.workflowTriggerComponentNames ?? []),
+            ...(workflow.workflowTaskComponentNames ?? []),
+        ];
+
+        const filteredComponentNames = componentNames.filter(
+            (componentName, index) => componentNames.indexOf(componentName) === index
+        );
+
+        return (
+            <ProjectDeploymentWorkflowListItem
+                environmentId={environmentId}
+                filteredComponentNames={filteredComponentNames}
+                hideOpenInProject={hideOpenInProject}
+                key={workflow.id}
+                projectDeploymentEnabled={projectDeploymentEnabled}
+                projectDeploymentId={projectDeploymentId}
+                projectDeploymentWorkflow={projectDeploymentWorkflow}
+                projectId={projectId}
+                projectName={projectName}
+                projectVersion={projectVersion}
+                showRunSlot={showRunSlot}
+                showTriggerUrlSlot={showTriggerUrlSlot}
+                workflow={workflow}
+                workflowComponentDefinitions={workflowComponentDefinitions}
+                workflowTaskDispatcherDefinitions={workflowTaskDispatcherDefinitions}
+            />
+        );
+    };
+
     return (
         <div className="pt-3 pb-2">
             <h3 className="flex justify-start pl-3 text-sm heading-tertiary">Workflows</h3>
@@ -126,34 +173,7 @@ const ProjectDeploymentWorkflowList = ({
                 </p>
             ) : (
                 <ul className="divide-y divide-stroke-neutral-primary">
-                    {enabledWorkflows.map(({projectDeploymentWorkflow, workflow}) => {
-                        const componentNames = [
-                            ...(workflow.workflowTriggerComponentNames ?? []),
-                            ...(workflow.workflowTaskComponentNames ?? []),
-                        ];
-
-                        const filteredComponentNames = componentNames?.filter(
-                            (item, index) => componentNames?.indexOf(item) === index
-                        );
-
-                        return (
-                            <ProjectDeploymentWorkflowListItem
-                                environmentId={environmentId}
-                                filteredComponentNames={filteredComponentNames}
-                                hideOpenInProject={hideOpenInProject}
-                                key={workflow.id}
-                                projectDeploymentEnabled={projectDeploymentEnabled}
-                                projectDeploymentId={projectDeploymentId}
-                                projectDeploymentWorkflow={projectDeploymentWorkflow}
-                                projectId={projectId}
-                                projectName={projectName}
-                                projectVersion={projectVersion}
-                                workflow={workflow}
-                                workflowComponentDefinitions={workflowComponentDefinitions}
-                                workflowTaskDispatcherDefinitions={workflowTaskDispatcherDefinitions}
-                            />
-                        );
-                    })}
+                    {enabledWorkflows.map(renderWorkflowListItem)}
                 </ul>
             )}
 
@@ -167,34 +187,7 @@ const ProjectDeploymentWorkflowList = ({
 
                     <CollapsibleContent>
                         <ul className="divide-y divide-stroke-neutral-primary">
-                            {disabledWorkflows.map(({projectDeploymentWorkflow, workflow}) => {
-                                const componentNames = [
-                                    ...(workflow.workflowTriggerComponentNames ?? []),
-                                    ...(workflow.workflowTaskComponentNames ?? []),
-                                ];
-
-                                const filteredComponentNames = componentNames?.filter(
-                                    (item, index) => componentNames?.indexOf(item) === index
-                                );
-
-                                return (
-                                    <ProjectDeploymentWorkflowListItem
-                                        environmentId={environmentId}
-                                        filteredComponentNames={filteredComponentNames}
-                                        hideOpenInProject={hideOpenInProject}
-                                        key={workflow.id}
-                                        projectDeploymentEnabled={projectDeploymentEnabled}
-                                        projectDeploymentId={projectDeploymentId}
-                                        projectDeploymentWorkflow={projectDeploymentWorkflow}
-                                        projectId={projectId}
-                                        projectName={projectName}
-                                        projectVersion={projectVersion}
-                                        workflow={workflow}
-                                        workflowComponentDefinitions={workflowComponentDefinitions}
-                                        workflowTaskDispatcherDefinitions={workflowTaskDispatcherDefinitions}
-                                    />
-                                );
-                            })}
+                            {disabledWorkflows.map(renderWorkflowListItem)}
                         </ul>
                     </CollapsibleContent>
                 </Collapsible>

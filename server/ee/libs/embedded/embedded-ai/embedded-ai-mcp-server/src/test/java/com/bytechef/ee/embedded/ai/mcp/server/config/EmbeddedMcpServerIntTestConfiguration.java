@@ -7,15 +7,22 @@
 
 package com.bytechef.ee.embedded.ai.mcp.server.config;
 
+import com.bytechef.atlas.configuration.repository.WorkflowCrudRepository;
+import com.bytechef.atlas.configuration.repository.WorkflowRepository;
+import com.bytechef.atlas.configuration.service.WorkflowService;
 import com.bytechef.atlas.configuration.service.WorkflowServiceImpl;
 import com.bytechef.commons.data.jdbc.converter.EncryptedMapWrapperToStringConverter;
 import com.bytechef.commons.data.jdbc.converter.EncryptedStringToMapWrapperConverter;
 import com.bytechef.commons.data.jdbc.converter.MapWrapperToStringConverter;
 import com.bytechef.commons.data.jdbc.converter.StringToMapWrapperConverter;
+import com.bytechef.ee.embedded.ai.mcp.service.McpAutomationProjectConfigurationServiceImpl;
+import com.bytechef.ee.embedded.ai.mcp.service.McpAutomationProjectConfigurationWorkflowServiceImpl;
+import com.bytechef.ee.embedded.ai.mcp.service.McpConnectedUserProjectWorkflowServiceImpl;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationComponentServiceImpl;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceConfigurationServiceImpl;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceConfigurationWorkflowServiceImpl;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceToolServiceImpl;
+import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceWorkflowServiceImpl;
 import com.bytechef.ee.embedded.configuration.ownership.EmbeddedOwnerContributorConfiguration;
 import com.bytechef.ee.embedded.configuration.service.IntegrationInstanceConfigurationServiceImpl;
 import com.bytechef.ee.embedded.configuration.service.IntegrationInstanceConfigurationWorkflowServiceImpl;
@@ -38,6 +45,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.Arrays;
 import java.util.List;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -57,13 +65,24 @@ import tools.jackson.databind.ObjectMapper;
     IntegrationInstanceConfigurationServiceImpl.class,
     IntegrationInstanceConfigurationWorkflowServiceImpl.class, IntegrationInstanceServiceImpl.class,
     IntegrationInstanceWorkflowServiceImpl.class, IntegrationServiceImpl.class, JacksonConfiguration.class,
-    LiquibaseConfiguration.class, McpComponentServiceImpl.class, McpIntegrationComponentServiceImpl.class,
+    LiquibaseConfiguration.class, McpAutomationProjectConfigurationServiceImpl.class,
+    McpAutomationProjectConfigurationWorkflowServiceImpl.class, McpComponentServiceImpl.class,
+    McpConnectedUserProjectWorkflowServiceImpl.class, McpIntegrationComponentServiceImpl.class,
     McpIntegrationInstanceConfigurationServiceImpl.class,
     McpIntegrationInstanceConfigurationWorkflowServiceImpl.class, McpIntegrationInstanceToolServiceImpl.class,
-    McpServerServiceImpl.class, PostgreSQLContainerConfiguration.class, WorkflowServiceImpl.class
+    McpIntegrationInstanceWorkflowServiceImpl.class,
+    McpServerServiceImpl.class, PostgreSQLContainerConfiguration.class
 })
 @Configuration
 public class EmbeddedMcpServerIntTestConfiguration {
+
+    @Bean
+    WorkflowService workflowService(
+        CacheManager cacheManager, List<WorkflowCrudRepository> workflowCrudRepositories,
+        List<WorkflowRepository> workflowRepositories) {
+
+        return new WorkflowServiceImpl(cacheManager, workflowCrudRepositories, workflowRepositories);
+    }
 
     @Bean
     EncryptionKey encryptionKey() {

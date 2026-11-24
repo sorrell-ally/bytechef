@@ -13,6 +13,7 @@ import com.bytechef.ee.embedded.configuration.dto.ConnectedUserIntegrationDTO;
 import com.bytechef.ee.embedded.configuration.dto.ConnectedUserIntegrationDTO.ConnectedUserIntegrationInstance;
 import com.bytechef.ee.embedded.configuration.dto.ConnectedUserIntegrationDTO.ConnectedUserIntegrationInstanceWorkflow;
 import com.bytechef.ee.embedded.configuration.dto.ConnectedUserIntegrationDTO.OAuth2;
+import com.bytechef.ee.embedded.configuration.dto.IntegrationInstanceConfigurationDTO;
 import com.bytechef.ee.embedded.configuration.dto.IntegrationInstanceConfigurationWorkflowDTO;
 import com.bytechef.ee.embedded.configuration.public_.web.rest.mapper.config.EmbeddedConfigurationPublicMapperSpringConfig;
 import com.bytechef.ee.embedded.configuration.public_.web.rest.model.ComponentInputReferenceModel;
@@ -29,6 +30,7 @@ import com.bytechef.ee.embedded.configuration.public_.web.rest.model.McpIntegrat
 import com.bytechef.ee.embedded.configuration.public_.web.rest.model.McpToolModel;
 import com.bytechef.ee.embedded.configuration.public_.web.rest.model.OAuth2Model;
 import com.bytechef.ee.embedded.configuration.public_.web.rest.model.OptionModel;
+import com.bytechef.ee.embedded.configuration.util.InternalOnlyInputUtils;
 import com.bytechef.platform.component.domain.Option;
 import com.bytechef.platform.component.domain.OptionsDataSource;
 import com.bytechef.platform.component.domain.OptionsDataSourceAware;
@@ -36,8 +38,11 @@ import com.bytechef.platform.component.domain.Property;
 import com.bytechef.platform.component.domain.PropertyGroup;
 import com.bytechef.platform.component.domain.ValueProperty;
 import com.bytechef.platform.configuration.domain.WorkflowInput;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 import org.mapstruct.AfterMapping;
 import org.mapstruct.Mapper;
@@ -80,6 +85,14 @@ public interface ConnectedUserIntegrationMapper {
         @Mapping(target = "mcpWorkflows", source = "mcpWorkflows")
         IntegrationInstanceModel map(ConnectedUserIntegrationInstance integrationInstance);
 
+        @AfterMapping
+        default void removeInternalOnlyInstanceInputs(
+            ConnectedUserIntegrationInstance integrationInstance, @MappingTarget IntegrationInstanceModel model) {
+
+            removeInternalOnlyInputs(integrationInstance, model.getWorkflows());
+            removeInternalOnlyInputs(integrationInstance, model.getMcpWorkflows());
+        }
+
         McpIntegrationInstanceToolModel map(ConnectedUserIntegrationDTO.McpInstanceToolInfo mcpInstanceToolInfo);
 
         @Mapping(target = "enabled", source = "integrationInstanceWorkflow.enabled")
@@ -120,8 +133,27 @@ public interface ConnectedUserIntegrationMapper {
             target = "inputs",
             expression = "java(mapInputs(integrationInstanceConfigurationWorkflowDTO))")
         @Mapping(target = "label", source = "workflow.label")
+        @Mapping(target = "staticWebhookTrigger", ignore = true)
         IntegrationWorkflowModel map(
             IntegrationInstanceConfigurationWorkflowDTO integrationInstanceConfigurationWorkflowDTO);
+
+        @AfterMapping
+        default void setStaticWebhookTriggers(
+            ConnectedUserIntegrationDTO connectedUserIntegrationDTO, @MappingTarget IntegrationModel integrationModel) {
+
+            List<IntegrationWorkflowModel> integrationWorkflowModels = integrationModel.getWorkflows();
+
+            if (integrationWorkflowModels == null) {
+                return;
+            }
+
+            Set<String> staticWebhookWorkflowUuids = connectedUserIntegrationDTO.staticWebhookWorkflowUuids();
+
+            for (IntegrationWorkflowModel integrationWorkflowModel : integrationWorkflowModels) {
+                integrationWorkflowModel.setStaticWebhookTrigger(
+                    staticWebhookWorkflowUuids.contains(integrationWorkflowModel.getWorkflowUuid()));
+            }
+        }
 
         McpToolModel map(ConnectedUserIntegrationDTO.McpToolInfo mcpToolInfo);
 
@@ -142,6 +174,7 @@ public interface ConnectedUserIntegrationMapper {
         @Mapping(target = "description", source = "description")
         @Mapping(target = "inputs", source = "inputs")
         @Mapping(target = "label", source = "label")
+        @Mapping(target = "staticWebhookTrigger", ignore = true)
         @Mapping(target = "workflowUuid", source = "workflowUuid")
         IntegrationWorkflowModel map(ConnectedUserIntegrationDTO.McpWorkflowInfo mcpWorkflowInfo);
 
@@ -160,6 +193,14 @@ public interface ConnectedUserIntegrationMapper {
         @Mapping(target = "mcpTools", source = "mcpTools")
         @Mapping(target = "mcpWorkflows", source = "mcpWorkflows")
         IntegrationInstanceModel map(ConnectedUserIntegrationInstance integrationInstance);
+
+        @AfterMapping
+        default void removeInternalOnlyInstanceInputs(
+            ConnectedUserIntegrationInstance integrationInstance, @MappingTarget IntegrationInstanceModel model) {
+
+            removeInternalOnlyInputs(integrationInstance, model.getWorkflows());
+            removeInternalOnlyInputs(integrationInstance, model.getMcpWorkflows());
+        }
 
         @Mapping(target = "enabled", source = "integrationInstanceWorkflow.enabled")
         @Mapping(target = "inputs", source = "integrationInstanceWorkflow.inputs")
@@ -184,6 +225,7 @@ public interface ConnectedUserIntegrationMapper {
 
             return WorkflowInput.of(workflow)
                 .stream()
+                .filter(input -> !input.isInternalOnly())
                 .map(input -> {
                     InputModel inputModel = map(input);
 
@@ -202,7 +244,6 @@ public interface ConnectedUserIntegrationMapper {
 
         default InputModel map(WorkflowInput input) {
             InputModel inputModel = new InputModel()
-                .internalOnly(input.isInternalOnly())
                 .label(input.getLabel())
                 .name(input.getName())
                 .objectName(input.getObjectName())
@@ -224,6 +265,7 @@ public interface ConnectedUserIntegrationMapper {
 
         default InputModel mapWorkflowInput(ConnectedUserIntegrationDTO.WorkflowInputInfo input) {
             return new InputModel()
+                .internalOnly(input.internalOnly())
                 .label(input.label())
                 .name(input.name())
                 .options(null)
@@ -292,5 +334,49 @@ public interface ConnectedUserIntegrationMapper {
                 default -> InputTypeModel.STRING;
             };
         }
+    }
+
+    private static void removeInternalOnlyInputs(
+        ConnectedUserIntegrationInstance integrationInstance,
+        List<IntegrationInstanceWorkflowModel> integrationInstanceWorkflowModels) {
+
+        if (integrationInstanceWorkflowModels == null) {
+            return;
+        }
+
+        IntegrationInstanceConfigurationDTO integrationInstanceConfiguration =
+            integrationInstance.integrationInstanceConfiguration();
+
+        for (IntegrationInstanceWorkflowModel integrationInstanceWorkflowModel : integrationInstanceWorkflowModels) {
+            Workflow workflow = integrationInstanceConfiguration == null
+                ? null : findWorkflow(integrationInstanceConfiguration, integrationInstanceWorkflowModel);
+
+            Map<String, Object> inputs = integrationInstanceWorkflowModel.getInputs();
+
+            if (workflow == null || inputs == null) {
+                integrationInstanceWorkflowModel.setInputs(new HashMap<>());
+            } else {
+                integrationInstanceWorkflowModel.setInputs(
+                    new HashMap<>(InternalOnlyInputUtils.removeInternalOnlyInputs(workflow, inputs)));
+            }
+        }
+    }
+
+    private static Workflow findWorkflow(
+        IntegrationInstanceConfigurationDTO integrationInstanceConfiguration,
+        IntegrationInstanceWorkflowModel integrationInstanceWorkflowModel) {
+
+        for (IntegrationInstanceConfigurationWorkflowDTO integrationInstanceConfigurationWorkflowDTO : integrationInstanceConfiguration
+            .integrationInstanceConfigurationWorkflows()) {
+
+            if (Objects.equals(
+                integrationInstanceConfigurationWorkflowDTO.workflowUuid(),
+                integrationInstanceWorkflowModel.getWorkflowUuid())) {
+
+                return integrationInstanceConfigurationWorkflowDTO.workflow();
+            }
+        }
+
+        return null;
     }
 }

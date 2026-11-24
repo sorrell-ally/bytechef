@@ -21,7 +21,11 @@ import static com.bytechef.component.definition.ComponentDsl.object;
 import com.bytechef.commons.util.ConvertUtils;
 import com.bytechef.component.definition.ComponentDsl;
 import com.bytechef.component.definition.ComponentDsl.ModifiableArrayProperty;
+import com.bytechef.component.definition.ComponentDsl.ModifiableBooleanProperty;
+import com.bytechef.component.definition.ComponentDsl.ModifiableIntegerProperty;
+import com.bytechef.component.definition.ComponentDsl.ModifiableNumberProperty;
 import com.bytechef.component.definition.ComponentDsl.ModifiableObjectProperty;
+import com.bytechef.component.definition.ComponentDsl.ModifiableStringProperty;
 import com.bytechef.component.definition.ComponentDsl.ModifiableValueProperty;
 import com.bytechef.definition.BaseProperty;
 import com.bytechef.definition.BaseProperty.BaseValueProperty;
@@ -87,11 +91,46 @@ public record PropertyFactory() implements SchemaPropertyFactory {
                     ((ModifiableObjectProperty) property).getProperties());
             }
         }
+
+        @Override
+        public void setDefaultValue(BaseProperty.BaseValueProperty<?> property, Object defaultValue) {
+            if (property instanceof ModifiableArrayProperty arrayProperty && defaultValue instanceof List<?> list) {
+                setArrayDefaultValue(arrayProperty, list);
+            } else if (property instanceof ModifiableBooleanProperty booleanProperty &&
+                defaultValue instanceof Boolean booleanValue) {
+
+                booleanProperty.defaultValue(booleanValue);
+            } else if (property instanceof ModifiableIntegerProperty integerProperty &&
+                defaultValue instanceof Long longValue) {
+
+                integerProperty.defaultValue(longValue);
+            } else if (property instanceof ModifiableNumberProperty numberProperty &&
+                defaultValue instanceof Double doubleValue) {
+
+                numberProperty.defaultValue(doubleValue);
+            } else if (property instanceof ModifiableObjectProperty objectProperty &&
+                defaultValue instanceof Map<?, ?> map) {
+
+                objectProperty.defaultValue((Map<String, Object>) map);
+            } else if (property instanceof ModifiableStringProperty stringProperty &&
+                defaultValue instanceof String string) {
+
+                stringProperty.defaultValue(string);
+            }
+        }
+
+        @Override
+        public void setRequired(BaseProperty.BaseValueProperty<?> property, boolean required) {
+            if (property instanceof ModifiableValueProperty<?, ?> modifiableValueProperty) {
+                modifiableValueProperty.required(required);
+            }
+        }
     };
 
     public static final SchemaUtils.OutputFactoryFunction OUTPUT_FACTORY_FUNCTION =
-        (outputSchema, sampleOutput, placeholder) -> new OutputResponse(
-            Property.toProperty((com.bytechef.component.definition.Property) outputSchema), sampleOutput, placeholder);
+        (outputSchema, sampleOutput, placeholder, sampleOutputGenerated) -> new OutputResponse(
+            Property.toProperty((com.bytechef.component.definition.Property) outputSchema), sampleOutput, placeholder,
+            sampleOutputGenerated);
 
     public static final PropertyFactory PROPERTY_FACTORY = new PropertyFactory();
 
@@ -150,6 +189,30 @@ public record PropertyFactory() implements SchemaPropertyFactory {
         }
 
         return arrayProperty;
+    }
+
+    private static boolean isListOf(List<?> list, Class<?> itemClass) {
+        return list.stream()
+            .allMatch(itemClass::isInstance);
+    }
+
+    @SuppressWarnings({
+        "rawtypes", "unchecked"
+    })
+    private static void setArrayDefaultValue(ModifiableArrayProperty arrayProperty, List<?> list) {
+        if (isListOf(list, String.class)) {
+            arrayProperty.defaultValue(list.toArray(String[]::new));
+        } else if (isListOf(list, Boolean.class)) {
+            arrayProperty.defaultValue(list.toArray(Boolean[]::new));
+        } else if (isListOf(list, Integer.class)) {
+            arrayProperty.defaultValue(list.toArray(Integer[]::new));
+        } else if (isListOf(list, Long.class)) {
+            arrayProperty.defaultValue(list.toArray(Long[]::new));
+        } else if (isListOf(list, Double.class)) {
+            arrayProperty.defaultValue(list.toArray(Double[]::new));
+        } else if (isListOf(list, Map.class)) {
+            arrayProperty.defaultValue((Map<String, ?>[]) list.toArray(Map[]::new));
+        }
     }
 
     private ModifiableObjectProperty getObjectProperty(String name, Object value) {

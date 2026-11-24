@@ -1,7 +1,7 @@
 import Button from '@/components/Button/Button';
 import {Form} from '@/components/ui/form';
 import {PopoverContent} from '@/components/ui/popover';
-import Properties from '@/pages/platform/workflow-editor/components/properties/Properties';
+import McpWorkflowToolForm from '@/pages/platform/mcp-servers/components/McpWorkflowToolForm';
 import {XIcon} from 'lucide-react';
 
 import {McpIntegrationInstanceConfigurationWorkflowItemType} from './hooks/useMcpIntegrationInstanceConfigurationList';
@@ -16,7 +16,7 @@ const McpIntegrationInstanceConfigurationWorkflowPropertiesPopover = ({
     mcpIntegrationInstanceConfigurationWorkflow,
     onClose,
 }: McpIntegrationInstanceConfigurationWorkflowPropertiesPopoverProps) => {
-    const {control, form, formState, handleFormSubmit, handleSubmit, isLoading, properties} =
+    const {form, handleFormSubmit, handleSubmit, isLoading, properties} =
         useMcpIntegrationInstanceConfigurationWorkflowPropertiesPopover(
             mcpIntegrationInstanceConfigurationWorkflow,
             onClose
@@ -24,7 +24,7 @@ const McpIntegrationInstanceConfigurationWorkflowPropertiesPopover = ({
 
     return (
         <PopoverContent
-            align="start"
+            align="end"
             className="flex max-h-(--radix-popover-content-available-height) w-md flex-col p-0"
             onInteractOutside={(event) => event.preventDefault()}
             side="bottom"
@@ -52,15 +52,7 @@ const McpIntegrationInstanceConfigurationWorkflowPropertiesPopover = ({
                         {isLoading ? (
                             <p className="text-sm text-muted-foreground">Loading properties...</p>
                         ) : properties.length > 0 ? (
-                            <fieldset className="space-y-4 border-0 p-0">
-                                <Properties
-                                    control={control}
-                                    controlPath=""
-                                    formState={formState}
-                                    properties={properties}
-                                    toolsMode
-                                />
-                            </fieldset>
+                            <McpWorkflowToolForm form={form} properties={properties} />
                         ) : (
                             <p className="text-sm text-muted-foreground">
                                 No configurable properties for this workflow tool.

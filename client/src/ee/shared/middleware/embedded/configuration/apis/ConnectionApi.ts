@@ -47,11 +47,29 @@ export interface CreateConnectionRequest {
     connection: Connection;
 }
 
+export interface DeleteConnectedUserConnectionRequest {
+    /**
+     * The id of a connected user.
+     */
+    connectedUserId: number;
+    /**
+     * The id of a connection.
+     */
+    connectionId: number;
+}
+
 export interface DeleteConnectionRequest {
     /**
      * The id of a connection.
      */
     id: number;
+}
+
+export interface GetAllConnectedUserConnectionsRequest {
+    /**
+     * The id of a connected user.
+     */
+    connectedUserId: number;
 }
 
 export interface GetConnectedUserConnectionsRequest {
@@ -93,6 +111,21 @@ export interface GetConnectionsRequest {
      * The tag id of used for filtering connections.
      */
     tagId?: number;
+}
+
+export interface UpdateConnectedUserConnectionCredentialsRequest {
+    /**
+     * The id of a connected user.
+     */
+    connectedUserId: number;
+    /**
+     * The id of a connection.
+     */
+    connectionId: number;
+    /**
+     * 
+     */
+    updateConnectionCredentialsRequest: UpdateConnectionCredentialsRequest;
 }
 
 export interface UpdateConnectionOperationRequest {
@@ -237,6 +270,60 @@ export class ConnectionApi extends runtime.BaseAPI {
     }
 
     /**
+     * Creates request options for deleteConnectedUserConnection without sending the request
+     */
+    async deleteConnectedUserConnectionRequestOpts(requestParameters: DeleteConnectedUserConnectionRequest): Promise<runtime.RequestOpts> {
+        if (requestParameters['connectedUserId'] == null) {
+            throw new runtime.RequiredError(
+                'connectedUserId',
+                'Required parameter "connectedUserId" was null or undefined when calling deleteConnectedUserConnection().'
+            );
+        }
+
+        if (requestParameters['connectionId'] == null) {
+            throw new runtime.RequiredError(
+                'connectionId',
+                'Required parameter "connectionId" was null or undefined when calling deleteConnectedUserConnection().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+
+        let urlPath = `/connected-users/{connectedUserId}/connections/{connectionId}`;
+        urlPath = urlPath.replace('{connectedUserId}', encodeURIComponent(String(requestParameters['connectedUserId'])));
+        urlPath = urlPath.replace('{connectionId}', encodeURIComponent(String(requestParameters['connectionId'])));
+
+        return {
+            path: urlPath,
+            method: 'DELETE',
+            headers: headerParameters,
+            query: queryParameters,
+        };
+    }
+
+    /**
+     * Deletes a connection a connected user created or a tenant admin provisioned for them.
+     * Deletes a connection of a connected user
+     */
+    async deleteConnectedUserConnectionRaw(requestParameters: DeleteConnectedUserConnectionRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<void>> {
+        const requestOptions = await this.deleteConnectedUserConnectionRequestOpts(requestParameters);
+        const response = await this.request(requestOptions, initOverrides);
+
+        return new runtime.VoidApiResponse(response);
+    }
+
+    /**
+     * Deletes a connection a connected user created or a tenant admin provisioned for them.
+     * Deletes a connection of a connected user
+     */
+    async deleteConnectedUserConnection(requestParameters: DeleteConnectedUserConnectionRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void> {
+        await this.deleteConnectedUserConnectionRaw(requestParameters, initOverrides);
+    }
+
+    /**
      * Creates request options for deleteConnection without sending the request
      */
     async deleteConnectionRequestOpts(requestParameters: DeleteConnectionRequest): Promise<runtime.RequestOpts> {
@@ -280,6 +367,53 @@ export class ConnectionApi extends runtime.BaseAPI {
      */
     async deleteConnection(requestParameters: DeleteConnectionRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void> {
         await this.deleteConnectionRaw(requestParameters, initOverrides);
+    }
+
+    /**
+     * Creates request options for getAllConnectedUserConnections without sending the request
+     */
+    async getAllConnectedUserConnectionsRequestOpts(requestParameters: GetAllConnectedUserConnectionsRequest): Promise<runtime.RequestOpts> {
+        if (requestParameters['connectedUserId'] == null) {
+            throw new runtime.RequiredError(
+                'connectedUserId',
+                'Required parameter "connectedUserId" was null or undefined when calling getAllConnectedUserConnections().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+
+        let urlPath = `/connected-users/{connectedUserId}/connections`;
+        urlPath = urlPath.replace('{connectedUserId}', encodeURIComponent(String(requestParameters['connectedUserId'])));
+
+        return {
+            path: urlPath,
+            method: 'GET',
+            headers: headerParameters,
+            query: queryParameters,
+        };
+    }
+
+    /**
+     * Get all connections a connected user can use, across every component.
+     * Get all connections a connected user can use
+     */
+    async getAllConnectedUserConnectionsRaw(requestParameters: GetAllConnectedUserConnectionsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<Array<Connection>>> {
+        const requestOptions = await this.getAllConnectedUserConnectionsRequestOpts(requestParameters);
+        const response = await this.request(requestOptions, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => jsonValue.map(ConnectionFromJSON));
+    }
+
+    /**
+     * Get all connections a connected user can use, across every component.
+     * Get all connections a connected user can use
+     */
+    async getAllConnectedUserConnections(requestParameters: GetAllConnectedUserConnectionsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Array<Connection>> {
+        const response = await this.getAllConnectedUserConnectionsRaw(requestParameters, initOverrides);
+        return await response.value();
     }
 
     /**
@@ -441,6 +575,70 @@ export class ConnectionApi extends runtime.BaseAPI {
     async getConnections(requestParameters: GetConnectionsRequest = {}, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Array<Connection>> {
         const response = await this.getConnectionsRaw(requestParameters, initOverrides);
         return await response.value();
+    }
+
+    /**
+     * Creates request options for updateConnectedUserConnectionCredentials without sending the request
+     */
+    async updateConnectedUserConnectionCredentialsRequestOpts(requestParameters: UpdateConnectedUserConnectionCredentialsRequest): Promise<runtime.RequestOpts> {
+        if (requestParameters['connectedUserId'] == null) {
+            throw new runtime.RequiredError(
+                'connectedUserId',
+                'Required parameter "connectedUserId" was null or undefined when calling updateConnectedUserConnectionCredentials().'
+            );
+        }
+
+        if (requestParameters['connectionId'] == null) {
+            throw new runtime.RequiredError(
+                'connectionId',
+                'Required parameter "connectionId" was null or undefined when calling updateConnectedUserConnectionCredentials().'
+            );
+        }
+
+        if (requestParameters['updateConnectionCredentialsRequest'] == null) {
+            throw new runtime.RequiredError(
+                'updateConnectionCredentialsRequest',
+                'Required parameter "updateConnectionCredentialsRequest" was null or undefined when calling updateConnectedUserConnectionCredentials().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        headerParameters['Content-Type'] = 'application/json';
+
+
+        let urlPath = `/connected-users/{connectedUserId}/connections/{connectionId}/credentials`;
+        urlPath = urlPath.replace('{connectedUserId}', encodeURIComponent(String(requestParameters['connectedUserId'])));
+        urlPath = urlPath.replace('{connectionId}', encodeURIComponent(String(requestParameters['connectionId'])));
+
+        return {
+            path: urlPath,
+            method: 'PUT',
+            headers: headerParameters,
+            query: queryParameters,
+            body: UpdateConnectionCredentialsRequestToJSON(requestParameters['updateConnectionCredentialsRequest']),
+        };
+    }
+
+    /**
+     * Replaces the credentials of a connection a tenant admin provisioned for a connected user.
+     * Replaces the credentials of a provisioned connected user connection
+     */
+    async updateConnectedUserConnectionCredentialsRaw(requestParameters: UpdateConnectedUserConnectionCredentialsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<void>> {
+        const requestOptions = await this.updateConnectedUserConnectionCredentialsRequestOpts(requestParameters);
+        const response = await this.request(requestOptions, initOverrides);
+
+        return new runtime.VoidApiResponse(response);
+    }
+
+    /**
+     * Replaces the credentials of a connection a tenant admin provisioned for a connected user.
+     * Replaces the credentials of a provisioned connected user connection
+     */
+    async updateConnectedUserConnectionCredentials(requestParameters: UpdateConnectedUserConnectionCredentialsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void> {
+        await this.updateConnectedUserConnectionCredentialsRaw(requestParameters, initOverrides);
     }
 
     /**

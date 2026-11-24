@@ -16,8 +16,44 @@
 
 package com.bytechef.workflow.definition;
 
+import java.util.Objects;
+import java.util.Optional;
+
 /**
  * @author Ivica Cardic
  */
 public interface Input {
+
+    /**
+     * Returns the component input this input takes its options from.
+     *
+     * @return the component input reference, or empty when the input has none
+     */
+    default Optional<ComponentInputReference> getComponentInput() {
+        return Optional.empty();
+    }
+
+    String getLabel();
+
+    String getName();
+
+    boolean isRequired();
+
+    String getType();
+
+    /**
+     * Returns whether only an administrator sets this input, on an embedded integration's configuration. Connected
+     * users neither see nor override it, and automation projects ignore it.
+     */
+    default boolean isInternalOnly() {
+        return false;
+    }
+
+    record ComponentInputReference(String componentName, int componentVersion, String groupName) {
+
+        public ComponentInputReference {
+            Objects.requireNonNull(componentName, "componentName");
+            Objects.requireNonNull(groupName, "groupName");
+        }
+    }
 }

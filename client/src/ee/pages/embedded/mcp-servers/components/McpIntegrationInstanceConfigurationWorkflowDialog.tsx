@@ -2,7 +2,11 @@ import {Dialog, DialogTrigger} from '@/components/Dialog';
 import {Input} from '@/components/Input/Input';
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/components/Select/Select';
 import {Form, FormControl, FormField, FormItem, FormLabel, FormMessage} from '@/components/ui/form';
+import {Workflow} from '@/ee/shared/middleware/embedded/configuration';
 import {useGetIntegrationInstanceConfigurationsQuery} from '@/ee/shared/queries/embedded/integrationInstanceConfigurations.queries';
+import useMcpWorkflowToolForms, {
+    SavedToolParametersByWorkflowIdType,
+} from '@/pages/platform/mcp-servers/hooks/useMcpWorkflowToolForms';
 import McpServerFormField from '@/shared/components/mcp-server/McpServerFormField';
 import ServerWorkflowsDialogContent from '@/shared/components/server-workflows-dialog/ServerWorkflowsDialogContent';
 import {
@@ -19,9 +23,11 @@ import {useForm} from 'react-hook-form';
 import InlineSVG from 'react-inlinesvg';
 import {z} from 'zod';
 
+import McpIntegrationWorkflowToolTab from './McpIntegrationWorkflowToolTab';
 import McpIntegrationWorkflowsList from './McpIntegrationWorkflowsList';
 import useMcpIntegrationWorkflowsForm from './hooks/useMcpIntegrationWorkflowsForm';
 import {McpIntegrationInstanceConfigurationItemType} from './mcp-integration-instance-configuration-list/hooks/useMcpIntegrationInstanceConfigurationList';
+import {fetchToolEligibleIntegrationWorkflowProperties} from './mcpIntegrationWorkflowToolProperties';
 
 const formSchema = z.object({
     integrationInstanceConfigurationId: z.string().min(1, 'Please select an integration instance configuration'),
@@ -72,36 +78,10 @@ const McpIntegrationInstanceConfigurationWorkflowDialog = ({
         [eligibleWorkflows]
     );
 
-    const {
-        componentName,
-        form: workflowsForm,
-        getWorkflowConfigurations,
-        workflows,
-    } = useMcpIntegrationWorkflowsForm({
+    const {enabledWorkflowIds, workflows} = useMcpIntegrationWorkflowsForm({
         eligibleWorkflowIds,
         integrationInstanceConfigurationId: currentIntegrationInstanceConfigurationId,
     });
-
-    const existingWorkflowLabels = useMemo(() => {
-        const mcpIntegrationInstanceConfigurationWorkflows =
-            mcpIntegrationInstanceConfiguration?.mcpIntegrationInstanceConfigurationWorkflows ?? [];
-
-        return new Set(
-            mcpIntegrationInstanceConfigurationWorkflows
-                .filter((workflow) => workflow?.workflow?.label != null)
-                .map((workflow) => workflow!.workflow!.label!)
-        );
-    }, [mcpIntegrationInstanceConfiguration?.mcpIntegrationInstanceConfigurationWorkflows]);
-
-    const initialSelectedWorkflowIds = useMemo(() => {
-        if (!isEditMode || !eligibleWorkflows) {
-            return [];
-        }
-
-        return eligibleWorkflows
-            .filter((eligibleWorkflow) => existingWorkflowLabels.has(eligibleWorkflow.label))
-            .map((eligibleWorkflow) => eligibleWorkflow.id);
-    }, [eligibleWorkflows, existingWorkflowLabels, isEditMode]);
 
     const form = useForm<z.infer<typeof formSchema>>({
         defaultValues: {
@@ -118,7 +98,54 @@ const McpIntegrationInstanceConfigurationWorkflowDialog = ({
 
     const selectedWorkflowIds = form.watch('selectedWorkflowIds');
 
+    const savedToolParametersByWorkflowId: SavedToolParametersByWorkflowIdType = useMemo(() => {
+        const mcpWorkflows = mcpIntegrationInstanceConfiguration?.mcpIntegrationInstanceConfigurationWorkflows ?? [];
+
+        return new Map(
+            mcpWorkflows
+                .map((mcpWorkflow) => ({
+                    parameters: mcpWorkflow?.parameters,
+                    workflowId: mcpWorkflow?.integrationInstanceConfigurationWorkflow?.workflowId,
+                }))
+                .filter((savedWorkflow) => savedWorkflow.workflowId != null)
+                .map((savedWorkflow) => [
+                    savedWorkflow.workflowId!,
+                    savedWorkflow.parameters &&
+                    typeof savedWorkflow.parameters === 'object' &&
+                    !Array.isArray(savedWorkflow.parameters)
+                        ? (savedWorkflow.parameters as Record<string, unknown>)
+                        : undefined,
+                ])
+        );
+    }, [mcpIntegrationInstanceConfiguration?.mcpIntegrationInstanceConfigurationWorkflows]);
+
+    const initialSelectedWorkflowIds = useMemo(() => {
+        if (!isEditMode || !eligibleWorkflows) {
+            return [];
+        }
+
+        return eligibleWorkflows
+            .filter((eligibleWorkflow) => savedToolParametersByWorkflowId.has(eligibleWorkflow.id))
+            .map((eligibleWorkflow) => eligibleWorkflow.id);
+    }, [eligibleWorkflows, isEditMode, savedToolParametersByWorkflowId]);
+
     const queryClient = useQueryClient();
+
+    const loadWorkflowProperties = useCallback(
+        (workflowId: string) =>
+            fetchToolEligibleIntegrationWorkflowProperties(queryClient, {
+                integrationInstanceConfigurationId: currentIntegrationInstanceConfigurationId!,
+                workflowId,
+            }),
+        [currentIntegrationInstanceConfigurationId, queryClient]
+    );
+
+    const toolForms = useMcpWorkflowToolForms({
+        loadWorkflowProperties,
+        savedParametersByWorkflowId: savedToolParametersByWorkflowId,
+        seedKey: currentIntegrationInstanceConfigurationId ?? '',
+        selectedWorkflowIds,
+    });
 
     const invalidateAndClose = () => {
         void queryClient.invalidateQueries({queryKey: ['mcpIntegrationInstanceConfigurationsByServerId']});
@@ -151,17 +178,28 @@ const McpIntegrationInstanceConfigurationWorkflowDialog = ({
         [setValue]
     );
 
-    const saveMcpIntegrationInstanceConfiguration = () => {
+    const renderToolContent = (workflow: Workflow) =>
+        currentIntegrationInstanceConfigurationId && workflow.id ? (
+            <div className="mt-2">
+                <McpIntegrationWorkflowToolTab
+                    integrationInstanceConfigurationId={currentIntegrationInstanceConfigurationId}
+                    toolForms={toolForms}
+                    workflowId={workflow.id}
+                />
+            </div>
+        ) : null;
+
+    const saveMcpIntegrationInstanceConfiguration = async () => {
         const formValues = getValues();
 
-        const workflowConfigurations = getWorkflowConfigurations(formValues.selectedWorkflowIds);
+        const toolParameters = await toolForms.buildToolParameters(formValues.selectedWorkflowIds);
 
         if (isEditMode) {
             updateMcpIntegrationInstanceConfigurationMutation.mutate({
                 id: mcpIntegrationInstanceConfiguration.id,
                 input: {
                     selectedWorkflowIds: formValues.selectedWorkflowIds,
-                    workflowConfigurations,
+                    toolParameters,
                 },
             });
         } else {
@@ -170,19 +208,13 @@ const McpIntegrationInstanceConfigurationWorkflowDialog = ({
                     integrationInstanceConfigurationId: formValues.integrationInstanceConfigurationId,
                     mcpServerId: formValues.mcpServerId,
                     selectedWorkflowIds: formValues.selectedWorkflowIds,
-                    workflowConfigurations,
+                    toolParameters,
                 },
             });
         }
     };
 
     const handleComplete = async () => {
-        const workflowsValid = await workflowsForm.trigger();
-
-        if (!workflowsValid) {
-            return;
-        }
-
         await handleSubmit(saveMcpIntegrationInstanceConfiguration)();
     };
 
@@ -263,7 +295,6 @@ const McpIntegrationInstanceConfigurationWorkflowDialog = ({
         </Form>
     );
 
-    // Pre-populate selected workflow IDs once eligible workflows load in edit mode
     useEffect(() => {
         if (isEditMode && initialSelectedWorkflowIds.length > 0 && selectedWorkflowIds.length === 0) {
             setValue('selectedWorkflowIds', initialSelectedWorkflowIds);
@@ -291,7 +322,8 @@ const McpIntegrationInstanceConfigurationWorkflowDialog = ({
                 isEditMode={isEditMode}
                 isSubmitPending={
                     createMcpIntegrationInstanceConfigurationMutation.isPending ||
-                    updateMcpIntegrationInstanceConfigurationMutation.isPending
+                    updateMcpIntegrationInstanceConfigurationMutation.isPending ||
+                    toolForms.isAwaitingSeeding
                 }
                 noEligibleWorkflowsMessage="No tool-eligible workflows found for this integration instance configuration. Only workflows with a New Workflow Call trigger can be added to an MCP server."
                 onComplete={handleComplete}
@@ -302,9 +334,9 @@ const McpIntegrationInstanceConfigurationWorkflowDialog = ({
                 workflowsList={
                     workflows && (
                         <McpIntegrationWorkflowsList
-                            componentName={componentName ?? ''}
-                            form={workflowsForm}
+                            enabledWorkflowIds={enabledWorkflowIds}
                             onSelectedWorkflowIdsChange={handleSelectedWorkflowIdsChange}
+                            renderSelectedWorkflowExtra={renderToolContent}
                             selectedWorkflowIds={selectedWorkflowIds}
                             workflows={workflows}
                         />

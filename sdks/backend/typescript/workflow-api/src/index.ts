@@ -1,0 +1,250 @@
+/**
+ * Type definitions for ByteChef script code workflows: the object a JavaScript code workflow file evaluates to, and
+ * the arguments ByteChef passes to each task's `perform`.
+ */
+
+export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'TRACE' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
+
+/**
+ * A cluster element composed at the call site, for actions that read cluster elements, such as the AI Agent's
+ * `chat`.
+ */
+export interface ClusterElement {
+    /** One of the task's declared connection names. */
+    connection?: string;
+
+    /** For a tool, the name the model calls it by. Defaults to the element name in `type`. */
+    name?: string;
+
+    parameters?: Record<string, unknown>;
+
+    /** `<componentName>/v<version>/<elementName>`, for example `openAi/v1/model`. */
+    type: string;
+}
+
+/**
+ * Cluster elements keyed by cluster element type (`model`, `tools`, `chatMemory`, `rag`, ...). A type that takes
+ * several elements takes a list.
+ */
+export type ClusterElements = Record<string, ClusterElement | ClusterElement[]>;
+
+/**
+ * Calls a component action: `input` is the action's input parameters, `connectionName` names one of the task's
+ * declared connections, and `clusterElements` wires an action that reads cluster elements.
+ */
+export type ComponentAction = (
+    input?: Record<string, unknown>,
+    connectionName?: string | null,
+    clusterElements?: ClusterElements,
+) => any;
+
+/**
+ * The context ByteChef passes to `perform`.
+ */
+export interface TaskContext {
+    /** `context.component.<componentName>.<actionName>(input, connectionName, clusterElements)`. */
+    component: Record<string, Record<string, ComponentAction>>;
+
+    /** Writes to the task's execution log. */
+    log(level: LogLevel, message: string): void;
+}
+
+/**
+ * The `input` ByteChef passes to `perform`: the workflow inputs plus the output of every task that already ran, keyed
+ * by name.
+ */
+export type TaskInput = Record<string, any>;
+
+/**
+ * The `connection` ByteChef passes to a three-parameter `perform`: each connection the task declares, keyed by its
+ * name, mapped to that connection's parameters, credentials included.
+ */
+export type TaskConnections = Record<string, Record<string, any>>;
+
+/**
+ * `perform(input, context)`. TypeScript does not infer this form's parameter types from `TaskDefinition`: annotate
+ * them with `TaskInput` and `TaskContext`.
+ */
+export type InputContextPerformFunction = (input: TaskInput, context: TaskContext) => unknown;
+
+/**
+ * `perform(input, connection, context)`, chosen when `perform` declares three parameters.
+ */
+export type InputConnectionContextPerformFunction = (
+    input: TaskInput,
+    connection: TaskConnections,
+    context: TaskContext,
+) => unknown;
+
+/**
+ * A connection a task uses. `name` keys its parameters in `perform`'s `connection` and is the `connectionName` a
+ * component call passes. `componentVersion` defaults to the component's latest version at save time.
+ */
+export interface ConnectionRequirement {
+    componentName: string;
+    componentVersion?: number;
+    name: string;
+}
+
+/**
+ * A task: one step of a workflow. ByteChef calls `perform` when the task runs, and its return value becomes the
+ * task's output. Task names must be unique across the workflow, nesting included.
+ */
+export interface TaskDefinition {
+    /** A list, or a map keyed by connection name. */
+    connections?: ConnectionRequirement[] | Record<string, Omit<ConnectionRequirement, 'name'>>;
+
+    description?: string;
+    label?: string;
+    name: string;
+
+    perform: InputContextPerformFunction | InputConnectionContextPerformFunction;
+}
+
+/**
+ * A task that runs a component action, as the same task in a visual workflow does. `type` names the action as
+ * `<component>/v<version>/<action>`; `parameters` are the action's inputs, and string values may hold `${...}`
+ * expressions such as `${fetch_orders}`. It has no `perform`, and no `connections`: the deployment supplies the
+ * component's connection.
+ */
+export interface ComponentTaskDefinition {
+    connections?: never;
+    description?: string;
+    label?: string;
+    name: string;
+    parameters?: Record<string, unknown>;
+    perform?: never;
+    type: `${string}/v${number}/${string}`;
+}
+
+/**
+ * A group whose tasks all start at the same time. They can't read each other's output.
+ */
+export interface ParallelTaskDefinition {
+    description?: string;
+    label?: string;
+    name: string;
+    tasks: (TaskDefinition | ComponentTaskDefinition)[];
+    type: 'parallel';
+}
+
+/**
+ * A group whose branches run at the same time. The tasks within a branch run in order.
+ */
+export interface ForkJoinTaskDefinition {
+    branches: (TaskDefinition | ComponentTaskDefinition)[][];
+    description?: string;
+    label?: string;
+    name: string;
+    type: 'forkJoin';
+}
+
+/**
+ * An entry of a workflow's `tasks`. A group can't contain another group.
+ */
+export type WorkflowTask = TaskDefinition | ComponentTaskDefinition | ParallelTaskDefinition | ForkJoinTaskDefinition;
+
+export type InputType = 'BOOLEAN' | 'DATE' | 'DATE_TIME' | 'FIELD_MAPPING' | 'INTEGER' | 'NUMBER' | 'STRING' | 'TIME';
+
+/**
+ * A workflow input. At run time it arrives in `perform`'s `input` under its own name.
+ */
+export interface InputDefinition {
+    /** With `componentVersion` and `groupName`, the component input this input takes its options from. */
+    componentName?: string;
+    componentVersion?: number;
+    groupName?: string;
+
+    /**
+     * On an embedded integration, an administrator sets the value on the integration configuration; connected users
+     * neither see nor override it. Automation projects ignore it.
+     */
+    internalOnly?: boolean;
+    label?: string;
+    name: string;
+    required?: boolean;
+
+    /** Defaults to `STRING`. */
+    type?: InputType;
+}
+
+/**
+ * A workflow output: either a task, whose output becomes the value, or a literal or `${...}` expression `value`.
+ */
+export type OutputDefinition = {name: string; task: string} | {name: string; value: unknown};
+
+/**
+ * A component trigger that starts the workflow, for example `schedule/v1/interval`.
+ */
+export interface TriggerDefinition {
+    name: string;
+    parameters?: Record<string, unknown>;
+
+    /** `<componentName>/v<version>/<triggerName>`. */
+    type: string;
+}
+
+export interface WorkflowDefinition {
+    description?: string;
+    inputs?: InputDefinition[];
+    label?: string;
+    name: string;
+    outputs?: OutputDefinition[];
+    tasks?: WorkflowTask[];
+    triggers?: TriggerDefinition[];
+}
+
+/**
+ * An automation code project, or an embedded catalog code project. `name` is the project's identity: deploying again
+ * under the same name updates the project. `version` defaults to `0.0.1`.
+ */
+export interface ProjectDefinition {
+    description?: string;
+    name: string;
+    version?: string;
+    workflows?: WorkflowDefinition[];
+}
+
+/**
+ * An embedded code integration, identified by `componentName` and `componentVersion`. `name` is its display name; it
+ * defaults to `componentName`.
+ */
+export interface IntegrationDefinition {
+    componentName: string;
+    componentVersion: number;
+    description?: string;
+    name?: string;
+    version?: string;
+    workflows?: WorkflowDefinition[];
+}
+
+/**
+ * The same types as globals, for code workflow files: ByteChef evaluates a plain script, so the file can't `import`
+ * them. Reference them with `/// <reference types="@bytechef/workflow-api" />` instead.
+ */
+declare global {
+    namespace ByteChef {
+        type ClusterElement = import('./index.js').ClusterElement;
+        type ClusterElements = import('./index.js').ClusterElements;
+        type ComponentAction = import('./index.js').ComponentAction;
+        type ComponentTaskDefinition = import('./index.js').ComponentTaskDefinition;
+        type ConnectionRequirement = import('./index.js').ConnectionRequirement;
+        type ForkJoinTaskDefinition = import('./index.js').ForkJoinTaskDefinition;
+        type InputConnectionContextPerformFunction = import('./index.js').InputConnectionContextPerformFunction;
+        type InputContextPerformFunction = import('./index.js').InputContextPerformFunction;
+        type InputDefinition = import('./index.js').InputDefinition;
+        type InputType = import('./index.js').InputType;
+        type IntegrationDefinition = import('./index.js').IntegrationDefinition;
+        type LogLevel = import('./index.js').LogLevel;
+        type OutputDefinition = import('./index.js').OutputDefinition;
+        type ParallelTaskDefinition = import('./index.js').ParallelTaskDefinition;
+        type ProjectDefinition = import('./index.js').ProjectDefinition;
+        type TaskConnections = import('./index.js').TaskConnections;
+        type TaskContext = import('./index.js').TaskContext;
+        type TaskDefinition = import('./index.js').TaskDefinition;
+        type TaskInput = import('./index.js').TaskInput;
+        type TriggerDefinition = import('./index.js').TriggerDefinition;
+        type WorkflowDefinition = import('./index.js').WorkflowDefinition;
+        type WorkflowTask = import('./index.js').WorkflowTask;
+    }
+}

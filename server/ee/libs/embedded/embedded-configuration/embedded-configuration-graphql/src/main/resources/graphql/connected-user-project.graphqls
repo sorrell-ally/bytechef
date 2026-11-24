@@ -1,5 +1,6 @@
 extend type Query {
     connectedUserProjects(connectedUserId: ID, environmentId: ID): [ConnectedUserProject!]!
+    connectedUserProjectWorkflowReferenceValues(id: ID!): ConnectedUserProjectWorkflowReferenceValues!
     provisionableConnectedUserProjects(connectedUserId: ID!): [ProvisionableConnectedUserProject!]!
 }
 
@@ -32,17 +33,22 @@ type ConnectedUserAutomationProjectConfiguration {
     configurationId: ID!
     configurationName: String!
     configurationProjectVersion: Int!
+    configurationEnabled: Boolean!
+    enabled: Boolean!
 }
 
 type ConnectedUserProjectWorkflow {
     id: ID!
+    attentionReason: String
     automationUuid: ID
     connectedUserId: ID!
     copiedFromWorkflowUuid: ID
     enabled: Boolean!
     lastExecutionDate: String
     projectId: ID!
+    provisionedBy: String
     staticWebhookUrl: String
+    toolOnly: Boolean!
     workflow: Workflow!
     workflowUuid: ID!
     workflowVersion: Int
@@ -53,6 +59,16 @@ type ConnectedUserProjectWorkflow {
     version: Int
 }
 
+
+type ConnectedUserProjectWorkflowReferenceValues {
+    connections: [ConnectedUserProjectWorkflowReferenceConnection!]!
+    inputs: Map!
+}
+
+type ConnectedUserProjectWorkflowReferenceConnection {
+    componentName: String!
+    connectionId: ID!
+}
 
 type ProvisionableConnectedUserProject {
     projectId: ID!
@@ -77,6 +93,13 @@ type ProvisionableConnectedUserProjectWorkflow {
     inputs: [ProvisionableConnectedUserProjectWorkflowInputDefinition!]!
     provisioned: Boolean!
     dangling: Boolean!
+    components: [ProvisionableConnectedUserProjectWorkflowComponent!]!
+}
+
+type ProvisionableConnectedUserProjectWorkflowComponent {
+    name: String!
+    title: String
+    icon: String
 }
 
 type ProvisionableConnectedUserProjectWorkflowInputDefinition {
@@ -89,4 +112,10 @@ type ProvisionableConnectedUserProjectWorkflowInputDefinition {
 input ProvisionConnectedUserProjectWorkflowInput {
     workflowUuid: ID!
     inputs: Map
+    connections: [ProvisionConnectedUserProjectWorkflowConnectionInput!]
+}
+
+input ProvisionConnectedUserProjectWorkflowConnectionInput {
+    componentName: String!
+    connectionId: ID!
 }

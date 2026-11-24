@@ -7,20 +7,28 @@
 
 package com.bytechef.ee.embedded.configuration.web.graphql;
 
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.bytechef.atlas.configuration.domain.Workflow;
+import com.bytechef.commons.util.JsonUtils;
 import com.bytechef.ee.embedded.configuration.dto.ConnectedUserAutomationProjectConfigurationDTO;
 import com.bytechef.ee.embedded.configuration.dto.ConnectedUserProjectDTO;
 import com.bytechef.ee.embedded.configuration.dto.ConnectedUserProjectWorkflowDTO;
+import com.bytechef.ee.embedded.configuration.dto.ConnectedUserWorkflowReferenceValuesDTO;
 import com.bytechef.ee.embedded.configuration.dto.ConnectedUserWorkflowTemplateDTO;
 import com.bytechef.ee.embedded.configuration.dto.ProvisionConnectedUserProjectWorkflowDTO;
 import com.bytechef.ee.embedded.configuration.dto.ProvisionableAutomationProjectDTO;
-import com.bytechef.ee.embedded.configuration.facade.ConnectedUserProjectAdminFacade;
+import com.bytechef.ee.embedded.configuration.facade.ConnectedUserProjectFacade;
 import com.bytechef.ee.embedded.configuration.web.graphql.config.EmbeddedConfigurationGraphQlConfigurationSharedMocks;
 import com.bytechef.ee.embedded.configuration.web.graphql.config.EmbeddedConfigurationGraphQlTestConfiguration;
 import com.bytechef.ee.embedded.connected.user.domain.ConnectedUser;
 import com.bytechef.platform.configuration.domain.Environment;
+import com.bytechef.platform.configuration.dto.WorkflowDTO;
+import com.bytechef.platform.configuration.dto.WorkflowTriggerDTO;
 import com.bytechef.platform.configuration.service.EnvironmentService;
 import com.bytechef.test.extension.ObjectMapperSetupExtension;
 import java.util.List;
@@ -30,6 +38,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.graphql.test.autoconfigure.GraphQlTest;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.graphql.execution.ErrorType;
 import org.springframework.graphql.test.tester.GraphQlTester;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -41,7 +52,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
  */
 @ContextConfiguration(classes = {
     EmbeddedConfigurationGraphQlTestConfiguration.class,
-    ConnectedUserProjectGraphQlController.class
+    ConnectedUserProjectGraphQlController.class,
+    ConnectedUserProjectGraphQlControllerIntTest.GraphQlErrorConfiguration.class
 })
 @GraphQlTest(
     controllers = ConnectedUserProjectGraphQlController.class,
@@ -58,7 +70,7 @@ class ConnectedUserProjectGraphQlControllerIntTest {
     private static final String COPIED_FROM_WORKFLOW_UUID = "7d8e9f0a-1b2c-4d3e-8f4a-5b6c7d8e9f0a";
 
     @MockitoBean
-    private ConnectedUserProjectAdminFacade connectedUserProjectAdminFacade;
+    private ConnectedUserProjectFacade connectedUserProjectFacade;
 
     @MockitoBean
     private EnvironmentService environmentService;
@@ -69,7 +81,7 @@ class ConnectedUserProjectGraphQlControllerIntTest {
     @Test
     void testConnectedUserProjectsReturnsSourceWorkflowUuids() {
         when(environmentService.getEnvironment(0L)).thenReturn(Environment.DEVELOPMENT);
-        when(connectedUserProjectAdminFacade.getConnectedUserProjects(7L, Environment.DEVELOPMENT))
+        when(connectedUserProjectFacade.getConnectedUserProjects(7L, Environment.DEVELOPMENT))
             .thenReturn(List.of(createConnectedUserProjectDTO(null)));
 
         this.graphQlTester
@@ -78,8 +90,10 @@ class ConnectedUserProjectGraphQlControllerIntTest {
                     connectedUserProjects(connectedUserId: "7", environmentId: "0") {
                         connectedUserProjectWorkflows {
                             id
+                            attentionReason
                             automationUuid
                             copiedFromWorkflowUuid
+                            provisionedBy
                         }
                     }
                 }
@@ -88,6 +102,11 @@ class ConnectedUserProjectGraphQlControllerIntTest {
             .path("connectedUserProjects[0].connectedUserProjectWorkflows[*].id")
             .entityList(String.class)
             .containsExactly("1", "2")
+            .path("connectedUserProjects[0].connectedUserProjectWorkflows[0].attentionReason")
+            .entity(String.class)
+            .isEqualTo("TURNED_OFF_BY_ADMINISTRATOR")
+            .path("connectedUserProjects[0].connectedUserProjectWorkflows[1].attentionReason")
+            .valueIsNull()
             .path("connectedUserProjects[0].connectedUserProjectWorkflows[0].automationUuid")
             .entity(String.class)
             .isEqualTo(AUTOMATION_UUID)
@@ -97,7 +116,59 @@ class ConnectedUserProjectGraphQlControllerIntTest {
             .valueIsNull()
             .path("connectedUserProjects[0].connectedUserProjectWorkflows[1].copiedFromWorkflowUuid")
             .entity(String.class)
-            .isEqualTo(COPIED_FROM_WORKFLOW_UUID);
+            .isEqualTo(COPIED_FROM_WORKFLOW_UUID)
+            .path("connectedUserProjects[0].connectedUserProjectWorkflows[0].provisionedBy")
+            .entity(String.class)
+            .isEqualTo("admin@localhost.com")
+            .path("connectedUserProjects[0].connectedUserProjectWorkflows[1].provisionedBy")
+            .valueIsNull();
+    }
+
+    @Test
+    void testProjectWorkflowToolOnlyFlag() {
+        when(environmentService.getEnvironment(0L)).thenReturn(Environment.DEVELOPMENT);
+        when(connectedUserProjectFacade.getConnectedUserProjects(7L, Environment.DEVELOPMENT))
+            .thenReturn(
+                List.of(
+                    new ConnectedUserProjectDTO(
+                        3L, null,
+                        List.of(
+                            createReferenceWorkflowDTO(1L,
+                                createWorkflowDTO(createTrigger("workflow/v1/newWorkflowCall", false))),
+                            createReferenceWorkflowDTO(
+                                2L,
+                                createWorkflowDTO(
+                                    createTrigger("workflow/v1/newWorkflowCall", false),
+                                    createTrigger("webhook/v1/webhook", false))),
+                            createReferenceWorkflowDTO(
+                                3L,
+                                createWorkflowDTO(
+                                    createTrigger("workflow/v1/newWorkflowCall", false),
+                                    createTrigger("webhook/v1/webhook", true))),
+                            createReferenceWorkflowDTO(
+                                4L, createWorkflowDTO(createTrigger("workflow/v1/newWorkflowCall", true))),
+                            createReferenceWorkflowDTO(5L, createWorkflowDTO()),
+                            createReferenceWorkflowDTO(6L, null)),
+                        Environment.DEVELOPMENT, 0L, null, 3L, null, null, null, null, null, 0)));
+
+        this.graphQlTester
+            .document("""
+                query {
+                    connectedUserProjects(connectedUserId: "7", environmentId: "0") {
+                        connectedUserProjectWorkflows {
+                            id
+                            toolOnly
+                        }
+                    }
+                }
+                """)
+            .execute()
+            .path("connectedUserProjects[0].connectedUserProjectWorkflows[*].id")
+            .entityList(String.class)
+            .containsExactly("1", "2", "3", "4", "5", "6")
+            .path("connectedUserProjects[0].connectedUserProjectWorkflows[*].toolOnly")
+            .entityList(Boolean.class)
+            .containsExactly(true, false, true, false, false, false);
     }
 
     @Test
@@ -105,13 +176,13 @@ class ConnectedUserProjectGraphQlControllerIntTest {
         ConnectedUser connectedUser = new ConnectedUser(Map.of(), null, true, "external-7", 7L, null, 0);
 
         when(environmentService.getEnvironment(0L)).thenReturn(Environment.DEVELOPMENT);
-        when(connectedUserProjectAdminFacade.getConnectedUserProjects(7L, Environment.DEVELOPMENT))
+        when(connectedUserProjectFacade.getConnectedUserProjects(7L, Environment.DEVELOPMENT))
             .thenReturn(List.of(createConnectedUserProjectDTO(connectedUser)));
-        when(connectedUserProjectAdminFacade.getConnectedUserProjectConfigurations(7L))
+        when(connectedUserProjectFacade.getConnectedUserProjectConfigurations(7L))
             .thenReturn(
                 List.of(
-                    new ConnectedUserAutomationProjectConfigurationDTO(5L, 11L, "Beta", 3),
-                    new ConnectedUserAutomationProjectConfigurationDTO(6L, 12L, "DEVELOPMENT", 1)));
+                    new ConnectedUserAutomationProjectConfigurationDTO(5L, 11L, "Beta", 3, true, true),
+                    new ConnectedUserAutomationProjectConfigurationDTO(6L, 12L, "DEVELOPMENT", 1, false, true)));
 
         this.graphQlTester
             .document("""
@@ -122,6 +193,7 @@ class ConnectedUserProjectGraphQlControllerIntTest {
                             configurationId
                             configurationName
                             configurationProjectVersion
+                            configurationEnabled
                         }
                     }
                 }
@@ -138,7 +210,40 @@ class ConnectedUserProjectGraphQlControllerIntTest {
             .isEqualTo("Beta")
             .path("connectedUserProjects[0].automationProjectConfigurations[0].configurationProjectVersion")
             .entity(Integer.class)
-            .isEqualTo(3);
+            .isEqualTo(3)
+            .path("connectedUserProjects[0].automationProjectConfigurations[*].configurationEnabled")
+            .entityList(Boolean.class)
+            .containsExactly(true, false);
+    }
+
+    @Test
+    void testConnectedUserProjectWorkflowReferenceValues() {
+        when(connectedUserProjectFacade.getProjectWorkflowReferenceValues(5L))
+            .thenReturn(
+                new ConnectedUserWorkflowReferenceValuesDTO(Map.of("slack", 42L), Map.of("channel", "#alerts")));
+
+        this.graphQlTester
+            .document("""
+                query {
+                    connectedUserProjectWorkflowReferenceValues(id: "5") {
+                        connections {
+                            componentName
+                            connectionId
+                        }
+                        inputs
+                    }
+                }
+                """)
+            .execute()
+            .path("connectedUserProjectWorkflowReferenceValues.connections[0].componentName")
+            .entity(String.class)
+            .isEqualTo("slack")
+            .path("connectedUserProjectWorkflowReferenceValues.connections[0].connectionId")
+            .entity(String.class)
+            .isEqualTo("42")
+            .path("connectedUserProjectWorkflowReferenceValues.inputs.channel")
+            .entity(String.class)
+            .isEqualTo("#alerts");
     }
 
     @Test
@@ -146,9 +251,10 @@ class ConnectedUserProjectGraphQlControllerIntTest {
         List<ProvisionableAutomationProjectDTO.Workflow> alphaWorkflows = List.of(
             new ProvisionableAutomationProjectDTO.Workflow(
                 "uuid-1", "Label", List.of(new ConnectedUserWorkflowTemplateDTO.Input("name", "Name", "STRING", true)),
-                true, false));
+                true, false,
+                List.of(new ConnectedUserWorkflowTemplateDTO.Component("slack", "Slack", "<svg/>", true, null))));
 
-        when(connectedUserProjectAdminFacade.getProvisionableProjects(7L))
+        when(connectedUserProjectFacade.getProvisionableProjects(7L))
             .thenReturn(List.of(
                 new ProvisionableAutomationProjectDTO(
                     5L, "Project", 2, alphaWorkflows,
@@ -158,7 +264,7 @@ class ConnectedUserProjectGraphQlControllerIntTest {
                         new ProvisionableAutomationProjectDTO.Configuration(
                             12L, "Beta", 3, false,
                             List.of(new ProvisionableAutomationProjectDTO.Workflow(
-                                "uuid-2", "Other", List.of(), false, false)))),
+                                "uuid-2", "Other", List.of(), false, false, List.of())))),
                     11L)));
 
         this.graphQlTester
@@ -178,6 +284,11 @@ class ConnectedUserProjectGraphQlControllerIntTest {
                                 label
                                 type
                                 required
+                            }
+                            components {
+                                name
+                                title
+                                icon
                             }
                         }
                         configurations {
@@ -218,6 +329,15 @@ class ConnectedUserProjectGraphQlControllerIntTest {
             .path("provisionableConnectedUserProjects[0].workflows[0].inputs[0].required")
             .entity(Boolean.class)
             .isEqualTo(true)
+            .path("provisionableConnectedUserProjects[0].workflows[0].components[0].name")
+            .entity(String.class)
+            .isEqualTo("slack")
+            .path("provisionableConnectedUserProjects[0].workflows[0].components[0].title")
+            .entity(String.class)
+            .isEqualTo("Slack")
+            .path("provisionableConnectedUserProjects[0].workflows[0].components[0].icon")
+            .entity(String.class)
+            .isEqualTo("<svg/>")
             .path("provisionableConnectedUserProjects[0].assignedConfigurationId")
             .entity(String.class)
             .isEqualTo("11")
@@ -240,7 +360,7 @@ class ConnectedUserProjectGraphQlControllerIntTest {
 
     @Test
     void testProvisionableConnectedUserProjectsWithoutAssignment() {
-        when(connectedUserProjectAdminFacade.getProvisionableProjects(7L))
+        when(connectedUserProjectFacade.getProvisionableProjects(7L))
             .thenReturn(List.of(new ProvisionableAutomationProjectDTO(5L, "Project", 2, List.of(), List.of(),
                 null)));
 
@@ -266,7 +386,10 @@ class ConnectedUserProjectGraphQlControllerIntTest {
                         connectedUserId: "7",
                         configurationId: "11",
                         workflows: [
-                            {workflowUuid: "uuid-1", inputs: {name: "x"}},
+                            {
+                                workflowUuid: "uuid-1", inputs: {name: "x"},
+                                connections: [{componentName: "slack", connectionId: "41"}]
+                            },
                             {workflowUuid: "uuid-2"}
                         ])
                 }
@@ -276,25 +399,77 @@ class ConnectedUserProjectGraphQlControllerIntTest {
             .entity(Boolean.class)
             .isEqualTo(true);
 
-        verify(connectedUserProjectAdminFacade).provisionProjectWorkflows(
+        verify(connectedUserProjectFacade).provisionProjectWorkflows(
             7L, 11L,
             List.of(
-                new ProvisionConnectedUserProjectWorkflowDTO("uuid-1", Map.of("name", "x")),
+                new ProvisionConnectedUserProjectWorkflowDTO("uuid-1", Map.of("name", "x"), Map.of("slack", 41L)),
                 new ProvisionConnectedUserProjectWorkflowDTO("uuid-2", null)));
+    }
+
+    @Test
+    void testProvisionConnectedUserProjectWorkflowsRejectsTwoConnectionsForOneComponent() {
+        this.graphQlTester
+            .document("""
+                mutation {
+                    provisionConnectedUserProjectWorkflows(
+                        connectedUserId: "7",
+                        configurationId: "11",
+                        workflows: [
+                            {
+                                workflowUuid: "uuid-1",
+                                connections: [
+                                    {componentName: "slack", connectionId: "41"},
+                                    {componentName: "slack", connectionId: "42"}
+                                ]
+                            }
+                        ])
+                }
+                """)
+            .execute()
+            .errors()
+            .expect(error -> {
+                String message = error.getMessage();
+
+                return error.getErrorType() == ErrorType.BAD_REQUEST && message != null && message.contains("slack");
+            });
+
+        verify(connectedUserProjectFacade, never()).provisionProjectWorkflows(anyLong(), anyLong(), anyList());
     }
 
     private static ConnectedUserProjectDTO createConnectedUserProjectDTO(@Nullable ConnectedUser connectedUser) {
         ConnectedUserProjectWorkflowDTO referenceWorkflow = new ConnectedUserProjectWorkflowDTO(
             1L, 7L, true, null, 0L, null, AUTOMATION_UUID, 1, ConnectedUserProjectWorkflowDTO.Kind.REFERENCE,
-            AUTOMATION_UUID, null, false, List.of(), List.of(), Map.of(), null, null);
+            AUTOMATION_UUID, null, false, List.of(), List.of(), Map.of(), Map.of(), "TURNED_OFF_BY_ADMINISTRATOR",
+            null, "admin@localhost.com");
 
         ConnectedUserProjectWorkflowDTO copyWorkflow = new ConnectedUserProjectWorkflowDTO(
             2L, 7L, true, null, 3L, null, "copy-workflow-uuid", 1, ConnectedUserProjectWorkflowDTO.Kind.COPY, null,
-            COPIED_FROM_WORKFLOW_UUID, false, List.of(), List.of(), Map.of(), null, null);
+            COPIED_FROM_WORKFLOW_UUID, false, List.of(), List.of(), Map.of(), Map.of(), null, null, null);
 
         return new ConnectedUserProjectDTO(
             3L, connectedUser, List.of(referenceWorkflow, copyWorkflow), Environment.DEVELOPMENT, 0L, null, 3L, null,
             null,
             null, null, null, 0);
+    }
+
+    private static ConnectedUserProjectWorkflowDTO createReferenceWorkflowDTO(long id, @Nullable WorkflowDTO workflow) {
+        return new ConnectedUserProjectWorkflowDTO(
+            id, 7L, true, null, 0L, workflow, AUTOMATION_UUID, 1, ConnectedUserProjectWorkflowDTO.Kind.REFERENCE,
+            AUTOMATION_UUID, null, false, List.of(), List.of(), Map.of(), Map.of(), null, null, null);
+    }
+
+    private static WorkflowTriggerDTO createTrigger(String type, boolean disabled) {
+        return new WorkflowTriggerDTO(List.of(), null, disabled, Map.of(), "trigger_1", null, Map.of(), null, type);
+    }
+
+    private static WorkflowDTO createWorkflowDTO(WorkflowTriggerDTO... triggers) {
+        return new WorkflowDTO(
+            new Workflow(AUTOMATION_UUID, JsonUtils.write(Map.of("label", "Label")), Workflow.Format.JSON), List.of(),
+            List.of(triggers));
+    }
+
+    @Configuration
+    @ComponentScan("com.bytechef.graphql.error")
+    static class GraphQlErrorConfiguration {
     }
 }

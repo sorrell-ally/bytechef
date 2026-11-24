@@ -48,6 +48,7 @@ const hoisted = vi.hoisted(() => {
             isFetchingNextPage: false,
             isLoading: false,
         },
+        rowsQuerySpy: vi.fn(),
         tablesQueryResult: {
             data: {dataTables: [dataTable]},
             error: null,
@@ -74,7 +75,11 @@ vi.mock('@/shared/middleware/graphql', async (importOriginal) => {
 });
 
 vi.mock('@/shared/queries/automation/datatables.queries', () => ({
-    useDataTableRowsInfiniteQuery: () => hoisted.rowsQueryResult,
+    useDataTableRowsInfiniteQuery: (variables: unknown, options: unknown) => {
+        hoisted.rowsQuerySpy(variables, options);
+
+        return hoisted.rowsQueryResult;
+    },
 }));
 
 vi.mock('@/shared/stores/useEnvironmentStore', () => ({
@@ -155,6 +160,48 @@ afterEach(() => {
 });
 
 describe('useDataTable', () => {
+    describe('link columns', () => {
+        it('should request expansion of every link column', () => {
+            hoisted.dataTable.columns = [
+                {id: 'column-1', name: 'title', type: 'STRING'},
+                {
+                    id: 'column-4',
+                    link: {displayColumnName: 'name', targetDataTableName: 'customers'},
+                    name: 'customer',
+                    type: 'LINK',
+                },
+            ] as typeof hoisted.defaultColumns;
+
+            renderUseDataTable();
+
+            expect(hoisted.rowsQuerySpy).toHaveBeenLastCalledWith(
+                expect.objectContaining({expand: ['customer'], tableId: 'table-1'}),
+                {enabled: true}
+            );
+        });
+
+        it('should request an empty expansion when the table has no link columns', () => {
+            renderUseDataTable();
+
+            expect(hoisted.rowsQuerySpy).toHaveBeenLastCalledWith(expect.objectContaining({expand: []}), {
+                enabled: true,
+            });
+        });
+    });
+
+    describe('environment scope', () => {
+        it('should never request rows of a table missing from the current environment', () => {
+            useCurrentDataTableStore.setState({dataTable: {...hoisted.dataTable, id: 'table-other'}} as never);
+
+            renderHook(() => useDataTable({tableId: 'table-other'}));
+
+            for (const [variables, options] of hoisted.rowsQuerySpy.mock.calls) {
+                expect(variables).toEqual(expect.objectContaining({tableId: ''}));
+                expect(options).toEqual({enabled: false});
+            }
+        });
+    });
+
     describe('summary row', () => {
         it('should render the total rows in the frozen first column', () => {
             const {result} = renderUseDataTable();

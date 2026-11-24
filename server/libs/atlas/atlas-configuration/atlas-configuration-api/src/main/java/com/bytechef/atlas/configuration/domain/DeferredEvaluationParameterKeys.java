@@ -35,6 +35,11 @@ public final class DeferredEvaluationParameterKeys {
 
     private static final Map<String, Set<String>> parameterKeysByTaskTypePrefix = new ConcurrentHashMap<>();
 
+    static {
+        register("commands/", "commands");
+        register("script/", "script");
+    }
+
     private DeferredEvaluationParameterKeys() {
     }
 

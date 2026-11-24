@@ -35,6 +35,7 @@ import com.bytechef.ee.embedded.configuration.exception.MissingConnectionExcepti
 import com.bytechef.ee.embedded.configuration.exception.MissingInputException;
 import com.bytechef.ee.embedded.configuration.exception.ProvidedValueLockedException;
 import com.bytechef.ee.embedded.configuration.facade.AutomationProjectFacade;
+import com.bytechef.ee.embedded.configuration.facade.ConnectedUserComponentInputFacade;
 import com.bytechef.ee.embedded.configuration.facade.ConnectedUserProjectFacade;
 import com.bytechef.ee.embedded.configuration.facade.ConnectedUserWorkflowReferenceFacade;
 import com.bytechef.ee.embedded.configuration.public_.web.rest.config.EmbeddedConfigurationPublicRestSharedMocks;
@@ -44,6 +45,7 @@ import com.bytechef.ee.embedded.connected.user.service.ConnectedUserService;
 import com.bytechef.ee.embedded.security.service.JwtTokenService;
 import com.bytechef.ee.embedded.security.service.SigningKeyService;
 import com.bytechef.ee.embedded.security.web.configurer.EmbeddedApiKeySecurityConfigurer;
+import com.bytechef.platform.component.domain.Option;
 import com.bytechef.platform.configuration.domain.Environment;
 import com.bytechef.platform.configuration.dto.WorkflowDTO;
 import com.bytechef.platform.configuration.service.EnvironmentService;
@@ -90,6 +92,9 @@ class ConnectedUserProjectWorkflowApiControllerIntTest {
     private static final String HIDDEN_WORKFLOW_UUID = "hidden-automation-uuid";
     private static final String UNKNOWN_WORKFLOW_UUID = "no-such-uuid";
     private static final String WORKFLOW_UUID = "automation-uuid-1";
+
+    @Autowired
+    private ConnectedUserComponentInputFacade connectedUserComponentInputFacade;
 
     @Autowired
     private ConnectedUserProjectFacade connectedUserProjectFacade;
@@ -236,6 +241,65 @@ class ConnectedUserProjectWorkflowApiControllerIntTest {
 
         expectCopyNotFoundWithoutBody(HIDDEN_WORKFLOW_UUID);
         expectCopyNotFoundWithoutBody(UNKNOWN_WORKFLOW_UUID);
+    }
+
+    @Test
+    @WithMockUser(username = EXTERNAL_USER_ID)
+    void testFrontendAutomationComponentInputOptionsResolvesWithTheRequestedConnection() {
+        Option option = mock(Option.class);
+
+        when(option.getLabel()).thenReturn("#general");
+        when(option.getValue()).thenReturn("C123");
+
+        when(connectedUserComponentInputFacade.getComponentInputOptions(
+            EXTERNAL_USER_ID, Environment.PRODUCTION, "slack", 1, "channel", "channel", Map.of("team", "T1"), "gen",
+            12L))
+                .thenReturn(List.of(option));
+
+        webTestClient
+            .post()
+            .uri("/v1/automation/component-input-options")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(
+                Map.of(
+                    "componentName", "slack", "componentVersion", 1, "connectionId", 12, "groupName", "channel",
+                    "lookupDependsOnValues", Map.of("team", "T1"), "propertyName", "channel", "searchText", "gen"))
+            .exchange()
+            .expectStatus()
+            .isOk()
+            .expectBody()
+            .jsonPath("$.length()")
+            .isEqualTo(1)
+            .jsonPath("$[0].label")
+            .isEqualTo("#general")
+            .jsonPath("$[0].value")
+            .isEqualTo("C123");
+    }
+
+    @Test
+    @WithMockUser(username = EXTERNAL_USER_ID)
+    void testFrontendAutomationComponentInputOptionsDefaultsMissingLookupValuesToAnEmptyMap() {
+        when(connectedUserComponentInputFacade.getComponentInputOptions(
+            EXTERNAL_USER_ID, Environment.PRODUCTION, "slack", 1, "channel", "channel", Map.of(), null, 12L))
+                .thenReturn(List.of());
+
+        webTestClient
+            .post()
+            .uri("/v1/automation/component-input-options")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(
+                Map.of(
+                    "componentName", "slack", "componentVersion", 1, "connectionId", 12, "groupName", "channel",
+                    "propertyName", "channel"))
+            .exchange()
+            .expectStatus()
+            .isOk()
+            .expectBody()
+            .jsonPath("$.length()")
+            .isEqualTo(0);
+
+        verify(connectedUserComponentInputFacade).getComponentInputOptions(
+            EXTERNAL_USER_ID, Environment.PRODUCTION, "slack", 1, "channel", "channel", Map.of(), null, 12L);
     }
 
     @Test
@@ -648,7 +712,7 @@ class ConnectedUserProjectWorkflowApiControllerIntTest {
 
         ConnectedUserProjectWorkflowDTO connectedUserProjectWorkflowDTO = ConnectedUserProjectWorkflowDTO.ofReference(
             7L, reference, new WorkflowDTO(workflow, List.of(), List.of()), List.of(), List.of(), Map.of(),
-            "MISSING_CONNECTION:slack");
+            Map.of(), "MISSING_CONNECTION:slack");
 
         when(connectedUserProjectFacade.getConnectedUserProjectWorkflows(eq(EXTERNAL_USER_ID), any()))
             .thenReturn(List.of(connectedUserProjectWorkflowDTO));
@@ -788,7 +852,7 @@ class ConnectedUserProjectWorkflowApiControllerIntTest {
     void testFrontendProvisionConnectionForAProvidedComponentReturns409() {
         when(connectedUserWorkflowReferenceFacade.getOrCreateReference(
             eq(EXTERNAL_USER_ID), eq(WORKFLOW_UUID), any(), eq(Map.of("slack", 12L)), any()))
-                .thenThrow(new ProvidedValueLockedException("slack", ProvidedValueLockedException.Kind.CONNECTION));
+                .thenThrow(new ProvidedValueLockedException("slack"));
 
         webTestClient
             .post()
@@ -800,77 +864,12 @@ class ConnectedUserProjectWorkflowApiControllerIntTest {
             .isEqualTo(409)
             .expectBody()
             .jsonPath("$.providedComponentName")
-            .isEqualTo("slack")
-            .jsonPath("$.providedInputName")
-            .doesNotExist();
+            .isEqualTo("slack");
     }
 
     @Test
     @WithMockUser(username = EXTERNAL_USER_ID)
-    void testExplicitProvisionInputForAProvidedInputReturns409() {
-        when(connectedUserWorkflowReferenceFacade.getOrCreateReference(
-            eq(EXTERNAL_USER_ID), eq(WORKFLOW_UUID), any(), any(), eq(Map.of("channel", "#mine"))))
-                .thenThrow(new ProvidedValueLockedException("channel", ProvidedValueLockedException.Kind.INPUT));
-
-        webTestClient
-            .post()
-            .uri("/v1/{externalUserId}/automation/workflow-templates/{workflowUuid}/provision", EXTERNAL_USER_ID,
-                WORKFLOW_UUID)
-            .contentType(MediaType.APPLICATION_JSON)
-            .bodyValue(Map.of("inputs", Map.of("channel", "#mine")))
-            .exchange()
-            .expectStatus()
-            .isEqualTo(409)
-            .expectBody()
-            .jsonPath("$.providedInputName")
-            .isEqualTo("channel")
-            .jsonPath("$.providedComponentName")
-            .doesNotExist();
-    }
-
-    @Test
-    @WithMockUser(username = EXTERNAL_USER_ID)
-    void testUpdateFrontendProjectWorkflowInputsForAProvidedInputReturns409() {
-        doThrow(new ProvidedValueLockedException("channel", ProvidedValueLockedException.Kind.INPUT))
-            .when(connectedUserProjectFacade)
-            .updateProjectWorkflowInputs(eq(EXTERNAL_USER_ID), eq(WORKFLOW_UUID), any(), any());
-
-        webTestClient
-            .put()
-            .uri("/v1/automation/workflows/{workflowUuid}/inputs", WORKFLOW_UUID)
-            .contentType(MediaType.APPLICATION_JSON)
-            .bodyValue("{\"inputs\":{\"channel\":\"#mine\"}}")
-            .exchange()
-            .expectStatus()
-            .isEqualTo(409)
-            .expectBody()
-            .jsonPath("$.providedInputName")
-            .isEqualTo("channel");
-    }
-
-    @Test
-    @WithMockUser(username = EXTERNAL_USER_ID)
-    void testUpdateProjectWorkflowInputsForAProvidedInputReturns409() {
-        doThrow(new ProvidedValueLockedException("channel", ProvidedValueLockedException.Kind.INPUT))
-            .when(connectedUserProjectFacade)
-            .updateProjectWorkflowInputs(eq(EXTERNAL_USER_ID), eq(WORKFLOW_UUID), any(), any());
-
-        webTestClient
-            .put()
-            .uri("/v1/{externalUserId}/automation/workflows/{workflowUuid}/inputs", EXTERNAL_USER_ID, WORKFLOW_UUID)
-            .contentType(MediaType.APPLICATION_JSON)
-            .bodyValue("{\"inputs\":{\"channel\":\"#mine\"}}")
-            .exchange()
-            .expectStatus()
-            .isEqualTo(409)
-            .expectBody()
-            .jsonPath("$.providedInputName")
-            .isEqualTo("channel");
-    }
-
-    @Test
-    @WithMockUser(username = EXTERNAL_USER_ID)
-    void testListingMarksTheComponentsAndInputsTheConfigurationProvides() {
+    void testListingMarksTheComponentsTheConfigurationProvides() {
         ConnectedUserProjectWorkflow reference = new ConnectedUserProjectWorkflow();
 
         reference.setId(1L);
@@ -883,8 +882,8 @@ class ConnectedUserProjectWorkflowApiControllerIntTest {
         ConnectedUserProjectWorkflowDTO connectedUserProjectWorkflowDTO = ConnectedUserProjectWorkflowDTO.ofReference(
             7L, reference, new WorkflowDTO(workflow, List.of(), List.of()),
             List.of(new ConnectedUserWorkflowTemplateDTO.Component("openAi", "OpenAI", null, true, null, true)),
-            List.of(new ConnectedUserWorkflowTemplateDTO.Input("model", "Model", "STRING", true, true)), Map.of(),
-            null);
+            List.of(new ConnectedUserWorkflowTemplateDTO.Input("model", "Model", "STRING", true)),
+            Map.of("model", "gpt-4o"), Map.of(), null);
 
         when(connectedUserProjectFacade.getConnectedUserProjectWorkflows(eq(EXTERNAL_USER_ID), any()))
             .thenReturn(List.of(connectedUserProjectWorkflowDTO));
@@ -905,9 +904,9 @@ class ConnectedUserProjectWorkflowApiControllerIntTest {
             .jsonPath("$[0].inputs[0].name")
             .isEqualTo("model")
             .jsonPath("$[0].inputs[0].provided")
-            .isEqualTo(true)
+            .doesNotExist()
             .jsonPath("$[0].inputValues.model")
-            .doesNotExist();
+            .isEqualTo("gpt-4o");
     }
 
     private void expectCopyNotFoundWithoutBody(String workflowUuid) {

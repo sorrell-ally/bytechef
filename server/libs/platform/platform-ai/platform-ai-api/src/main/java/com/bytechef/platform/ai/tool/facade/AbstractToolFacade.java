@@ -19,12 +19,17 @@ package com.bytechef.platform.ai.tool.facade;
 import com.bytechef.commons.util.ConvertUtils;
 import com.bytechef.evaluator.Evaluator;
 import com.bytechef.platform.ai.tool.FromAiResult;
+import com.bytechef.platform.ai.tool.ToolOptionsResolver;
 import com.bytechef.platform.ai.tool.constant.ToolConstants;
+import com.bytechef.platform.ai.tool.util.ToolNameUtils;
+import com.bytechef.platform.component.domain.ObjectProperty;
+import com.bytechef.platform.component.domain.Property;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
+import java.util.function.Function;
 import org.apache.commons.lang3.StringUtils;
 import org.jspecify.annotations.Nullable;
 
@@ -32,8 +37,6 @@ import org.jspecify.annotations.Nullable;
  * @author Matija Petanjek
  */
 public abstract class AbstractToolFacade {
-
-    private static final Pattern NON_TOOL_NAME_CHARACTERS = Pattern.compile("[^a-zA-Z0-9_-]+");
 
     private final Evaluator evaluator;
 
@@ -94,6 +97,90 @@ public abstract class AbstractToolFacade {
         }
 
         return new ArrayList<>(fromAiResultsByName.values());
+    }
+
+    protected List<FromAiResult> applyRuntimeOptions(
+        List<FromAiResult> fromAiResults, @Nullable Map<String, ?> parameters, List<? extends Property> properties,
+        Function<Property, @Nullable List<Object>> optionsLoader) {
+
+        if (parameters == null || parameters.isEmpty()) {
+            return fromAiResults;
+        }
+
+        Map<String, Property> runtimeOptionsPropertiesByName = new HashMap<>();
+
+        collectRuntimeOptionsProperties(parameters, properties, runtimeOptionsPropertiesByName);
+
+        if (runtimeOptionsPropertiesByName.isEmpty()) {
+            return fromAiResults;
+        }
+
+        List<FromAiResult> resolvedFromAiResults = new ArrayList<>();
+
+        for (FromAiResult fromAiResult : fromAiResults) {
+            Property property = runtimeOptionsPropertiesByName.get(fromAiResult.name());
+
+            List<Object> options = property == null ? null : optionsLoader.apply(property);
+
+            if (options == null) {
+                resolvedFromAiResults.add(fromAiResult);
+            } else {
+                resolvedFromAiResults.add(
+                    new FromAiResult(
+                        fromAiResult.name(), fromAiResult.type(), fromAiResult.description(),
+                        fromAiResult.defaultValue(), options, fromAiResult.required()));
+            }
+        }
+
+        return resolvedFromAiResults;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void collectRuntimeOptionsProperties(
+        Map<String, ?> parameters, List<? extends Property> properties,
+        Map<String, Property> runtimeOptionsPropertiesByName) {
+
+        for (Property property : properties) {
+            Object value = parameters.get(property.getName());
+
+            if (property instanceof ObjectProperty objectProperty && value instanceof Map<?, ?> map) {
+                collectRuntimeOptionsProperties(
+                    (Map<String, ?>) map, objectProperty.getProperties(), runtimeOptionsPropertiesByName);
+
+                continue;
+            }
+
+            if (!ToolOptionsResolver.hasRuntimeOptions(property)) {
+                continue;
+            }
+
+            FromAiResult fromAiResult = getSingleFromAiResult(value);
+
+            if (fromAiResult != null) {
+                runtimeOptionsPropertiesByName.putIfAbsent(fromAiResult.name(), property);
+            }
+        }
+    }
+
+    private @Nullable FromAiResult getSingleFromAiResult(@Nullable Object value) {
+        if (value instanceof FromAiResult fromAiResult) {
+            return fromAiResult;
+        }
+
+        if (!(value instanceof String expression) || !expression.contains("fromAi(")) {
+            return null;
+        }
+
+        List<String> fromAiCalls = extractFromAiCallStrings(expression);
+
+        String strippedExpression = expression.startsWith("=")
+            ? StringUtils.trim(expression.substring(1)) : expression.trim();
+
+        if (fromAiCalls.size() != 1 || !strippedExpression.equals(fromAiCalls.getFirst())) {
+            return null;
+        }
+
+        return evaluateSingleFromAi(fromAiCalls.getFirst());
     }
 
     protected static List<String> extractFromAiCallStrings(String expression) {
@@ -186,45 +273,13 @@ public abstract class AbstractToolFacade {
     protected String getToolName(
         String componentName, String clusterElementName, Map<String, ?> inputParameters) {
 
-        if (inputParameters != null) {
-            Object toolName = inputParameters.get(ToolConstants.TOOL_NAME);
+        String toolName = ToolNameUtils.getCustomToolName(inputParameters);
 
-            if (toolName instanceof String string && !string.isBlank()) {
-                return string;
-            }
+        if (toolName != null) {
+            return toolName;
         }
 
-        StringBuilder sb = new StringBuilder();
-
-        sb.append(componentName.toUpperCase());
-        sb.append("_");
-
-        sb.append(Character.toUpperCase(clusterElementName.charAt(0)));
-
-        for (int i = 1; i < clusterElementName.length(); i++) {
-            char c = clusterElementName.charAt(i);
-
-            if (Character.isUpperCase(c)) {
-                sb.append('_')
-                    .append(c);
-            } else {
-                sb.append(Character.toUpperCase(c));
-            }
-        }
-
-        return sb.toString();
-    }
-
-    public static @Nullable String getWorkflowToolName(@Nullable Map<String, ?> parameters, @Nullable String label) {
-        if (parameters != null) {
-            Object toolName = parameters.get(ToolConstants.TOOL_NAME);
-
-            if (toolName instanceof String string && !string.isBlank()) {
-                return string;
-            }
-        }
-
-        return toToolName(label);
+        return ToolNameUtils.getDefaultToolName(componentName, clusterElementName);
     }
 
     protected Object resolveParameterValue(Object value, Map<String, Object> request) {
@@ -326,18 +381,5 @@ public abstract class AbstractToolFacade {
         }
 
         return "'" + string.replace("'", "''") + "'";
-    }
-
-    protected static @Nullable String toToolName(@Nullable String label) {
-        if (label == null) {
-            return null;
-        }
-
-        String toolName = NON_TOOL_NAME_CHARACTERS.matcher(label.trim())
-            .replaceAll("_");
-
-        toolName = StringUtils.strip(toolName, "_");
-
-        return toolName.isBlank() ? null : toolName;
     }
 }

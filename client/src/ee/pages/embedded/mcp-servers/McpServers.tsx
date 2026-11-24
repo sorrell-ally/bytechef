@@ -3,6 +3,7 @@ import EmptyList from '@/components/EmptyList';
 import EmptyState from '@/components/EmptyState/EmptyState';
 import JourneySteps from '@/components/JourneySteps/JourneySteps';
 import PageLoader from '@/components/PageLoader';
+import AutomationExecutionsSheet from '@/ee/pages/embedded/automations/components/automation-executions-sheet/AutomationExecutionsSheet';
 import IntegrationInstanceConfigurationWorkflowExecutionsSheet from '@/ee/pages/embedded/integration-instance-configurations/components/integration-instance-configuration-workflow-executions-sheet/IntegrationInstanceConfigurationWorkflowExecutionsSheet';
 import {useGetComponentDefinitionsQuery} from '@/ee/shared/queries/embedded/componentDefinitions.queries';
 import {WorkflowReadOnlyProvider} from '@/pages/platform/workflow-editor/providers/workflowEditorProvider';
@@ -97,6 +98,8 @@ const McpServers = () => {
                         <McpServerList mcpServers={filteredMcpServers as McpServer[]} tags={tags} />
 
                         <IntegrationInstanceConfigurationWorkflowExecutionsSheet />
+
+                        <AutomationExecutionsSheet />
                     </WorkflowReadOnlyProvider>
                 ) : hasActiveFilter ? (
                     <EmptyList
@@ -109,7 +112,7 @@ const McpServers = () => {
                         actions={
                             <McpServerDialog mcpServer={undefined} triggerNode={<Button label="Create MCP Server" />} />
                         }
-                        description="An MCP server lets AI assistants, like Claude or Cursor, call tools for your connected users. You choose which component actions and integration workflows it exposes as tools."
+                        description="An MCP server lets the AI agents you build call tools for your connected users. You choose which component actions and integration workflows it exposes as tools."
                         icon={<ServerIcon />}
                         note={environmentScopeNote}
                         title="Create your first MCP server"

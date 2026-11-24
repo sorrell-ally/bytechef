@@ -7,6 +7,7 @@
 
 package com.bytechef.ee.embedded.configuration.facade;
 
+import com.bytechef.atlas.configuration.domain.Workflow;
 import com.bytechef.automation.configuration.domain.ProjectDeployment;
 import com.bytechef.automation.configuration.domain.ProjectDeploymentWorkflow;
 import com.bytechef.automation.configuration.domain.ProjectDeploymentWorkflowConnection;
@@ -14,6 +15,7 @@ import com.bytechef.ee.embedded.configuration.domain.ConnectedUserProjectWorkflo
 import com.bytechef.platform.annotation.ConditionalOnEEVersion;
 import com.bytechef.platform.configuration.domain.ComponentConnection;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -32,6 +34,7 @@ import org.springframework.stereotype.Component;
 @ConditionalOnEEVersion
 class ConnectedUserReferenceAttentionResolver {
 
+    static final String AWAITING_CONFIGURATION = "AWAITING_CONFIGURATION";
     static final String INPUT_REQUIRED_PREFIX = "INPUT_REQUIRED:";
     static final String INVALID_WORKFLOW_PREFIX = "INVALID_WORKFLOW:";
     static final String MISSING_CONNECTION_PREFIX = "MISSING_CONNECTION:";
@@ -58,14 +61,14 @@ class ConnectedUserReferenceAttentionResolver {
         Long projectDeploymentId = reference.getProjectDeploymentId();
 
         if (reference.isDangling() || projectDeploymentId == null) {
-            return new ReferenceState(Map.of(), null);
+            return new ReferenceState(Map.of(), Map.of(), null);
         }
 
         Optional<ProjectDeployment> fetchedProjectDeployment = connectedUserReferenceDeploymentManager.fetchDeployment(
             projectDeploymentId);
 
         if (fetchedProjectDeployment.isEmpty()) {
-            return new ReferenceState(Map.of(), null);
+            return new ReferenceState(Map.of(), Map.of(), null);
         }
 
         ProjectDeployment projectDeployment = fetchedProjectDeployment.get();
@@ -80,9 +83,11 @@ class ConnectedUserReferenceAttentionResolver {
         Map<String, ?> inputs = row.<Map<String, ?>>map(ProjectDeploymentWorkflow::getInputs)
             .orElse(Map.of());
 
+        Map<String, Long> connections = resolveConnections(reference, workflowId, row);
+
         try {
-            return new ReferenceState(inputs, resolveAttentionReason(
-                projectDeployment, reference.getAutomationUuid(), workflowId, row));
+            return new ReferenceState(inputs, connections, resolveAttentionReason(
+                projectDeployment, reference.getAutomationUuid(), reference.isEnabled(), workflowId, row));
         } catch (RuntimeException exception) {
             log.warn(
                 "Attention reason of reference id={} could not be derived: {}", reference.getId(),
@@ -92,14 +97,51 @@ class ConnectedUserReferenceAttentionResolver {
                 log.debug("Attention reason of reference id={} could not be derived", reference.getId(), exception);
             }
 
-            return new ReferenceState(inputs, null);
+            return new ReferenceState(inputs, connections, null);
         }
+    }
+
+    private Map<String, Long> resolveConnections(
+        ConnectedUserProjectWorkflow reference, Optional<String> workflowId, Optional<ProjectDeploymentWorkflow> row) {
+
+        if (workflowId.isEmpty() || row.isEmpty()) {
+            return Map.of();
+        }
+
+        ProjectDeploymentWorkflow projectDeploymentWorkflow = row.get();
+
+        List<ProjectDeploymentWorkflowConnection> connections = projectDeploymentWorkflow.getConnections();
+
+        Map<String, Long> connectionIds = new LinkedHashMap<>();
+
+        try {
+            for (ComponentConnection componentConnection : workflowConnectionSlot.getSlots(workflowId.get())) {
+                connections.stream()
+                    .filter(connection -> isWiredTo(connection, componentConnection))
+                    .map(ProjectDeploymentWorkflowConnection::getConnectionId)
+                    .filter(Objects::nonNull)
+                    .findFirst()
+                    .ifPresent(connectionId -> connectionIds.putIfAbsent(
+                        componentConnection.componentName(), connectionId));
+            }
+        } catch (RuntimeException exception) {
+            log.warn(
+                "Connections of reference id={} could not be derived: {}", reference.getId(), exception.getMessage());
+
+            if (log.isDebugEnabled()) {
+                log.debug("Connections of reference id={} could not be derived", reference.getId(), exception);
+            }
+
+            return Map.of();
+        }
+
+        return connectionIds;
     }
 
     @Nullable
     private String resolveAttentionReason(
-        ProjectDeployment projectDeployment, String automationUuid, Optional<String> workflowId,
-        Optional<ProjectDeploymentWorkflow> row) {
+        ProjectDeployment projectDeployment, String automationUuid, boolean referenceEnabled,
+        Optional<String> workflowId, Optional<ProjectDeploymentWorkflow> row) {
 
         Optional<Long> connectedUserIdOptional = connectedUserReferenceDeploymentManager.fetchConnectedUserId(
             projectDeployment.getId());
@@ -129,30 +171,48 @@ class ConnectedUserReferenceAttentionResolver {
 
         ProjectDeploymentWorkflow projectDeploymentWorkflow = row.get();
 
-        List<ProjectDeploymentWorkflowConnection> connections = projectDeploymentWorkflow.getConnections();
+        String missingComponentName = workflowConnectionSlot.findMissingRequiredComponentName(
+            workflowId.get(), projectDeploymentWorkflow.getConnections());
 
-        for (ComponentConnection componentConnection : workflowConnectionSlot.getSlots(workflowId.get())) {
-            boolean wired = connections.stream()
-                .anyMatch(connection -> Objects.equals(
-                    connection.getWorkflowNodeName(), componentConnection.workflowNodeName()) &&
-                    Objects.equals(connection.getWorkflowConnectionKey(), componentConnection.key()));
-
-            if (componentConnection.required() && !wired) {
-                return MISSING_CONNECTION_PREFIX + componentConnection.componentName();
-            }
+        if (missingComponentName != null) {
+            return MISSING_CONNECTION_PREFIX + missingComponentName;
         }
 
+        Workflow workflow = connectedUserReferenceDeploymentManager.getWorkflow(workflowId.get());
+
         String missingInputName = connectedUserReferenceDeploymentManager.findMissingRequiredInput(
-            workflowId.get(), projectDeploymentWorkflow.getInputs());
+            workflow, projectDeploymentWorkflow.getInputs());
 
         if (missingInputName != null) {
             return INPUT_REQUIRED_PREFIX + missingInputName;
         }
 
-        return connectedUserWorkflowValidator.getAttentionReason(workflowId.get(), projectDeployment.getEnvironment());
+        String workflowAttentionReason = connectedUserWorkflowValidator.getAttentionReason(
+            workflowId.get(), projectDeployment.getEnvironment());
+
+        if (workflowAttentionReason != null) {
+            return workflowAttentionReason;
+        }
+
+        if (referenceEnabled && !projectDeploymentWorkflow.isEnabled() &&
+            connectedUserReferenceDeploymentManager.isAwaitingConfiguration(
+                connectedUserId, projectDeployment.getProjectId(), automationUuid, workflow)) {
+
+            return AWAITING_CONFIGURATION;
+        }
+
+        return null;
+    }
+
+    private static boolean isWiredTo(
+        ProjectDeploymentWorkflowConnection connection, ComponentConnection componentConnection) {
+
+        return Objects.equals(connection.getWorkflowNodeName(), componentConnection.workflowNodeName()) &&
+            Objects.equals(connection.getWorkflowConnectionKey(), componentConnection.key());
     }
 
     @SuppressFBWarnings("EI")
-    public record ReferenceState(Map<String, ?> inputs, @Nullable String attentionReason) {
+    public record ReferenceState(
+        Map<String, ?> inputs, Map<String, Long> connections, @Nullable String attentionReason) {
     }
 }

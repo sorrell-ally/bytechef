@@ -9,6 +9,7 @@ package com.bytechef.ee.automation.configuration.config;
 
 import com.bytechef.automation.configuration.callback.ProjectCallback;
 import com.bytechef.automation.configuration.callback.ProjectWorkflowCallback;
+import com.bytechef.automation.configuration.service.CurrentUserResolver;
 import com.bytechef.cache.config.CacheConfiguration;
 import com.bytechef.commons.data.jdbc.converter.MapWrapperToStringConverter;
 import com.bytechef.commons.data.jdbc.converter.StringToMapWrapperConverter;
@@ -19,11 +20,10 @@ import com.bytechef.ee.automation.configuration.security.scope.DeploymentPermiss
 import com.bytechef.ee.automation.configuration.security.scope.McpPermissionScopeProvider;
 import com.bytechef.ee.automation.configuration.security.scope.ProjectPermissionScopeProvider;
 import com.bytechef.ee.automation.configuration.security.scope.WorkflowPermissionScopeProvider;
-import com.bytechef.ee.automation.configuration.service.CurrentUserResolver;
 import com.bytechef.ee.automation.configuration.service.CustomRoleScopeResolver;
 import com.bytechef.ee.automation.configuration.service.PermissionScopeRegistry;
 import com.bytechef.ee.automation.configuration.service.PermissionServiceImpl;
-import com.bytechef.ee.automation.configuration.service.WorkspaceScopeCacheService;
+import com.bytechef.ee.automation.configuration.service.WorkspaceScopeCache;
 import com.bytechef.liquibase.config.LiquibaseConfiguration;
 import com.bytechef.platform.user.repository.AuthorityRepository;
 import com.bytechef.platform.user.repository.PersistentTokenRepository;
@@ -66,7 +66,7 @@ import tools.jackson.databind.ObjectMapper;
     ProjectCallback.class, ProjectPermissionScopeProvider.class, ProjectWorkflowCallback.class,
     WorkflowPermissionScopeProvider.class,
     WorkspacePermissionIntTestConfiguration.WorkspacePermissionJdbcConfiguration.class,
-    WorkspaceScopeCacheService.class, WorkspaceUserAuditMapper.class
+    WorkspaceScopeCache.class, WorkspaceUserAuditMapper.class
 })
 @SpringBootConfiguration
 public class WorkspacePermissionIntTestConfiguration {

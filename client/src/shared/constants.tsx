@@ -67,6 +67,9 @@ export const ON_ERROR_ERROR_BRANCH = 'onErrorBranch';
 export const ON_ERROR_WIRE_KEY_MAIN_BRANCH = 'main-branch';
 export const ON_ERROR_WIRE_KEY_ERROR_BRANCH = 'on-error-branch';
 
+export const PUBLISH_DESCRIPTION_PLACEHOLDER =
+    'Describe what changed in this version, e.g. Added a Slack notification for new leads';
+
 export const DEVELOPMENT_ENVIRONMENT = 0;
 export const STAGING_ENVIRONMENT = 1;
 export const PRODUCTION_ENVIRONMENT = 2;
@@ -199,6 +202,13 @@ export const SORT_OPTIONS = [
         value: 'reverse-alphabetical',
     },
 ];
+
+export const SOURCE_ORDER_SORT_OPTION = {
+    label: 'As written',
+    value: 'source-order',
+};
+
+export const CODE_WORKFLOW_SORT_OPTIONS = [SOURCE_ORDER_SORT_OPTION, ...SORT_OPTIONS];
 
 export const MINIMAP_MASK_COLOR = '#f1f5f9';
 export const MINIMAP_NODE_COLOR = '#e2e8f0';

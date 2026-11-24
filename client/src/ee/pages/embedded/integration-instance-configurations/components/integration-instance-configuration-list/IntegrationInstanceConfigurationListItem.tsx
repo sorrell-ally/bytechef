@@ -28,7 +28,6 @@ import TagList from '@/shared/components/TagList';
 import {useAnalytics} from '@/shared/hooks/useAnalytics';
 import {useEnvironmentStore} from '@/shared/stores/useEnvironmentStore';
 import {useQueryClient} from '@tanstack/react-query';
-import {Settings2Icon} from 'lucide-react';
 import {useCallback, useMemo, useRef, useState} from 'react';
 import InlineSVG from 'react-inlinesvg';
 
@@ -37,7 +36,6 @@ import IntegrationInstanceConfigurationMoveUsersDialog from './IntegrationInstan
 
 interface IntegrationInstanceConfigurationListItemProps {
     integrationInstanceConfiguration: IntegrationInstanceConfiguration;
-    mcpWorkflowIds?: Set<string>;
     remainingTags?: Tag[];
     showIntegrationIcon?: boolean;
     showTags?: boolean;
@@ -45,7 +43,6 @@ interface IntegrationInstanceConfigurationListItemProps {
 
 const IntegrationInstanceConfigurationListItem = ({
     integrationInstanceConfiguration,
-    mcpWorkflowIds,
     remainingTags,
     showIntegrationIcon = true,
     showTags = true,
@@ -132,6 +129,25 @@ const IntegrationInstanceConfigurationListItem = ({
         [integrationConfigurations, integrationInstanceConfiguration.id]
     );
 
+    const lastExecutionDate = useMemo(
+        () =>
+            (integrationInstanceConfiguration.integrationInstanceConfigurationWorkflows ?? []).reduce<Date | undefined>(
+                (latestExecutionDate, integrationInstanceConfigurationWorkflow) => {
+                    const workflowLastExecutionDate = integrationInstanceConfigurationWorkflow.lastExecutionDate;
+
+                    if (!workflowLastExecutionDate) {
+                        return latestExecutionDate;
+                    }
+
+                    return !latestExecutionDate || workflowLastExecutionDate > latestExecutionDate
+                        ? workflowLastExecutionDate
+                        : latestExecutionDate;
+                },
+                undefined
+            ),
+        [integrationInstanceConfiguration.integrationInstanceConfigurationWorkflows]
+    );
+
     const moveUsersDisabledReason = useMemo(() => {
         if (integrationConfigurationsError) {
             return CONFIGURATIONS_LOAD_FAILED_REASON;
@@ -196,18 +212,13 @@ const IntegrationInstanceConfigurationListItem = ({
 
                 <div className="flex flex-1 items-center py-3 group-data-[state='open']:border-none">
                     <div className="flex-1">
-                        <div className="flex min-h-8 items-center justify-between">
+                        <div className="flex items-center justify-between">
                             <div className="flex w-full items-center gap-2">
                                 <div className="flex items-center gap-2">
-                                    {showIntegrationIcon && integrationInstanceConfiguration?.integration?.icon ? (
+                                    {showIntegrationIcon && integrationInstanceConfiguration?.integration?.icon && (
                                         <InlineSVG
                                             className="size-6 shrink-0"
                                             src={integrationInstanceConfiguration?.integration.icon}
-                                        />
-                                    ) : (
-                                        <Settings2Icon
-                                            aria-hidden="true"
-                                            className="size-6 shrink-0 text-content-neutral-secondary"
                                         />
                                     )}
 
@@ -218,7 +229,7 @@ const IntegrationInstanceConfigurationListItem = ({
                             </div>
                         </div>
 
-                        <div className="mt-2 min-h-7 sm:flex sm:items-center sm:justify-between">
+                        <div className="mt-2 sm:flex sm:items-center sm:justify-between">
                             <div className="flex items-center">
                                 {integrationInstanceConfiguration.integrationInstanceConfigurationWorkflows && (
                                     <CollapsibleTrigger
@@ -253,7 +264,7 @@ const IntegrationInstanceConfigurationListItem = ({
                     </div>
 
                     <div className="flex items-center justify-end gap-x-6 [&>:last-child]:-ml-3">
-                        {newerVersionAvailable && <Badge label="Newer version available" styleType="warning-outline" />}
+                        {newerVersionAvailable && <Badge label="Newer version available" styleType="warning-filled" />}
 
                         <Tooltip>
                             <TooltipTrigger asChild>
@@ -267,8 +278,8 @@ const IntegrationInstanceConfigurationListItem = ({
                             <TooltipContent>The integration version</TooltipContent>
                         </Tooltip>
 
-                        <div className="flex min-w-52 flex-col items-end gap-y-2">
-                            <div className="flex min-h-8 items-center">
+                        <div className="flex min-w-52 flex-col items-end gap-y-4">
+                            <div className="flex items-center">
                                 {enableIntegrationInstanceConfigurationMutation.isPending && <LoadingIcon />}
 
                                 <Switch
@@ -279,10 +290,10 @@ const IntegrationInstanceConfigurationListItem = ({
                             </div>
 
                             <Tooltip>
-                                <TooltipTrigger className="flex min-h-7 items-center text-sm text-content-neutral-secondary">
-                                    {integrationInstanceConfiguration.lastModifiedDate ? (
+                                <TooltipTrigger className="flex items-center text-sm text-content-neutral-secondary">
+                                    {lastExecutionDate ? (
                                         <span className="text-xs">
-                                            {`Modified at ${integrationInstanceConfiguration.lastModifiedDate?.toLocaleDateString()} ${integrationInstanceConfiguration.lastModifiedDate?.toLocaleTimeString()}`}
+                                            {`Executed at ${lastExecutionDate.toLocaleDateString()} ${lastExecutionDate.toLocaleTimeString()}`}
                                         </span>
                                     ) : (
                                         <span className="text-xs">No executions</span>
@@ -321,7 +332,6 @@ const IntegrationInstanceConfigurationListItem = ({
 
             {showEditDialog && (
                 <IntegrationInstanceConfigurationDialog
-                    excludeWorkflowIds={mcpWorkflowIds}
                     integrationInstanceConfiguration={integrationInstanceConfiguration}
                     onClose={() => setShowEditDialog(false)}
                 />
@@ -337,7 +347,6 @@ const IntegrationInstanceConfigurationListItem = ({
 
             {showUpdateIntegrationVersionDialog && (
                 <IntegrationInstanceConfigurationDialog
-                    excludeWorkflowIds={mcpWorkflowIds}
                     integrationInstanceConfiguration={integrationInstanceConfiguration}
                     onClose={() => setShowUpdateIntegrationVersionDialog(false)}
                     updateIntegrationVersion={true}

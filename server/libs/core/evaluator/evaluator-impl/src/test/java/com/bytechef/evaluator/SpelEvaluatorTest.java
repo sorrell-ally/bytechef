@@ -799,7 +799,10 @@ class SpelEvaluatorTest {
         "user['first name']",
         "user['ключ']",
         "foo.[0]",
-        "foo.['bar-baz']"
+        "foo.['bar-baz']",
+        "produceReport.outputFiles['report.csv']",
+        "produceReport.outputFiles['charts/summary.txt']",
+        "files['Q3 report (final) v2.1+draft@team.csv']"
     })
     void testShouldAcceptValidAccessors(String accessor) {
         assertDoesNotThrow(
@@ -818,6 +821,9 @@ class SpelEvaluatorTest {
         "user['unclosed]",
         "user[1a]",
         "user['x']y",
+        "user['it''s']",
+        "user['a\\'b']",
+        "user['a'] + T(java.lang.System)",
         "1abc",
         "user.1name"
     })
@@ -826,6 +832,44 @@ class SpelEvaluatorTest {
             ExpressionEvaluationException.class,
             () -> EVALUATOR.evaluate(Map.of("key", "${" + accessor + "}"), Collections.emptyMap()),
             accessor);
+    }
+
+    @Test
+    void testDataPillResolvesAnOutputFileKeyContainingDotsAndSlashes() {
+        Map<String, Object> reportFileEntry = Map.of("name", "report.csv", "url", "file:/report.csv");
+        Map<String, Object> summaryFileEntry = Map.of("name", "summary.txt", "url", "file:/summary.txt");
+
+        Map<String, Object> context = Map.of(
+            "produceReport",
+            Map.of("outputFiles", Map.of("report.csv", reportFileEntry, "charts/summary.txt", summaryFileEntry)));
+
+        Map<String, Object> map = EVALUATOR.evaluate(
+            Map.of(
+                "report", "${produceReport.outputFiles['report.csv']}",
+                "summary", "${produceReport.outputFiles['charts/summary.txt']}",
+                "summaryName", "${produceReport.outputFiles['charts/summary.txt'].name}"),
+            context);
+
+        assertEquals(reportFileEntry, map.get("report"));
+        assertEquals(summaryFileEntry, map.get("summary"));
+        assertEquals("summary.txt", map.get("summaryName"));
+    }
+
+    @Test
+    void testDataPillArgumentResolvesAnOutputFileKeyContainingDotsAndSlashes() {
+        Map<String, Object> context = Map.of(
+            "produceReport", Map.of("outputFiles", Map.of("charts/summary.txt", Map.of("name", "summary.txt"))));
+
+        Map<String, Object> map = EVALUATOR.evaluate(
+            Map.of(
+                "exists", "=exists(${produceReport.outputFiles['charts/summary.txt']})",
+                "missing", "=exists(${produceReport.outputFiles['charts/other.txt']})",
+                "name", "=getOrDefault(${produceReport.outputFiles['charts/summary.txt'].name}, 'none')"),
+            context);
+
+        assertEquals(true, map.get("exists"));
+        assertEquals(false, map.get("missing"));
+        assertEquals("summary.txt", map.get("name"));
     }
 
     @Test
@@ -1233,6 +1277,45 @@ class SpelEvaluatorTest {
     }
 
     @Test
+    public void testTemplateLiteralWithABarePathIsSilentlySubstituted() {
+        Map<String, Object> map = EVALUATOR.evaluate(
+            Map.of("script", "return `Hi ${name}`;"), Map.of("name", "Ada"));
+
+        assertEquals("return `Hi Ada`;", MapUtils.get(map, "script"));
+    }
+
+    @Test
+    public void testTemplateLiteralWithABarePathSurvivesWhenTheContextHasNoSuchName() {
+        Map<String, Object> map = EVALUATOR.evaluate(
+            Map.of("script", "return `Hi ${name}`;"), Collections.emptyMap());
+
+        assertEquals(
+            "return `Hi ${name}`;", MapUtils.get(map, "script"),
+            "the substitution is data dependent, which is what makes it silent");
+    }
+
+    @Test
+    public void testTemplateLiteralWithArithmeticFailsTheWholeMap() {
+        ExpressionEvaluationException exception = assertThrowsExactly(
+            ExpressionEvaluationException.class,
+            () -> EVALUATOR.evaluate(Map.of("script", "return `Total: ${a + b}`;"), Map.of("a", 1, "b", 2)));
+
+        String message = exception.getMessage();
+
+        assertTrue(message.startsWith("Invalid expression:"));
+        assertFalse(message.contains("script"), "the message names neither the property nor the component");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "return `${x ? y : z}`;", "return `${fn()}`;", "return `${obj.m()}`;"
+    })
+    public void testTemplateLiteralWithAnExpressionFailsTheWholeMap(String script) {
+        assertThrowsExactly(
+            ExpressionEvaluationException.class, () -> EVALUATOR.evaluate(Map.of("script", script), Map.of("x", true)));
+    }
+
+    @Test
     void testRemoveFromMapLeavesTheSourceMapUnchanged() {
         Map<String, Object> sourceMap = new HashMap<>(Map.of("amount", 10, "currency", "EUR"));
 
@@ -1485,6 +1568,22 @@ class SpelEvaluatorTest {
         assertEquals(List.of("a"), map.get("selected"));
         assertEquals(List.of(true, true, false), map.get("projected"));
         assertEquals(List.of("a"), map.get("bare"));
+    }
+
+    @Test
+    void testJdbcCallEscapeSyntaxIsNotAnExpression() {
+        Map<String, Object> map = EVALUATOR.evaluate(
+            Map.of(
+                "function", "{:balance = call balance(:accountId)}",
+                "procedure", "{call transfer(:from, :to, :status)}",
+                "block", "BEGIN :balance := balance(:accountId); END;",
+                "withDataPill", "{:balance = call ${procedureName}(:accountId)}"),
+            Map.of("procedureName", "balance"));
+
+        assertEquals("{:balance = call balance(:accountId)}", map.get("function"));
+        assertEquals("{call transfer(:from, :to, :status)}", map.get("procedure"));
+        assertEquals("BEGIN :balance := balance(:accountId); END;", map.get("block"));
+        assertEquals("{:balance = call balance(:accountId)}", map.get("withDataPill"));
     }
 
     private static Map<String, Object> withQuestion(Map<String, Object> context) {

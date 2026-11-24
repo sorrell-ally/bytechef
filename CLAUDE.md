@@ -98,6 +98,7 @@ docker compose -f docker-compose.dev.server.yml up -d
     - `automation-ai/` - AI-powered automation features, including `automation-ai-mcp-*` (MCP / Model Context Protocol integration)
     - `automation-configuration/` - Project and workflow configuration
     - `automation-data-table/` - Data table management
+    - `automation-getting-started/` - Getting Started checklist status (the Embedded counterpart is `server/ee/libs/embedded/embedded-getting-started/`)
     - `automation-knowledge-base/` - Knowledge base integration
     - `automation-search/` - Search services for automation entities
     - `automation-swagger/` - OpenAPI/Swagger surface for automation APIs
@@ -393,6 +394,13 @@ step that could pause it, an approval gate included, is rejected before it start
 platform-coordinator sweep, acting only on approval suspends. There are no approval reminders or escalation.
 
 Never add notification logic under `server/libs/atlas/`. See `.agents/hitl-approvals.md`.
+
+### Project versioning and audit dates
+
+A project's dates behave like a directory's: its `lastModifiedDate` follows changes to its list of workflows (add,
+delete, rename), not edits inside a workflow. Create, update, duplicate, delete, publish and restore follow numbered
+rules (PV-1...). Before changing any of these paths, read `.agents/project-versioning.md`: it lists each rule, the
+decisions behind it and the test that enforces it.
 
 ### Spring Boot Project Conventions
 

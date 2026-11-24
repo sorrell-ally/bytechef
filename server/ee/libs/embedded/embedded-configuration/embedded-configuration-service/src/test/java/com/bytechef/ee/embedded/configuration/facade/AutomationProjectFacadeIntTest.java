@@ -11,16 +11,22 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.bytechef.atlas.configuration.domain.Workflow;
 import com.bytechef.atlas.configuration.service.WorkflowService;
 import com.bytechef.atlas.execution.facade.JobFacade;
 import com.bytechef.atlas.execution.service.JobService;
 import com.bytechef.atlas.execution.service.TaskExecutionService;
 import com.bytechef.automation.configuration.domain.Project;
+import com.bytechef.automation.configuration.domain.ProjectVersion;
 import com.bytechef.automation.configuration.domain.ProjectWorkflow;
 import com.bytechef.automation.configuration.domain.Workspace;
 import com.bytechef.automation.configuration.facade.ProjectDeploymentFacade;
@@ -32,17 +38,29 @@ import com.bytechef.automation.configuration.service.ProjectDeploymentWorkflowSe
 import com.bytechef.automation.configuration.service.ProjectService;
 import com.bytechef.automation.configuration.service.ProjectWorkflowService;
 import com.bytechef.component.definition.ComponentDsl;
+import com.bytechef.ee.automation.configuration.domain.ProjectCodeWorkflow;
+import com.bytechef.ee.automation.configuration.facade.ProjectCodeWorkflowDraftFacade;
+import com.bytechef.ee.automation.configuration.facade.ProjectCodeWorkflowDraftFacadeImpl;
+import com.bytechef.ee.automation.configuration.facade.ProjectCodeWorkflowFacade;
+import com.bytechef.ee.automation.configuration.repository.ProjectCodeWorkflowRepository;
+import com.bytechef.ee.automation.configuration.service.ProjectCodeWorkflowService;
+import com.bytechef.ee.automation.configuration.service.ProjectCodeWorkflowServiceImpl;
+import com.bytechef.ee.embedded.ai.mcp.facade.McpAutomationRowFacade;
+import com.bytechef.ee.embedded.ai.mcp.facade.McpIntegrationInstanceRowFacade;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationComponentService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceConfigurationService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceConfigurationWorkflowService;
 import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceToolService;
+import com.bytechef.ee.embedded.ai.mcp.service.McpIntegrationInstanceWorkflowService;
 import com.bytechef.ee.embedded.configuration.domain.AutomationProjectConfiguration;
 import com.bytechef.ee.embedded.configuration.domain.ConnectedUserProjectWorkflow;
 import com.bytechef.ee.embedded.configuration.domain.Integration;
 import com.bytechef.ee.embedded.configuration.domain.IntegrationInstanceConfiguration;
 import com.bytechef.ee.embedded.configuration.dto.AutomationProjectDTO;
 import com.bytechef.ee.embedded.configuration.dto.AutomationProjectVersionDTO;
+import com.bytechef.ee.embedded.configuration.dto.AutomationProjectVersionWorkflowDTO;
 import com.bytechef.ee.embedded.configuration.dto.ConnectedUserWorkflowTemplateDTO;
+import com.bytechef.ee.embedded.configuration.exception.CodeWorkflowErrorType;
 import com.bytechef.ee.embedded.configuration.exception.ConnectedUserProjectWorkflowErrorType;
 import com.bytechef.ee.embedded.configuration.repository.ConnectedUserProjectWorkflowRepository;
 import com.bytechef.ee.embedded.configuration.security.EmbeddedPermissionEvaluator;
@@ -52,8 +70,16 @@ import com.bytechef.ee.embedded.configuration.service.IntegrationInstanceConfigu
 import com.bytechef.ee.embedded.configuration.service.IntegrationService;
 import com.bytechef.ee.embedded.connected.user.domain.ConnectedUser;
 import com.bytechef.ee.embedded.connected.user.service.ConnectedUserService;
+import com.bytechef.ee.platform.codeworkflow.configuration.domain.CodeWorkflowContainer.Language;
+import com.bytechef.ee.platform.codeworkflow.configuration.facade.CodeWorkflowContainerFacade;
+import com.bytechef.ee.platform.codeworkflow.configuration.facade.CodeWorkflowContainerFacadeImpl;
+import com.bytechef.ee.platform.codeworkflow.configuration.repository.CodeWorkflowContainerRepository;
+import com.bytechef.ee.platform.codeworkflow.configuration.service.CodeWorkflowContainerService;
+import com.bytechef.ee.platform.codeworkflow.configuration.service.CodeWorkflowContainerServiceImpl;
+import com.bytechef.ee.platform.codeworkflow.file.storage.CodeWorkflowFileStorage;
 import com.bytechef.evaluator.SpelEvaluator;
 import com.bytechef.exception.ConfigurationException;
+import com.bytechef.file.storage.domain.FileEntry;
 import com.bytechef.platform.category.domain.Category;
 import com.bytechef.platform.category.service.CategoryService;
 import com.bytechef.platform.component.domain.ComponentDefinition;
@@ -65,6 +91,7 @@ import com.bytechef.platform.component.service.ConnectionDefinitionService;
 import com.bytechef.platform.component.service.TriggerDefinitionService;
 import com.bytechef.platform.configuration.cache.WorkflowCacheManager;
 import com.bytechef.platform.configuration.domain.Environment;
+import com.bytechef.platform.configuration.domain.WorkflowInput;
 import com.bytechef.platform.configuration.dto.VersionWorkflowChange;
 import com.bytechef.platform.configuration.dto.VersionWorkflowChanges;
 import com.bytechef.platform.configuration.dto.WorkflowChangeType;
@@ -75,6 +102,7 @@ import com.bytechef.platform.configuration.facade.WorkflowTestConfigurationFacad
 import com.bytechef.platform.configuration.service.EnvironmentService;
 import com.bytechef.platform.configuration.service.WorkflowNodeTestOutputService;
 import com.bytechef.platform.configuration.service.WorkflowTestConfigurationService;
+import com.bytechef.platform.configuration.workflow.WorkflowPreDeleteListener;
 import com.bytechef.platform.connection.facade.ConnectionFacade;
 import com.bytechef.platform.connection.service.ConnectionService;
 import com.bytechef.platform.githubproxy.client.GitHubProxyClient;
@@ -82,6 +110,7 @@ import com.bytechef.platform.mcp.service.McpComponentService;
 import com.bytechef.platform.mcp.service.McpServerService;
 import com.bytechef.platform.mcp.service.McpToolService;
 import com.bytechef.platform.oauth2.service.OAuth2Service;
+import com.bytechef.platform.security.constant.AuthorityConstants;
 import com.bytechef.platform.security.facade.ApiKeyFacade;
 import com.bytechef.platform.security.service.ApiKeyService;
 import com.bytechef.platform.tag.domain.Tag;
@@ -95,20 +124,36 @@ import com.bytechef.platform.workflow.execution.service.PrincipalJobService;
 import com.bytechef.platform.workflow.execution.service.TriggerExecutionService;
 import com.bytechef.platform.workflow.task.dispatcher.service.TaskDispatcherDefinitionService;
 import com.bytechef.test.config.testcontainers.PostgreSQLContainerConfiguration;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.context.NestedTestConfiguration;
+import org.springframework.test.context.NestedTestConfiguration.EnclosingConfiguration;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.event.RecordApplicationEvents;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * @version ee
@@ -138,7 +183,10 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
     GitHubProxyClient.class, JobFacade.class, JobService.class, McpComponentService.class,
     McpIntegrationComponentService.class,
     McpIntegrationInstanceConfigurationService.class, McpIntegrationInstanceConfigurationWorkflowService.class,
-    McpIntegrationInstanceToolService.class, McpServerService.class, McpToolService.class,
+    McpIntegrationInstanceToolService.class,
+    McpIntegrationInstanceWorkflowService.class, McpAutomationRowFacade.class, McpIntegrationInstanceRowFacade.class,
+    McpServerService.class,
+    McpToolService.class,
     OAuth2ParametersFacade.class,
     OAuth2Service.class, PrincipalJobFacade.class, PrincipalJobService.class, ProjectDeploymentFacade.class,
     ProjectDeploymentService.class, ProjectDeploymentWorkflowService.class, ProjectFacade.class,
@@ -193,6 +241,12 @@ class AutomationProjectFacadeIntTest {
     private IntegrationService integrationService;
 
     @Autowired
+    private ProjectCodeWorkflowFacade projectCodeWorkflowFacade;
+
+    @Autowired
+    private ProjectCodeWorkflowService projectCodeWorkflowService;
+
+    @Autowired
     private ProjectService projectService;
 
     @Autowired
@@ -228,6 +282,160 @@ class AutomationProjectFacadeIntTest {
 
         createdIntegrationInstanceConfigurationIds.clear();
         createdIntegrationIds.clear();
+    }
+
+    @Test
+    void testPublishingACodeProjectWithAnEmptyDraftIsRefused() {
+        long projectId = automationProjectFacade.createProject("CodeProject", "", null, List.of(), null);
+
+        Project project = projectService.getProject(projectId);
+
+        ProjectCodeWorkflow publishedProjectCodeWorkflow = mock(ProjectCodeWorkflow.class);
+
+        when(publishedProjectCodeWorkflow.getProjectVersion()).thenReturn(project.getLastProjectVersion() - 1);
+        when(projectCodeWorkflowService.fetchProjectCodeWorkflow(projectId))
+            .thenReturn(Optional.of(publishedProjectCodeWorkflow));
+
+        try {
+            assertThatThrownBy(() -> automationProjectFacade.publishProject(projectId))
+                .isInstanceOf(ConfigurationException.class)
+                .satisfies(exception -> assertThat(((ConfigurationException) exception).getErrorKey())
+                    .isEqualTo(CodeWorkflowErrorType.CODE_WORKFLOW_DRAFT_EMPTY.getErrorKey()));
+
+            assertThat(projectService.getProject(projectId)
+                .getLastProjectVersion()).isEqualTo(project.getLastProjectVersion());
+        } finally {
+            reset(projectCodeWorkflowService);
+        }
+    }
+
+    @Test
+    void testPublishingACodeProjectWhoseCodeRowIsAtTheDraftVersionSucceeds() {
+        long projectId = automationProjectFacade.createProject("CodeProject", "", null, List.of(), null);
+
+        automationProjectFacade.createProjectWorkflow(projectId, null, null);
+
+        Project project = projectService.getProject(projectId);
+
+        int draftVersion = project.getLastProjectVersion();
+
+        assertThat(project.getLastPublishedProjectVersion()).isNull();
+
+        ProjectCodeWorkflow draftProjectCodeWorkflow = mock(ProjectCodeWorkflow.class);
+
+        when(draftProjectCodeWorkflow.getProjectVersion()).thenReturn(draftVersion);
+        when(projectCodeWorkflowService.fetchProjectCodeWorkflow(projectId))
+            .thenReturn(Optional.of(draftProjectCodeWorkflow));
+
+        try {
+            automationProjectFacade.publishProject(projectId);
+
+            Project publishedProject = projectService.getProject(projectId);
+
+            assertThat(publishedProject.getLastPublishedProjectVersion()).isNotNull();
+            assertThat(publishedProject.getLastPublishedProjectVersion()
+                .getVersion()).isEqualTo(draftVersion);
+            assertThat(publishedProject.getLastProjectVersion()).isEqualTo(draftVersion + 1);
+        } finally {
+            reset(projectCodeWorkflowService);
+        }
+    }
+
+    @Test
+    void testRestoringAVersionOfACodeProjectRestoresItsSource() {
+        long projectId = automationProjectFacade.createProject("CodeProject", "", null, List.of(), null);
+
+        automationProjectFacade.createProjectWorkflow(projectId, null, null);
+        automationProjectFacade.publishProject(projectId);
+
+        when(projectCodeWorkflowService.fetchProjectCodeWorkflow(projectId))
+            .thenReturn(Optional.of(mock(ProjectCodeWorkflow.class)));
+
+        try {
+            automationProjectFacade.restoreProjectVersion(projectId, 1);
+
+            verify(projectCodeWorkflowFacade).restoreCodeWorkflowSource(projectId, 1);
+        } finally {
+            reset(projectCodeWorkflowFacade, projectCodeWorkflowService);
+        }
+    }
+
+    @Test
+    void testRenamingACodeProjectRewritesItsSource() {
+        long projectId = automationProjectFacade.createProject("CodeProject", "", null, List.of(), null);
+
+        when(projectCodeWorkflowService.fetchProjectCodeWorkflow(projectId))
+            .thenReturn(Optional.of(mock(ProjectCodeWorkflow.class)));
+
+        try {
+            automationProjectFacade.updateProject(projectId, "RenamedCodeProject", "", null, List.of(), null);
+
+            verify(projectCodeWorkflowFacade).renameCodeWorkflowSource(projectId);
+        } finally {
+            reset(projectCodeWorkflowFacade, projectCodeWorkflowService);
+        }
+    }
+
+    @Test
+    void testUpdatingACodeProjectWithoutRenamingItLeavesItsSourceAlone() {
+        long projectId = automationProjectFacade.createProject("CodeProject", "", null, List.of(), null);
+
+        when(projectCodeWorkflowService.fetchProjectCodeWorkflow(projectId))
+            .thenReturn(Optional.of(mock(ProjectCodeWorkflow.class)));
+
+        try {
+            automationProjectFacade.updateProject(projectId, "CodeProject", "changed", null, List.of(), null);
+
+            verify(projectCodeWorkflowFacade, never()).renameCodeWorkflowSource(anyLong());
+        } finally {
+            reset(projectCodeWorkflowFacade, projectCodeWorkflowService);
+        }
+    }
+
+    @Test
+    void testDeletingAWorkflowOfACodeProjectIsRefused() {
+        long projectId = automationProjectFacade.createProject("CodeProject", "", null, List.of(), null);
+
+        String workflowUuid = automationProjectFacade.createProjectWorkflow(projectId, null, null);
+
+        when(projectCodeWorkflowService.fetchProjectCodeWorkflow(projectId))
+            .thenReturn(Optional.of(mock(ProjectCodeWorkflow.class)));
+
+        try {
+            assertThatThrownBy(() -> automationProjectFacade.deleteProjectWorkflow(workflowUuid))
+                .isInstanceOf(ConfigurationException.class)
+                .satisfies(exception -> assertThat(((ConfigurationException) exception).getErrorKey())
+                    .isEqualTo(CodeWorkflowErrorType.CODE_PROJECT_WORKFLOW_NOT_DELETABLE.getErrorKey()));
+
+            assertThat(automationProjectFacade.getProject(projectId)
+                .workflowTemplates()).hasSize(1);
+        } finally {
+            reset(projectCodeWorkflowService);
+        }
+    }
+
+    @Test
+    void testDuplicatingACodeProjectIsRefusedBeforeAnyChange() {
+        String projectName = "DuplicatedCodeProject" + UUID.randomUUID();
+
+        long projectId = automationProjectFacade.createProject(projectName, "", null, List.of(), null);
+
+        int projectCount = automationProjectFacade.getProjects()
+            .size();
+
+        when(projectCodeWorkflowService.fetchProjectCodeWorkflow(projectId))
+            .thenReturn(Optional.of(mock(ProjectCodeWorkflow.class)));
+
+        try {
+            assertThatThrownBy(() -> automationProjectFacade.duplicateProject(projectId))
+                .isInstanceOf(ConfigurationException.class)
+                .satisfies(exception -> assertThat(((ConfigurationException) exception).getErrorKey())
+                    .isEqualTo(CodeWorkflowErrorType.CODE_PROJECT_NOT_DUPLICABLE.getErrorKey()));
+
+            assertThat(automationProjectFacade.getProjects()).hasSize(projectCount);
+        } finally {
+            reset(projectCodeWorkflowService);
+        }
     }
 
     @Test
@@ -373,6 +581,22 @@ class AutomationProjectFacadeIntTest {
     }
 
     @Test
+    void testGetProjectVersionWorkflowsListsWorkflowsUnchangedSincePreviousVersion() {
+        long projectId = automationProjectFacade.createProject("Unchanged", "", null, List.of(), null);
+
+        String workflowUuid = automationProjectFacade.createProjectWorkflow(projectId, null, null);
+
+        automationProjectFacade.publishProject(projectId);
+        automationProjectFacade.publishProject(projectId);
+
+        assertThat(automationProjectFacade.getProjectVersionWorkflowChanges(projectId, 2)
+            .workflows()).isEmpty();
+        assertThat(automationProjectFacade.getProjectVersionWorkflows(projectId, 2))
+            .extracting(AutomationProjectVersionWorkflowDTO::workflowUuid)
+            .containsExactly(workflowUuid);
+    }
+
+    @Test
     void testGetProjectVersionWorkflowChangesRejectsNonAutomationProject() {
         Project project = new Project();
 
@@ -389,6 +613,9 @@ class AutomationProjectFacadeIntTest {
             () -> automationProjectFacade.getProjectVersionWorkflowChange(projectId, 1, "uuid"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("is not an automation project");
+        assertThatThrownBy(() -> automationProjectFacade.getProjectVersionWorkflows(projectId, 1))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("is not an automation project");
     }
 
     @Test
@@ -527,6 +754,91 @@ class AutomationProjectFacadeIntTest {
     }
 
     @Test
+    void testRestoreProjectVersionReplacesTheDraftWithThePublishedWorkflows() {
+        long projectId = automationProjectFacade.createProject("Restore", "", null, List.of(), null);
+
+        String workflowUuid = automationProjectFacade.createProjectWorkflow(
+            projectId, "{\"label\":\"Version 1\",\"tasks\":[]}", null);
+
+        automationProjectFacade.publishProject(projectId);
+
+        automationProjectFacade.updateProjectWorkflow(workflowUuid, "Version 2", "");
+
+        String addedWorkflowUuid = automationProjectFacade.createProjectWorkflow(projectId, null, null);
+
+        String draftWorkflowId = getDraftTemplate(projectId, workflowUuid).workflowId();
+        String addedWorkflowId = getDraftTemplate(projectId, addedWorkflowUuid).workflowId();
+        String publishedWorkflowId = getPublishedTemplate(projectId).workflowId();
+
+        automationProjectFacade.restoreProjectVersion(projectId, 1);
+
+        List<ConnectedUserWorkflowTemplateDTO> draftTemplates = automationProjectFacade.getProject(projectId)
+            .workflowTemplates();
+
+        assertThat(draftTemplates)
+            .extracting(ConnectedUserWorkflowTemplateDTO::workflowUuid, ConnectedUserWorkflowTemplateDTO::label)
+            .containsExactly(tuple(workflowUuid, "Version 1"));
+        assertThat(draftTemplates.getFirst()
+            .workflowId()).isNotIn(draftWorkflowId, publishedWorkflowId);
+
+        assertThat(workflowService.fetchWorkflow(draftWorkflowId)).isEmpty();
+        assertThat(workflowService.fetchWorkflow(addedWorkflowId)).isEmpty();
+
+        ConnectedUserWorkflowTemplateDTO publishedTemplate = getPublishedTemplate(projectId);
+
+        assertThat(publishedTemplate.workflowId()).isEqualTo(publishedWorkflowId);
+        assertThat(publishedTemplate.label()).isEqualTo("Version 1");
+    }
+
+    @Test
+    void testRestoreProjectVersionAddsWorkflowsMissingFromTheDraft() {
+        long projectId = automationProjectFacade.createProject("RestoreDeleted", "", null, List.of(), null);
+
+        String workflowUuid = automationProjectFacade.createProjectWorkflow(projectId, null, null);
+
+        automationProjectFacade.publishProject(projectId);
+
+        automationProjectFacade.deleteProjectWorkflow(workflowUuid);
+
+        assertThat(automationProjectFacade.getProject(projectId)
+            .workflowTemplates()).isEmpty();
+
+        automationProjectFacade.restoreProjectVersion(projectId, 1);
+
+        assertThat(automationProjectFacade.getProject(projectId)
+            .workflowTemplates())
+                .extracting(ConnectedUserWorkflowTemplateDTO::workflowUuid)
+                .containsExactly(workflowUuid);
+    }
+
+    @Test
+    void testRestoreProjectVersionRejectsAnUnpublishedVersion() {
+        long projectId = automationProjectFacade.createProject("RestoreDraft", "", null, List.of(), null);
+
+        automationProjectFacade.createProjectWorkflow(projectId, null, null);
+
+        assertThatThrownBy(() -> automationProjectFacade.restoreProjectVersion(projectId, 1))
+            .isInstanceOf(ConfigurationException.class);
+        assertThatThrownBy(() -> automationProjectFacade.restoreProjectVersion(projectId, 5))
+            .isInstanceOf(ConfigurationException.class);
+    }
+
+    @Test
+    void testRestoreProjectVersionRejectsNonAutomationProject() {
+        Project project = new Project();
+
+        project.setName("Plain " + UUID.randomUUID());
+        project.setWorkspaceId(Workspace.DEFAULT_WORKSPACE_ID);
+
+        long projectId = projectService.create(project)
+            .getId();
+
+        assertThatThrownBy(() -> automationProjectFacade.restoreProjectVersion(projectId, 1))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("is not an automation project");
+    }
+
+    @Test
     void testUpdateProjectWorkflowAfterPublishEditsTheDraftNotThePublishedVersion() {
         long projectId = automationProjectFacade.createProject("DraftEdit", "", null, List.of(), null);
 
@@ -539,6 +851,66 @@ class AutomationProjectFacadeIntTest {
 
         assertThat(getDraftTemplate(projectId).label()).isEqualTo("Renamed");
         assertThat(getPublishedTemplate(projectId).label()).isEqualTo("Original");
+    }
+
+    @Test
+    void testGetProjectsReportsUnpublishedChanges() {
+        long projectId = automationProjectFacade.createProject("DraftBadge", "", null, List.of(), null);
+
+        String workflowUuid = automationProjectFacade.createProjectWorkflow(
+            projectId, "{\"label\":\"Original\",\"tasks\":[]}", null);
+
+        assertThat(getListedProject(projectId).unpublishedChanges()).isTrue();
+
+        automationProjectFacade.publishProject(projectId);
+
+        assertThat(getListedProject(projectId).unpublishedChanges()).isFalse();
+
+        automationProjectFacade.updateProjectWorkflow(workflowUuid, "Renamed", "");
+
+        assertThat(getListedProject(projectId).unpublishedChanges()).isTrue();
+    }
+
+    @Test
+    void testUpdateProjectWorkflowRenameSetsProjectLastModifiedDateToTheWorkflowLastModifiedDate() {
+        long projectId = automationProjectFacade.createProject("RenameDates", "", null, List.of(), null);
+
+        String workflowUuid = automationProjectFacade.createProjectWorkflow(
+            projectId, "{\"label\":\"Original\",\"tasks\":[]}", null);
+
+        automationProjectFacade.updateProjectWorkflow(workflowUuid, "Renamed", "");
+
+        Workflow renamedWorkflow = workflowService.getWorkflow(getDraftTemplate(projectId).workflowId());
+
+        assertThat(renamedWorkflow.getLastModifiedDate()).isAfter(renamedWorkflow.getCreatedDate());
+        assertThat(projectService.getProject(projectId)
+            .getLastModifiedDate()).isEqualTo(renamedWorkflow.getLastModifiedDate());
+    }
+
+    @Test
+    void testRestoreProjectVersionSetsProjectDatesFromThePublishDates() {
+        long projectId = automationProjectFacade.createProject("RestoreDates", "", null, List.of(), null);
+
+        automationProjectFacade.createProjectWorkflow(projectId, null, null);
+
+        automationProjectFacade.publishProject(projectId);
+        automationProjectFacade.publishProject(projectId);
+
+        Project project = projectService.getProject(projectId);
+
+        Instant firstPublishedDate = project.fetchProjectVersion(1)
+            .map(ProjectVersion::getPublishedDate)
+            .orElseThrow();
+        Instant secondPublishedDate = project.fetchProjectVersion(2)
+            .map(ProjectVersion::getPublishedDate)
+            .orElseThrow();
+
+        automationProjectFacade.restoreProjectVersion(projectId, 2);
+
+        project = projectService.getProject(projectId);
+
+        assertThat(project.getCreatedDate()).isEqualTo(firstPublishedDate);
+        assertThat(project.getLastModifiedDate()).isEqualTo(secondPublishedDate);
     }
 
     @Test
@@ -1066,6 +1438,15 @@ class AutomationProjectFacadeIntTest {
             .toList();
     }
 
+    private AutomationProjectDTO getListedProject(long projectId) {
+        List<AutomationProjectDTO> automationProjectDTOs = automationProjectFacade.getProjects();
+
+        return automationProjectDTOs.stream()
+            .filter(project -> project.id() == projectId)
+            .findFirst()
+            .orElseThrow();
+    }
+
     private List<String> getPublishedTemplateUuids(long projectId) {
         return automationProjectFacade.getPublishedProjects()
             .stream()
@@ -1091,6 +1472,15 @@ class AutomationProjectFacadeIntTest {
         return automationProjectFacade.getProject(projectId)
             .workflowTemplates()
             .getFirst();
+    }
+
+    private ConnectedUserWorkflowTemplateDTO getDraftTemplate(long projectId, String workflowUuid) {
+        return automationProjectFacade.getProject(projectId)
+            .workflowTemplates()
+            .stream()
+            .filter(template -> workflowUuid.equals(template.workflowUuid()))
+            .findFirst()
+            .orElseThrow();
     }
 
     private ConnectedUserWorkflowTemplateDTO getPublishedTemplate(long projectId) {
@@ -1202,6 +1592,42 @@ class AutomationProjectFacadeIntTest {
         assertThat(hubspotTrigger.integrationId()).isEqualTo(integrationId);
     }
 
+    @Test
+    void testPublishedTemplateInputCarriesItsComponentInputReference() {
+        long projectId = automationProjectFacade.createProject(
+            "Slack channel digest", "", null, List.of(), null);
+
+        String workflowUuid = automationProjectFacade.createProjectWorkflow(
+            projectId,
+            """
+                {
+                    "label": "Slack channel digest",
+                    "inputs": [
+                        {
+                            "name": "channel",
+                            "label": "Channel",
+                            "type": "string",
+                            "required": true,
+                            "componentName": "slack",
+                            "componentVersion": 1,
+                            "groupName": "channel"
+                        },
+                        {"name": "greeting", "label": "Greeting", "type": "string"}
+                    ],
+                    "tasks": []
+                }
+                """,
+            null);
+
+        automationProjectFacade.publishProject(projectId);
+
+        List<ConnectedUserWorkflowTemplateDTO.Input> inputs = getPublishedTemplate(projectId, workflowUuid).inputs();
+
+        assertThat(inputs)
+            .extracting(ConnectedUserWorkflowTemplateDTO.Input::componentReference)
+            .containsExactly(new WorkflowInput.ComponentInputReference("slack", 1, "channel"), null);
+    }
+
     private void stubSlackComponentDefinition() {
         when(componentDefinitionService.fetchComponentDefinition("slack", 1))
             .thenReturn(Optional.of(new ComponentDefinition(
@@ -1279,5 +1705,407 @@ class AutomationProjectFacadeIntTest {
     @Configuration
     @ComponentScan("com.bytechef.ee.embedded.connected.user.service")
     static class ConnectedUserServiceConfiguration {
+    }
+
+    @Nested
+    @NestedTestConfiguration(EnclosingConfiguration.OVERRIDE)
+    @SpringBootTest(
+        classes = CodeProjectLifecycle.CodeProjectLifecycleConfiguration.class,
+        properties = {
+            "bytechef.edition=EE",
+            "bytechef.workflow.repository.jdbc.enabled=true",
+            "bytechef.webhook-url=/webhooks/{id}",
+            "spring.liquibase.contexts=configuration,user",
+            "spring.main.allow-bean-definition-overriding=true"
+        })
+    @Import(PostgreSQLContainerConfiguration.class)
+    @RecordApplicationEvents
+    @MockitoBean(types = {
+        ActionDefinitionFacade.class, ApiKeyFacade.class, ApiKeyService.class, AuthorityService.class,
+        ClusterElementDefinitionService.class, TriggerDefinitionFacade.class,
+        ComponentConnectionFacade.class,
+        ComponentDefinitionService.class, ConnectionDefinitionService.class,
+        ConnectionFacade.class, ConnectionLifecycleFacade.class, ConnectionService.class,
+        EmbeddedPermissionEvaluator.class, EnvironmentService.class,
+        GitHubProxyClient.class, JobFacade.class, JobService.class, McpComponentService.class,
+        McpIntegrationComponentService.class,
+        McpIntegrationInstanceConfigurationService.class, McpIntegrationInstanceConfigurationWorkflowService.class,
+        McpIntegrationInstanceToolService.class, McpServerService.class, McpToolService.class,
+        OAuth2ParametersFacade.class,
+        OAuth2Service.class, PrincipalJobFacade.class, PrincipalJobService.class, ProjectDeploymentFacade.class,
+        ProjectDeploymentService.class, ProjectDeploymentWorkflowService.class, ProjectFacade.class,
+        TaskDispatcherDefinitionService.class, TaskExecutionService.class, TriggerDefinitionService.class,
+        TriggerExecutionService.class,
+        TriggerLifecycleFacade.class, UserService.class, WorkflowCacheManager.class,
+        WorkflowNodeParameterFacade.class, WorkflowNodeTestOutputService.class,
+        WorkflowTestConfigurationFacade.class, WorkflowTestConfigurationService.class,
+        WorkspaceConnectionFacade.class, WorkspaceFacade.class, McpAutomationRowFacade.class,
+        McpIntegrationInstanceRowFacade.class,
+        McpIntegrationInstanceWorkflowService.class
+    })
+    class CodeProjectLifecycle {
+
+        @Autowired
+        private AutomationProjectCodeWorkflowFacade automationProjectCodeWorkflowFacade;
+
+        @Autowired
+        private AutomationProjectFacade automationProjectFacade;
+
+        @Autowired
+        private CodeWorkflowContainerService codeWorkflowContainerService;
+
+        @Autowired
+        private CodeWorkflowFileStorage codeWorkflowFileStorage;
+
+        @Autowired
+        private ProjectCodeWorkflowService projectCodeWorkflowService;
+
+        @Autowired
+        private ProjectService projectService;
+
+        @Autowired
+        private ProjectWorkflowService projectWorkflowService;
+
+        @BeforeEach
+        void setUpAdminAuthentication() {
+            SecurityContextHolder.getContext()
+                .setAuthentication(
+                    new UsernamePasswordAuthenticationToken(
+                        "admin", "n/a", List.of(new SimpleGrantedAuthority(AuthorityConstants.ADMIN))));
+        }
+
+        @AfterEach
+        void clearAuthentication() {
+            SecurityContextHolder.clearContext();
+        }
+
+        @Test
+        void testEveryWorkflowKeepsItsUuidAcrossCreateEditAndTwoPublishes() {
+            String projectName = "uuid-continuity-create-edit";
+
+            long projectId = automationProjectCodeWorkflowFacade.createEmptyCodeWorkflow(
+                projectName, Language.JAVASCRIPT, null, null, null, null);
+
+            automationProjectCodeWorkflowFacade.updateCodeWorkflowSource(
+                projectId, jsSource(projectName, "first", "alpha", "beta"));
+
+            Map<String, UUID> draftUuids = getLatestWorkflowUuidsByName(projectId);
+
+            assertThat(draftUuids).containsOnlyKeys("alpha", "beta");
+
+            automationProjectFacade.publishProject(projectId);
+
+            Map<String, UUID> firstPublishedUuids = getLatestWorkflowUuidsByName(projectId);
+
+            assertThat(firstPublishedUuids).isEqualTo(draftUuids);
+
+            automationProjectCodeWorkflowFacade.updateCodeWorkflowSource(
+                projectId, jsSource(projectName, "second", "alpha", "beta"));
+
+            assertThat(getLatestWorkflowUuidsByName(projectId)).isEqualTo(firstPublishedUuids);
+
+            automationProjectFacade.publishProject(projectId);
+
+            Map<String, UUID> secondPublishedUuids = getLatestWorkflowUuidsByName(projectId);
+
+            assertThat(secondPublishedUuids).isEqualTo(firstPublishedUuids);
+
+            assertThat(getPublishedTemplateUuids(projectId)).containsExactlyInAnyOrderElementsOf(
+                firstPublishedUuids.values()
+                    .stream()
+                    .map(UUID::toString)
+                    .toList());
+            assertThat(getPublishedSource(projectId)).isEqualTo(jsSource(projectName, "second", "alpha", "beta"));
+        }
+
+        @Test
+        void testUploadMatchingAPublishedProjectWithAnUnpublishedEditPublishesAndKeepsUuids() {
+            String projectName = "uuid-continuity-upload-over-edit";
+
+            automationProjectCodeWorkflowFacade.save(
+                jsSource(projectName, "uploaded", "alpha", "beta")
+                    .getBytes(StandardCharsets.UTF_8),
+                Language.JAVASCRIPT, Environment.PRODUCTION, false);
+
+            long projectId = automationProjectFacade.fetchProjectIdByName(projectName)
+                .orElseThrow();
+
+            Map<String, UUID> publishedUuids = getLatestWorkflowUuidsByName(projectId);
+
+            assertThat(publishedUuids).containsOnlyKeys("alpha", "beta");
+
+            automationProjectCodeWorkflowFacade.updateCodeWorkflowSource(
+                projectId, jsSource(projectName, "unpublished edit", "alpha", "beta"));
+
+            String upload = jsSource(projectName, "second upload", "alpha", "beta");
+
+            automationProjectCodeWorkflowFacade.save(
+                upload.getBytes(StandardCharsets.UTF_8), Language.JAVASCRIPT, Environment.PRODUCTION, false);
+
+            assertThat(getLatestWorkflowUuidsByName(projectId)).isEqualTo(publishedUuids);
+            assertThat(getPublishedSource(projectId)).isEqualTo(upload);
+            assertThat(
+                projectService.getProject(projectId)
+                    .getLastProjectVersion()).isEqualTo(
+                        projectCodeWorkflowService.getProjectCodeWorkflow(projectId)
+                            .getProjectVersion() + 1);
+        }
+
+        @Test
+        void testFirstEditOfAProjectUploadedBeforeDraftSupportRestoresUuidsByName() {
+            String projectName = "uuid-continuity-upload-then-edit";
+
+            automationProjectCodeWorkflowFacade.save(
+                jsSource(projectName, "uploaded", "alpha", "beta")
+                    .getBytes(StandardCharsets.UTF_8),
+                Language.JAVASCRIPT, Environment.PRODUCTION, false);
+
+            long projectId = automationProjectFacade.fetchProjectIdByName(projectName)
+                .orElseThrow();
+
+            Map<String, UUID> uploadedUuids = getLatestWorkflowUuidsByName(projectId);
+
+            assertThat(uploadedUuids).containsOnlyKeys("alpha", "beta");
+
+            int draftVersion = projectService.getProject(projectId)
+                .getLastProjectVersion();
+
+            for (ProjectWorkflow draftProjectWorkflow : projectWorkflowService.getProjectWorkflows(
+                projectId, draftVersion)) {
+
+                projectWorkflowService.delete(projectId, draftVersion, draftProjectWorkflow.getWorkflowId());
+            }
+
+            assertThat(projectWorkflowService.getProjectWorkflows(projectId, draftVersion)).isEmpty();
+            assertThat(
+                projectCodeWorkflowService.getProjectCodeWorkflow(projectId)
+                    .getProjectVersion()).isLessThan(draftVersion);
+
+            automationProjectCodeWorkflowFacade.updateCodeWorkflowSource(
+                projectId, jsSource(projectName, "first edit", "alpha", "beta"));
+
+            assertThat(getLatestWorkflowUuidsByName(projectId)).isEqualTo(uploadedUuids);
+
+            automationProjectFacade.publishProject(projectId);
+
+            assertThat(getLatestWorkflowUuidsByName(projectId)).isEqualTo(uploadedUuids);
+        }
+
+        @Test
+        void testAddingAndRemovingAWorkflowKeepsTheOthersAndRestoresTheRemovedOne() {
+            String projectName = "uuid-continuity-add-remove";
+
+            long projectId = automationProjectCodeWorkflowFacade.createEmptyCodeWorkflow(
+                projectName, Language.JAVASCRIPT, null, null, null, null);
+
+            automationProjectCodeWorkflowFacade.updateCodeWorkflowSource(
+                projectId, jsSource(projectName, "v1", "alpha"));
+
+            automationProjectFacade.publishProject(projectId);
+
+            UUID alphaUuid = getLatestWorkflowUuidsByName(projectId).get("alpha");
+
+            assertThat(alphaUuid).isNotNull();
+
+            automationProjectCodeWorkflowFacade.updateCodeWorkflowSource(
+                projectId, jsSource(projectName, "v2", "alpha", "beta"));
+            automationProjectCodeWorkflowFacade.updateCodeWorkflowSource(
+                projectId, jsSource(projectName, "v3", "alpha"));
+
+            automationProjectFacade.publishProject(projectId);
+
+            assertThat(getLatestWorkflowUuidsByName(projectId)).containsOnlyKeys("alpha")
+                .containsEntry("alpha", alphaUuid);
+
+            automationProjectCodeWorkflowFacade.updateCodeWorkflowSource(
+                projectId, jsSource(projectName, "v4", "alpha", "beta"));
+
+            automationProjectFacade.publishProject(projectId);
+
+            Map<String, UUID> bothPublishedUuids = getLatestWorkflowUuidsByName(projectId);
+
+            assertThat(bothPublishedUuids).containsOnlyKeys("alpha", "beta")
+                .containsEntry("alpha", alphaUuid);
+
+            UUID betaUuid = bothPublishedUuids.get("beta");
+
+            automationProjectCodeWorkflowFacade.updateCodeWorkflowSource(
+                projectId, jsSource(projectName, "v5", "alpha"));
+            automationProjectCodeWorkflowFacade.updateCodeWorkflowSource(
+                projectId, jsSource(projectName, "v6", "alpha", "beta"));
+
+            assertThat(getLatestWorkflowUuidsByName(projectId)).containsEntry("alpha", alphaUuid)
+                .containsEntry("beta", betaUuid);
+
+            automationProjectFacade.publishProject(projectId);
+
+            assertThat(getLatestWorkflowUuidsByName(projectId)).containsEntry("alpha", alphaUuid)
+                .containsEntry("beta", betaUuid);
+        }
+
+        @Test
+        void testPublishingWithoutAnEditSinceTheLastPublishIsRefused() {
+            String projectName = "uuid-continuity-empty-draft";
+
+            long projectId = automationProjectCodeWorkflowFacade.createEmptyCodeWorkflow(
+                projectName, Language.JAVASCRIPT, null, null, null, null);
+
+            automationProjectFacade.publishProject(projectId);
+
+            int draftVersion = projectService.getProject(projectId)
+                .getLastProjectVersion();
+
+            assertThatThrownBy(() -> automationProjectFacade.publishProject(projectId))
+                .isInstanceOf(ConfigurationException.class)
+                .satisfies(exception -> assertThat(((ConfigurationException) exception).getErrorKey())
+                    .isEqualTo(CodeWorkflowErrorType.CODE_WORKFLOW_DRAFT_EMPTY.getErrorKey()));
+
+            assertThat(
+                projectService.getProject(projectId)
+                    .getLastProjectVersion()).isEqualTo(draftVersion);
+        }
+
+        private Map<String, UUID> getLatestWorkflowUuidsByName(long projectId) {
+            ProjectCodeWorkflow projectCodeWorkflow = projectCodeWorkflowService.getProjectCodeWorkflow(projectId);
+
+            Map<String, String> workflowNameIds = codeWorkflowContainerService
+                .getCodeWorkflowContainer(projectCodeWorkflow.getCodeWorkflowContainerId())
+                .getWorkflowNameIds();
+
+            Map<String, UUID> workflowIdUuids = projectWorkflowService
+                .getProjectWorkflows(projectId, projectCodeWorkflow.getProjectVersion())
+                .stream()
+                .collect(Collectors.toMap(ProjectWorkflow::getWorkflowId, ProjectWorkflow::getUuid));
+
+            Map<String, UUID> workflowUuidsByName = new HashMap<>();
+
+            for (Map.Entry<String, String> entry : workflowNameIds.entrySet()) {
+                workflowUuidsByName.put(entry.getKey(), workflowIdUuids.get(entry.getValue()));
+            }
+
+            return workflowUuidsByName;
+        }
+
+        private List<String> getPublishedTemplateUuids(long projectId) {
+            return automationProjectFacade.getPublishedProjects()
+                .stream()
+                .filter(project -> project.id() == projectId)
+                .flatMap(project -> project.workflowTemplates()
+                    .stream())
+                .map(ConnectedUserWorkflowTemplateDTO::workflowUuid)
+                .toList();
+        }
+
+        private String getPublishedSource(long projectId) {
+            ProjectCodeWorkflow projectCodeWorkflow = projectCodeWorkflowService.getProjectCodeWorkflow(projectId);
+
+            return codeWorkflowFileStorage.readCodeWorkflowFileContent(
+                codeWorkflowContainerService.getCodeWorkflowContainer(projectCodeWorkflow.getCodeWorkflowContainerId())
+                    .getWorkflows());
+        }
+
+        private static String jsSource(String projectName, String result, String... workflowNames) {
+            StringBuilder workflows = new StringBuilder();
+
+            for (String workflowName : workflowNames) {
+                if (!workflows.isEmpty()) {
+                    workflows.append(", ");
+                }
+
+                workflows.append(
+                    "{name: \"%s\", label: \"%s\", tasks: [{name: \"my-task\", label: \"My Task\", "
+                        .formatted(workflowName, workflowName)
+                        + "perform: function() { return \"%s\"; }}]}".formatted(result));
+            }
+
+            return "({name: \"%s\", version: \"1\", description: \"A code workflow.\", workflows: [%s]})"
+                .formatted(projectName, workflows);
+        }
+
+        @Configuration
+        @Import({
+            AutomationProjectFacadeIntTestConfiguration.class, ConnectedUserServiceConfiguration.class
+        })
+        static class CodeProjectLifecycleConfiguration {
+
+            @Bean
+            CodeWorkflowContainerFacade codeWorkflowContainerFacade(
+                CodeWorkflowContainerService codeWorkflowContainerService,
+                CodeWorkflowFileStorage codeWorkflowFileStorage,
+                ObjectProvider<ComponentDefinitionService> componentDefinitionServiceProvider,
+                ObjectMapper objectMapper, WorkflowService workflowService) {
+
+                return new CodeWorkflowContainerFacadeImpl(
+                    codeWorkflowContainerService, codeWorkflowFileStorage, componentDefinitionServiceProvider,
+                    objectMapper, workflowService);
+            }
+
+            @Bean
+            CodeWorkflowContainerService codeWorkflowContainerService(
+                CodeWorkflowContainerRepository codeWorkflowContainerRepository) {
+
+                return new CodeWorkflowContainerServiceImpl(codeWorkflowContainerRepository);
+            }
+
+            @Bean
+            CodeWorkflowFileStorage codeWorkflowFileStorage() {
+                return new InMemoryCodeWorkflowFileStorage();
+            }
+
+            @Bean
+            ProjectCodeWorkflowDraftFacade projectCodeWorkflowDraftFacade(
+                CodeWorkflowContainerFacade codeWorkflowContainerFacade,
+                CodeWorkflowContainerService codeWorkflowContainerService,
+                ProjectCodeWorkflowService projectCodeWorkflowService, ProjectWorkflowService projectWorkflowService,
+                WorkflowService workflowService, ObjectProvider<WorkflowPreDeleteListener> workflowPreDeleteListeners) {
+
+                return new ProjectCodeWorkflowDraftFacadeImpl(
+                    codeWorkflowContainerFacade, codeWorkflowContainerService, projectCodeWorkflowService,
+                    projectWorkflowService, workflowService,
+                    workflowPreDeleteListeners.orderedStream()
+                        .toList());
+            }
+
+            @Bean
+            ProjectCodeWorkflowService projectCodeWorkflowService(
+                ProjectCodeWorkflowRepository projectCodeWorkflowRepository) {
+
+                return new ProjectCodeWorkflowServiceImpl(projectCodeWorkflowRepository);
+            }
+        }
+    }
+
+    private static class InMemoryCodeWorkflowFileStorage implements CodeWorkflowFileStorage {
+
+        private final Map<String, byte[]> contentsByUrl = new ConcurrentHashMap<>();
+
+        @Override
+        public void deleteCodeWorkflowFile(FileEntry fileEntry) {
+            contentsByUrl.remove(fileEntry.getUrl());
+        }
+
+        @Override
+        public URL getCodeWorkflowFileURL(FileEntry fileEntry) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public byte[] readCodeWorkflowFileBytes(FileEntry fileEntry) {
+            return contentsByUrl.get(fileEntry.getUrl());
+        }
+
+        @Override
+        public String readCodeWorkflowFileContent(FileEntry fileEntry) {
+            return new String(contentsByUrl.get(fileEntry.getUrl()), StandardCharsets.UTF_8);
+        }
+
+        @Override
+        public FileEntry storeCodeWorkflowFile(String filename, byte[] bytes) {
+            String url = "memory://" + UUID.randomUUID();
+
+            contentsByUrl.put(url, bytes);
+
+            return new FileEntry(filename, url);
+        }
     }
 }

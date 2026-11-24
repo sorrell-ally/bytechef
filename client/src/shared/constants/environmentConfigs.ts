@@ -7,7 +7,7 @@ export interface EnvironmentConfigI {
     label: string;
     shortLabel: string;
     sidebarTheme: 'development' | 'production' | 'staging';
-    styleType: 'destructive-outline' | 'secondary-outline' | 'warning-outline';
+    styleType: 'destructive-filled' | 'secondary-filled' | 'warning-filled';
 }
 
 export const ENVIRONMENT_CONFIGS: Record<number, EnvironmentConfigI> = {
@@ -17,22 +17,22 @@ export const ENVIRONMENT_CONFIGS: Record<number, EnvironmentConfigI> = {
         label: 'DEVELOPMENT',
         shortLabel: 'DEV',
         sidebarTheme: 'development',
-        styleType: 'secondary-outline',
+        styleType: 'secondary-filled',
     },
     [PRODUCTION_ENVIRONMENT]: {
-        description: 'Live environment used by real users. Optimized for performance with strict safeguards.',
+        description: 'Live environment serving real users, with strict safeguards in place.',
         icon: BoxIcon,
         label: 'PRODUCTION',
         shortLabel: 'PRD',
         sidebarTheme: 'production',
-        styleType: 'destructive-outline',
+        styleType: 'destructive-filled',
     },
     [STAGING_ENVIRONMENT]: {
-        description: 'Used for final testing, QA, and validation before release.',
+        description: 'Final testing, QA, and validation of changes before they reach production.',
         icon: FlaskConicalIcon,
         label: 'STAGING',
         shortLabel: 'STG',
         sidebarTheme: 'staging',
-        styleType: 'warning-outline',
+        styleType: 'warning-filled',
     },
 };

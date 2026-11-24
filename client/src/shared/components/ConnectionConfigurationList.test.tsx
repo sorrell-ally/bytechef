@@ -63,6 +63,13 @@ const ConnectionConfigurationListHarness = ({
 };
 
 describe('ConnectionConfigurationList', () => {
+    it('should label the connection with its workflow step name only', () => {
+        render(<ConnectionConfigurationListHarness connections={[connection]} handleConnectionIdChange={vi.fn()} />);
+
+        expect(screen.getByText('(httpClient_1)')).toBeInTheDocument();
+        expect(screen.queryByText('(httpClient - httpClient_1)')).not.toBeInTheDocument();
+    });
+
     it('should report a cleared connection as undefined rather than NaN', () => {
         const handleConnectionIdChange = vi.fn();
 
@@ -127,6 +134,24 @@ describe('ConnectionConfigurationList', () => {
         );
 
         expect(screen.getByText('*')).toBeInTheDocument();
+    });
+
+    it('should warn that no connection exists only when the connection is required', () => {
+        const {rerender} = render(
+            <ConnectionConfigurationListHarness connections={[]} handleConnectionIdChange={vi.fn()} />
+        );
+
+        expect(screen.queryByText('No connections available')).not.toBeInTheDocument();
+
+        rerender(
+            <ConnectionConfigurationListHarness
+                componentConnection={{...optionalComponentConnection, required: true}}
+                connections={[]}
+                handleConnectionIdChange={vi.fn()}
+            />
+        );
+
+        expect(screen.getByText('No connections available')).toBeInTheDocument();
     });
 
     it('should not mark an optional connection with an asterisk', () => {

@@ -1,0 +1,30 @@
+/*
+ * Copyright 2025 ByteChef
+ *
+ * Licensed under the ByteChef Enterprise license (the "Enterprise License");
+ * you may not use this file except in compliance with the Enterprise License.
+ */
+
+package com.bytechef.ee.embedded.ai.mcp.facade;
+
+import java.util.List;
+
+/**
+ * @version ee
+ *
+ * @author Ivica Cardic
+ */
+public interface McpAutomationRowFacade {
+
+    void addMissingRowsForLink(long mcpAutomationProjectConfigurationId);
+
+    void addMissingRowsForLinkWorkflows(
+        long mcpAutomationProjectConfigurationId, List<Long> mcpAutomationProjectConfigurationWorkflowIds);
+
+    void addMissingRowsForReference(long connectedUserProjectWorkflowId);
+
+    void provisionMcpServer(long connectedUserId, long mcpServerId);
+
+    void remapConnectedUser(
+        long connectedUserId, long previousAutomationProjectConfigurationId, long automationProjectConfigurationId);
+}

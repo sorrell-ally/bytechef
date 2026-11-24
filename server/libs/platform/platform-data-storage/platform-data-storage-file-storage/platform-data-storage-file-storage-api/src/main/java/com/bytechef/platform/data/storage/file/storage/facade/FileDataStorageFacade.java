@@ -1,0 +1,54 @@
+/*
+ * Copyright 2025 ByteChef
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.bytechef.platform.data.storage.file.storage.facade;
+
+import com.bytechef.platform.constant.PlatformType;
+import com.bytechef.platform.data.storage.domain.DataStorageScope;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
+
+/**
+ * @author Ivica Cardic
+ */
+public interface FileDataStorageFacade {
+
+    void delete(
+        String componentName, DataStorageScope scope, String scopeId, String key, long environmentId,
+        PlatformType type);
+
+    void deleteScopeData(DataStorageScope scope, String scopeId, PlatformType type);
+
+    <T> Optional<T> fetch(
+        String componentName, DataStorageScope scope, String scopeId, String key, long environmentId,
+        PlatformType type);
+
+    <T> T get(
+        String componentName, DataStorageScope scope, String scopeId, String key, long environmentId,
+        PlatformType type);
+
+    <T> Map<String, T> getAll(
+        String componentName, DataStorageScope scope, String scopeId, long environmentId, PlatformType type);
+
+    void put(
+        String componentName, DataStorageScope scope, String scopeId, String key, Object value, long environmentId,
+        PlatformType type);
+
+    <T> T update(
+        String componentName, DataStorageScope scope, String scopeId, String key, long environmentId,
+        PlatformType type, Function<Optional<T>, T> updater);
+}

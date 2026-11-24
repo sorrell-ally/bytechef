@@ -20,6 +20,24 @@ describe('initialActivationState', () => {
         expect(initialActivationState([logger], [{name: 'channel', required: true}]).step).toBe('configure');
     });
 
+    it('prefills the connections and inputs of an automation the user already activated', () => {
+        const state = initialActivationState(
+            [slack, providedSlack, gmailNotSetUp],
+            [{name: 'channel', required: true}, {name: 'note'}],
+            {connections: {gmail: 3, slack: 9, unknown: 4}, inputValues: {channel: '#general', region: 'eu'}}
+        );
+
+        expect(state.selections).toEqual({gmail: 3, slack: 9});
+        expect(state.inputValues).toEqual({channel: '#general'});
+    });
+
+    it('prefills nothing for a first activation', () => {
+        const state = initialActivationState([slack], [{name: 'channel', required: true}]);
+
+        expect(state.selections).toEqual({});
+        expect(state.inputValues).toEqual({});
+    });
+
     it('starts on activate when there is nothing to connect or configure', () => {
         expect(initialActivationState([logger], []).step).toBe('activate');
     });
@@ -29,22 +47,13 @@ describe('initialActivationState', () => {
     });
 });
 
-describe('provided values', () => {
+describe('provided connections', () => {
     it('leaves provided components out of the required components and the connect step', () => {
         const state = initialActivationState([providedSlack, gmailNotSetUp], []);
 
         expect(state.requiredComponents).toEqual(['gmail']);
         expect(initialActivationState([providedSlack], []).step).toBe('activate');
         expect(initialActivationState([providedSlack], []).unavailableComponents).toEqual([]);
-    });
-
-    it('skips configure when every input is provided and ignores them when proceeding', () => {
-        expect(initialActivationState([], [{name: 'region', provided: true, required: true}]).step).toBe('activate');
-
-        const state = initialActivationState([], [{name: 'region', provided: true, required: true}, {name: 'note'}]);
-
-        expect(state.step).toBe('configure');
-        expect(canProceed(state)).toBe(true);
     });
 });
 

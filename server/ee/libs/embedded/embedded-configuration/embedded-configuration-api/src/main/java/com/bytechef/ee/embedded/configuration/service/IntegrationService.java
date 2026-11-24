@@ -11,6 +11,7 @@ import com.bytechef.ee.embedded.configuration.domain.Integration;
 import com.bytechef.ee.embedded.configuration.domain.IntegrationVersion;
 import com.bytechef.ee.embedded.configuration.domain.IntegrationVersion.Status;
 import java.util.List;
+import java.util.Optional;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -24,6 +25,10 @@ public interface IntegrationService {
 
     void delete(long id);
 
+    Optional<Integration> fetchIntegration(String componentName);
+
+    List<Integration> getIntegrations(String componentName);
+
     Integration getIntegration(long id);
 
     Integration getIntegrationInstanceIntegration(long integrationInstanceId);
@@ -35,6 +40,8 @@ public interface IntegrationService {
     List<Integration> getIntegrations(List<Long> ids);
 
     List<IntegrationVersion> getIntegrationVersions(Long id);
+
+    IntegrationVersion getPublishedIntegrationVersion(long id, int integrationVersion);
 
     List<Integration> getIntegrations(
         @Nullable Long categoryId, List<Long> ids, @Nullable Long tagId, @Nullable Status status);

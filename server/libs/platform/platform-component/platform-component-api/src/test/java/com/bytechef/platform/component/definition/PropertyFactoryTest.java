@@ -26,14 +26,17 @@ import com.bytechef.platform.component.domain.Property;
 import com.bytechef.platform.component.domain.StringProperty;
 import com.bytechef.platform.domain.OutputResponse;
 import com.bytechef.platform.util.SchemaUtils;
+import com.bytechef.test.extension.ObjectMapperSetupExtension;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 /**
  * @author Ivica Cardic
  */
+@ExtendWith(ObjectMapperSetupExtension.class)
 class PropertyFactoryTest {
 
     private static final Map<String, Object> FILE_ENTRY_MAP = Map.of(
@@ -113,6 +116,45 @@ class PropertyFactoryTest {
         assertThat(((ObjectProperty) bodyProperty).getProperties())
             .extracting(Property::getName)
             .containsExactlyInAnyOrder("invoiceId", "name");
+    }
+
+    @Test
+    void testJsonSchemaPropertyMarksFieldsListedAsRequired() {
+        String jsonSchema = """
+            {
+                "type": "object",
+                "required": ["customer"],
+                "properties": {
+                    "customer": {
+                        "type": "object",
+                        "required": ["email"],
+                        "properties": {
+                            "email": {"type": "string"},
+                            "phone": {"type": "string"}
+                        }
+                    },
+                    "note": {"type": "string"}
+                }
+            }""";
+
+        ObjectProperty objectProperty = (ObjectProperty) Property.toProperty(
+            (com.bytechef.component.definition.Property) Objects.requireNonNull(
+                SchemaUtils.getJsonSchemaProperty(jsonSchema, PropertyFactory.JSON_SCHEMA_PROPERTY_FACTORY)));
+
+        ObjectProperty customerProperty = (ObjectProperty) getChildProperty(objectProperty, "customer");
+
+        assertThat(customerProperty.getRequired()).isTrue();
+        assertThat(getChildProperty(objectProperty, "note").getRequired()).isFalse();
+        assertThat(getChildProperty(customerProperty, "email").getRequired()).isTrue();
+        assertThat(getChildProperty(customerProperty, "phone").getRequired()).isFalse();
+    }
+
+    private static Property getChildProperty(ObjectProperty objectProperty, String name) {
+        return objectProperty.getProperties()
+            .stream()
+            .filter(property -> name.equals(property.getName()))
+            .findFirst()
+            .orElseThrow();
     }
 
     private static Property getProperty(OutputResponse outputResponse, String name) {

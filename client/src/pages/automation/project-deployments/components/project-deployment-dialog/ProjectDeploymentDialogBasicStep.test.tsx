@@ -38,10 +38,17 @@ vi.mock('@/shared/components/EnvironmentBadge', () => ({
 vi.mock(
     '@/pages/automation/project-deployments/components/project-deployment-dialog/ProjectDeploymentDialogBasicStepProjectsComboBox',
     () => ({
-        default: ({onChange}: {onChange: (item: {name: string; value: number}) => void}) => (
+        default: ({
+            disabled,
+            onChange,
+        }: {
+            disabled?: boolean;
+            onChange: (item: {name: string; value: number}) => void;
+        }) => (
             <>
                 {projects.map((project) => (
                     <button
+                        disabled={disabled}
                         key={project.id}
                         onClick={() => onChange({name: project.name, value: project.id})}
                         type="button"
@@ -76,7 +83,13 @@ vi.mock(
     })
 );
 
-const BasicStepHarness = ({defaultValues = {name: ''}}: {defaultValues?: Partial<ProjectDeployment>}) => {
+const BasicStepHarness = ({
+    defaultValues = {name: ''},
+    projectLocked,
+}: {
+    defaultValues?: Partial<ProjectDeployment>;
+    projectLocked?: boolean;
+}) => {
     const form = useForm<ProjectDeployment>({defaultValues});
 
     return (
@@ -88,6 +101,7 @@ const BasicStepHarness = ({defaultValues = {name: ''}}: {defaultValues?: Partial
                 getValues={form.getValues}
                 handleTabChange={vi.fn()}
                 projectDeployment={undefined}
+                projectLocked={projectLocked}
                 setValue={form.setValue}
             />
 
@@ -195,7 +209,31 @@ describe('ProjectDeploymentDialogBasicStep', () => {
         );
 
         expect(onDeploymentSelect).toHaveBeenCalledWith(projectDeployment);
-        expect(screen.getByText('Production - V3')).toBeInTheDocument();
+        expect(screen.getByText('Production')).toBeInTheDocument();
+    });
+
+    it('should show the environment in the change version tab', () => {
+        const projectDeployment = {environmentId: 1, id: 7, name: 'Production', projectId: 1, projectVersion: 3};
+
+        render(
+            <ChangeVersionHarness
+                onDeploymentSelect={vi.fn()}
+                projectDeployments={[projectDeployment] as ProjectDeployment[]}
+            />
+        );
+
+        expect(screen.getByText('Environment')).toBeInTheDocument();
+    });
+
+    it('should name a deployment without a name after its id', () => {
+        render(
+            <ChangeVersionHarness
+                onDeploymentSelect={vi.fn()}
+                projectDeployments={[{environmentId: 1, id: 7, projectId: 1, projectVersion: 3}] as ProjectDeployment[]}
+            />
+        );
+
+        expect(screen.getByText('Deployment 7')).toBeInTheDocument();
     });
 
     it('should leave the deployment unselected when a project has several', () => {
@@ -229,6 +267,33 @@ describe('ProjectDeploymentDialogBasicStep', () => {
         await userEvent.click(screen.getByRole('button', {name: 'Choose V2'}));
 
         expect(screen.getByText('Version')).not.toHaveClass('text-destructive');
+    });
+
+    it('should lock the project when the dialog is opened for a project', () => {
+        render(<BasicStepHarness defaultValues={{name: 'AI Agent', projectId: 2}} projectLocked />);
+
+        expect(screen.getByRole('button', {name: 'Choose Learn ByteChef by doing'})).toBeDisabled();
+        expect(screen.getByRole('button', {name: 'Choose AI Agent'})).toBeDisabled();
+    });
+
+    it('should let the user pick the project when the dialog is opened without one', () => {
+        render(<BasicStepHarness />);
+
+        expect(screen.getByRole('button', {name: 'Choose AI Agent'})).toBeEnabled();
+    });
+
+    it('should name the deployment after a preset project when no name is given', () => {
+        render(<BasicStepHarness defaultValues={{projectId: 2}} projectLocked />);
+
+        expect(screen.getByPlaceholderText('My CRM Project')).toHaveValue('AI Agent');
+    });
+
+    it('should keep the name empty once the user clears it', async () => {
+        render(<BasicStepHarness defaultValues={{projectId: 2}} projectLocked />);
+
+        await userEvent.clear(screen.getByPlaceholderText('My CRM Project'));
+
+        expect(screen.getByPlaceholderText('My CRM Project')).toHaveValue('');
     });
 
     it('should replace an automatically filled name when another project is selected', async () => {

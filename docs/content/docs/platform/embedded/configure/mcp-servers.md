@@ -1,95 +1,122 @@
 ---
 title: MCP Servers
-description: Expose integration components as MCP-compatible tool servers.
-comingSoon: true
+description: Expose component actions and integration workflows as MCP tools for your connected users' AI agents.
 ---
 
 ![MCP Servers overview](mcp-servers/mcp-servers-overview.png)
 
----
+An embedded MCP server exposes component actions and integration workflows as tools over the [Model Context Protocol](https://modelcontextprotocol.io), so an AI agent in your product can act in your connected users' accounts. Each request to the server is made on behalf of one connected user, identified by a JWT signed with your [Signing Key](/platform/embedded/administration/signing-keys), and tools run with that user's connections.
 
-## Key Features
+MCP servers are managed under **Embedded → MCP Servers**. Creating, editing and deleting servers, their components, tools and workflows, and switching tools on or off, require a tenant admin. Editing checks the `MCP_EDIT` permission, which only a tenant admin holds for embedded servers. Connected users can only switch tools and workflows on or off, and set workflow inputs, for their own integration instances (see [Which tools a user's agent sees](#which-tools-a-users-agent-sees)).
 
-| Feature | Description |
+Servers are scoped to an environment. The list shows the servers of the environment selected in the application sidebar.
+
+## Server list
+
+Each row in the list shows:
+
+| Element | Description |
 |---|---|
-| Component filtering | Filter MCP servers by the components they expose using the left sidebar. |
-| Integration filtering | Filter by the integrations associated with the server. |
-| Tag filtering | Organize and filter servers by assigned tags. |
-| Environment | The list shows the servers of the environment selected in the application sidebar. |
-| Enable/Disable toggle | Activate or deactivate an MCP server without removing it. |
+| Name | The server name. |
+| Tool counts | The number of component tools (component actions, across all components) and workflow tools (one per workflow) the server exposes. |
+| Tags | Tags assigned to the server. Click **+** to add one. |
+| Enabled switch | Turns the server on or off. |
+| Last modified | **Modified at** with a date and time, or **No modifications**. |
+| ⋮ menu | **Edit** (rename the server) and **Delete** (after you confirm). |
 
-### MCP Server Details
+Use the left sidebar to filter the list by **Components** (servers that expose a component), **Integrations**, or **Tags**.
 
-Each server in the list displays:
+## Creating an MCP Server
 
-- **Name** -- the server name.
-- **Component tool count** -- how many component actions the server exposes as MCP tools, across all of its components.
-- **Workflow tool count** -- how many workflows the server exposes; each workflow becomes one tool.
-- **Tags** -- assigned tags shown as badges.
-- **Enabled/Disabled status** -- whether the server is currently active.
-- **Last modified date** -- when the server was last updated.
+1. Click **New MCP Server** in the top-right corner (**Create MCP Server** when the list is empty).
+2. Enter a **Name**.
+3. Click **Save**.
 
----
+The server is created empty and disabled. Add the components and workflows it exposes from the server row (see below), then turn it on with its **Enabled** switch. A new server requires authentication (see [Authentication](#authentication)).
 
-## How to Use
+## Adding components and workflows to a server
 
-### Creating an MCP Server
+Expand the server row. It has **Component Tools**, **Workflow Tools** and **Connect** tabs.
 
-1. Click the **New MCP Server** button in the top-right corner.
-2. Provide a **Name** for the server.
-3. Click **Save** to create the server.
+### Component tools
 
-The server is created empty and disabled - you add the components and workflows it exposes from the server row afterward (see below), then turn it on with its **Enabled** switch. Assign tags inline on the server row once it exists.
+1. On the **Component Tools** tab, click **Add Component**.
+2. In **Select Component**, pick the component.
+3. In **Select Tools from &lt;component&gt;**, choose which of its actions are exposed as tools and configure each tool's parameters.
+4. Save the dialog.
 
-A new server requires authentication (see [Authentication](#authentication)); the dialog has no setting for it.
+For each exposed action, you choose which parameters you fix yourself and which the connected agent fills at call time with the `fromAi(...)` expression, the same mechanism used to attach tools to an AI Agent. See [Supplying tool parameters with fromAi](/platform/automation/build/workflows/ai/agent#supplying-tool-parameters-with-fromai) for the syntax.
 
-### Adding components and workflows to a server
-
-Expand the server row. It has **Component Tools**, **Workflow Tools** and **Connect** tabs:
-
-- **Add Component** (on the **Component Tools** tab) -- opens a two-step dialog: **Select Component** (pick the third-party component) then **Select Tools from &lt;component&gt;** (choose which of its actions are exposed as tools, and configure each tool's parameters).
-- **Add Workflows** (on the **Workflow Tools** tab) -- opens a two-step dialog: **Basic** (pick an integration instance configuration) then **Workflows** (switch on the workflows within it to expose, and set each one's **Inputs** and the **Connections** of components other than the integration's own, which each connected user supplies). Only workflows carrying a **New Workflow Call** trigger are eligible; a configuration with none shows "No tool-eligible workflows found". The inputs and connections are saved on the integration instance configuration's workflows.
-
-Each exposed workflow has a **Configure** button (its tool mapping) and an ellipsis (⋮) menu with **Edit** (its connections and inputs in the integration instance configuration) and **Delete**.
-
-For each exposed component action, you choose which parameters you fix yourself and which the connected agent fills at call time, using the `fromAi(...)` expression - the same mechanism as attaching tools to an AI Agent. See [Supplying tool parameters with fromAi](/platform/automation/build/workflows/ai/agent#supplying-tool-parameters-with-fromai) for the syntax.
+The tool forms offer **Let AI fill required**, new tools start with their empty required fields set to `fromAi(...)`, and when a tool runs, a field without a value gets its default: the built-in one for a component tool, the `default` of the trigger's input schema for a workflow tool. A value you saved wins over the agent's, and a field you cleared stays empty. For a select whose options come from the connection, the options offered to the agent are read from the connected user's own connection when the tools are listed. See [Let AI fill required](/platform/automation/deploy/mcp-servers#let-ai-fill-required) and [Defaults at call time](/platform/automation/deploy/mcp-servers#defaults-at-call-time).
 
 <!-- TODO screenshot: Add Component dialog on the Select Tools step, showing the list of the component's actions with per-tool selection and the tool properties popover -->
 
-### Enabling and disabling individual tools
+### Workflow tools
+
+1. On the **Workflow Tools** tab, click **Add Workflows**.
+2. In the **Basic** step, pick the **Integration**, **Integration Version** and **Integration Instance Configuration**.
+3. In the **Workflows** step, switch on the workflows to expose.
+4. Save the dialog.
+
+Only workflows with a **New Workflow Call** trigger are eligible. A configuration without one shows "No tool-eligible workflows found". A workflow that is off in the configuration is listed as **Turned off in the configuration** and cannot be added. Adding a workflow does not turn it on and does not change the configuration. Its inputs and connections are set in the instance configuration, not on the MCP server.
+
+Each switched-on workflow shows its tool settings under its row: **Tool Name**, **Tool Description** and the fields of its **New Workflow Call** trigger, the same mapping that **Configure** opens later. Tool settings are stored per workflow. A blank **Tool Name** defaults to the workflow's label in upper case, with every run of characters other than letters, digits, `_` and `-` replaced by `_` (`Send Email` becomes `SEND_EMAIL`).
+
+The **Workflow Tools** tab groups workflows by instance configuration. Each configuration row has a ⋮ menu with **Edit Workflows** and **Delete**. To move a configuration to another integration version, change it under **Configurations**. Click a workflow's name to see its executions. Each workflow has a **Configure** button (the tool's property values), a switch, and a ⋮ menu with **Edit** (its connections and inputs in the instance configuration) and **Delete**.
+
+**Delete** removes a workflow from this server only. It stays in the instance configuration, with its other triggers. Deleting the whole server works the same way: the instance configurations it used, and their workflows, are kept.
+
+### Exposing automations
+
+A server can also expose workflows of an [automation project](/platform/embedded/build/automations) as tools. The **Workflow Tools** tab shows an **Automations** section below the integrations.
+
+1. Click **Add Automations**.
+2. In the **Basic** step, pick the **Automation** and its **Automation Configuration**. Only configurations of the server's environment are listed.
+3. In the **Workflows** step, switch on the workflows to expose. Only workflows with a **New Workflow Call** trigger are listed. A workflow that is off in the configuration is listed as **Turned off in the configuration** and cannot be added. Adding a workflow never turns anything on and never changes the configuration.
+4. Each switched-on workflow shows its tool settings under its row: **Tool Name**, **Tool Description** and the fields of its **New Workflow Call** trigger, the same mapping that **Configure** opens later. The name defaults to the workflow's label in upper case with spaces and other punctuation replaced by `_` (`Send Email` becomes `SEND_EMAIL`), and the description to the workflow's description.
+5. Save the dialog.
+
+Each automation is listed with its project name, its configuration and the version it releases. Its ⋮ menu has **Edit Workflows** and **Delete**. Expand it to see its workflow tools. Click a tool's name to see its executions. Each tool row has:
+
+- a **Configure** button, which opens the tool's properties popover. Set the **input mapping** there: fix a value, or let the agent fill it at call time with `fromAi(...)`. See [Supplying tool parameters with fromAi](/platform/automation/build/workflows/ai/agent#supplying-tool-parameters-with-fromai).
+- a switch that turns the tool on or off for the whole server.
+- a ⋮ menu with **Delete**, which removes the tool from this server only.
+
+A tool is marked **Not available** while its configuration or workflow is off, or when the workflow has lost its **New Workflow Call** trigger.
+
+A connected user gets the tool only after they have activated the automation. When you later add workflows to an automation you already attached, only users who already have the server get them, switched on or off as the server is for them. Changing a tool's name, description or input mapping, or switching it off and on, adds no users.
+
+There are two separate switches:
+
+| Switch | What it controls |
+|---|---|
+| The automation's own switch | Only the automation's event triggers, such as a webhook or a schedule. |
+| The MCP switch | Whether the tool is offered to the user's AI agents. |
+
+The MCP switch is set in these places:
+
+- An admin sets it per server on the **MCP Servers** tab in [Connected Users](/platform/embedded/monitor/connected-users#user-details).
+- The connected user sets it once per automation, across all servers, with the public endpoint `POST /automation/workflows/{workflowUuid}/mcp/enable` (and `DELETE` to turn it off). The variant `/{externalUserId}/automation/workflows/{workflowUuid}/mcp/enable` does the same for a named external user.
+- The connected user sets it with the **Available to AI agents** switch in the SDK or the Automation Hub. The switch is shown only while an MCP server offers the automation: the tool is switched on for the server, and the configuration and its workflow are on.
+
+An automation whose only trigger is the workflow call is a **Tool only** automation. It shows only the **Available to AI agents** switch, and the connected user's **Automations** tab marks it **Tool only**.
+
+If you turn the workflow off in the configuration, the tool is removed for everyone.
+
+If the automation needs a connection the user has not set, the tool is still listed. Calling it returns `connection_required`, and the message tells the user to connect the app for the automation in your application. There is no setup link.
+
+### Connect tab
+
+The **Connect** tab shows the **Server URL**. Click the refresh button to generate a new secret key. The old URL stops working immediately.
+
+## Enabling and disabling individual tools
 
 Expand a server row, then expand one of its components to see the tools it exposes. Each tool has a **Configure** button, which opens the tool's parameters, a switch, and an ellipsis (⋮) menu with **Delete**.
 
 - **Switch on** - the tool is offered to agents.
 - **Switch off** - the tool is not offered to any agent and cannot be called, whatever a connected user has enabled for themselves.
 
-The switch applies to the whole server, for every connected user. When you edit a component's tools, each tool keeps its switch state; newly added tools start switched on.
-
-### Managing MCP Servers
-
-Each server row has an **Enabled** switch and an ellipsis (⋮) menu:
-
-- **Enable/Disable** -- flip the switch on the row to control availability.
-- **Edit** -- update the server name.
-- **Delete** -- remove the server (confirmed via an alert dialog).
-
-Tags are edited inline on the server row.
-
-Administering embedded MCP servers is tenant-admin only: creating, editing and deleting servers, their components, tools and the workflows they expose, and switching a server's tools on or off, all require a tenant admin; editing checks the `MCP_EDIT` permission, which only a tenant admin holds for embedded servers. Connected users can only switch tools and workflows on or off, and set workflow inputs, for their own integration instances (see [Which tools a user's agent sees](#which-tools-a-users-agent-sees)).
-
-### Filtering MCP Servers
-
-Use the left sidebar to filter the server list:
-
-- **Components** -- select a component name to show only servers that expose that component.
-- **Integrations** -- filter by integration.
-- **Tags** -- click a tag to filter by that tag.
-
-### Environment Selection
-
-Use the environment selector in the application sidebar to switch between environments. MCP server configurations are scoped per environment.
-
----
+The switch applies to the whole server, for every connected user. When you edit a component's tools, each tool keeps its switch state. Newly added tools start switched on.
 
 ## Connecting to a server
 
@@ -97,14 +124,42 @@ Each server is reachable at `/api/embedded/{secretKey}/mcp`. A request names its
 
 ### Authentication
 
-Each server has a **Require authentication** setting, on for every newly created server:
+Each server has a **Require authentication** setting (`authenticationRequired`), on for every newly created server. The **MCP Servers** page has no control for it. It can be changed only through the `updateEmbeddedMcpServer` GraphQL mutation, which a tenant admin can call.
 
-- **On** - the request's `Authorization` header must carry a ByteChef-signed JWT minted with the tenant's signing key: its `kid` header identifies the signing key and its `sub` claim carries the external user id. The JWT resolves the caller to a ConnectedUser, created on first use; a disabled ConnectedUser is rejected. A request without a valid JWT is rejected with `401` - an API key is not accepted.
+- **On** - the request's `Authorization` header must carry a JWT that your backend signed with one of your [Signing Keys](/platform/embedded/administration/signing-keys) for the server's environment. Its `kid` header identifies the signing key and its `sub` claim carries the external user id. The JWT resolves the caller to a connected user, created on first use. A disabled connected user is rejected. A request without a valid JWT is rejected with `401`. An API key is not accepted.
 - **Off** - the endpoint serves the request using the URL secret alone. No credential is required, any token sent is ignored, and no ConnectedUser is resolved. A component tool that needs a connection, and every workflow tool, then fails with an error saying the tool requires a connected user and that authentication must be enabled on the MCP server.
 
-A disabled server answers a request carrying a valid JWT - or any request, when authentication is off - with `403` and the JSON body `{"error": "server_disabled", "message": "…"}`, and no sign-in challenge. A request without a valid JWT to a server that requires one still gets `401`.
+A disabled server answers a request carrying a valid JWT (or any request, when authentication is off) with `403` and the JSON body `{"error": "server_disabled", "message": "…"}`, and no sign-in challenge. A request without a valid JWT to a server that requires one still gets `401`.
 
-Servers created before this setting existed default to off, so they keep working unchanged - except servers that already had **Enforce tool authorization** on, which default to on. The server rejects **Enforce tool authorization** without **Require authentication**, since an anonymous caller has no identity to authorize.
+Servers created before this setting existed default to off, so they keep working unchanged. Servers that already had **Enforce tool authorization** (`enforceToolAuthorization`) on default to on. The server rejects **Enforce tool authorization** without **Require authentication**, because an anonymous caller has no identity to authorize.
+
+### Example: connecting from your agent
+
+The endpoint speaks the MCP Streamable HTTP transport. With the official TypeScript SDK (`@modelcontextprotocol/sdk`), your backend connects on behalf of one connected user like this:
+
+```ts
+import {Client} from '@modelcontextprotocol/sdk/client/index.js';
+import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+
+const serverUrl = new URL('https://your-bytechef-host.example.com/api/embedded/<secret-key>/mcp');
+
+const transport = new StreamableHTTPClientTransport(serverUrl, {
+    requestInit: {
+        headers: {
+            Authorization: `Bearer ${jwtToken}`, // signed for this user, with sub = 'user-123'
+            'X-Environment': 'PRODUCTION',
+        },
+    },
+});
+
+const client = new Client({name: 'my-product-agent', version: '1.0.0'});
+
+await client.connect(transport);
+
+const {tools} = await client.listTools();
+```
+
+Mint a fresh JWT per user and per session, as for the SDK. A client that does not send `X-Environment` reaches the server only if it is a Production server.
 
 ### When a tool needs the user's account
 
@@ -118,17 +173,19 @@ A tool that needs a connection does not run until the ConnectedUser has connecte
 }
 ```
 
+This applies to component tools and integration workflow tools. An automation tool answers `connection_required` without a link: its message tells the user to connect the app for the automation in your application.
+
 The message asks the agent to show the link to the user as a markdown link labelled **Connect &lt;component&gt;** rather than as the raw URL. A host that renders tool results itself can read `setupUrl` directly, for example to show a Connect button.
 
 `setupUrl` opens ByteChef's hosted connect page, which shows the same [Connect dialog](/platform/embedded/get-started/initial-setup/displaying-the-connect-dialog) your app uses. Its token identifies the user, the integration and the environment, and is valid for 10 minutes. An expired link shows **Link Expired**, and the next call to the tool returns a fresh one. When the user closes the dialog, the page tells them they can close the tab and return to the application that sent them there.
 
 ### Which tools a user's agent sees
 
-Tools you switched off on the server are never listed. A workflow tool is listed only while its workflow is enabled in the instance configuration.
+Tools you switched off on the server are never listed. A workflow tool is listed only while its workflow is enabled in the instance configuration. An automation tool is listed only while its workflow is on in the automation configuration and the user has turned its MCP switch on (see [Exposing automations](#exposing-automations)).
 
-Before a user connects an integration, the server lists every remaining tool it exposes for that integration. Workflow tools, and component tools whose component needs a connection, return `connection_required` when called; a component tool that needs no connection runs directly.
+Before a user connects an integration, the server lists every remaining tool it exposes for that integration. Workflow tools, and component tools whose component needs a connection, return `connection_required` when called. A component tool that needs no connection runs directly.
 
-Once the user has connected, the server lists only the tools that user has enabled, and a workflow tool also needs the user's own instance workflow to be enabled. Tools start disabled. The user enables them on the **Tools** tab of the Connect dialog, which lists the server's component tools and workflow tools for that integration. The list appears only when an MCP server exposes something for the integration; it is shown as a tab when the integration also has regular workflows, and on its own otherwise.
+Once the user has connected, the server lists only the tools that user has enabled. For a workflow tool, the user's switch for that tool decides, independently of the workflow's other triggers: switching the tool off does not stop the workflow's webhook or schedule, and switching the workflow off on the user's integration does not hide the tool. Tools start disabled. When you later add a component tool or a workflow to the server, or switch one back on, users who already have the server get it straight away, switched on unless the server is switched off for them. The user enables them on the **Tools** tab of the Connect dialog, which lists the server's component tools and workflow tools for that integration. The list appears only when an MCP server exposes something for the integration; it is shown as a tab when the integration also has regular workflows, and on its own otherwise.
 
 To switch a server's tools off for a single user, use the **MCP Servers** tab in [Connected Users](/platform/embedded/monitor/connected-users#user-details).
 
@@ -151,3 +208,10 @@ Every component tool and workflow tool call made through an embedded MCP server 
 ### Tenant scoping
 
 A session only exposes the tenant's own workflows, connections, and execution history.
+
+## Related
+
+- [Signing Keys](/platform/embedded/administration/signing-keys)
+- [Instance Configurations](/platform/embedded/configure/instance-configurations)
+- [Connected Users](/platform/embedded/monitor/connected-users)
+- [External Invocations](/platform/embedded/monitor/external-invocations)

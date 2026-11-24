@@ -3,7 +3,9 @@ import {SchemaRecordType} from '@/components/JsonSchemaBuilder/utils/types';
 import {Note} from '@/components/Note';
 import {Sheet, SheetCloseButton, SheetContent, SheetTitle} from '@/components/ui/sheet';
 import {Tabs, TabsContent, TabsList, TabsTrigger} from '@/components/ui/tabs';
+import {useResponseSchemaNoteStore} from '@/pages/platform/workflow-editor/stores/useResponseSchemaNoteStore';
 import MonacoEditorLoader from '@/shared/components/MonacoEditorLoader';
+import {useJsonSchemaModelPath} from '@/shared/components/monaco/useJsonSchemaModelPath';
 import {SPACE} from '@/shared/constants';
 import {MessageCircleQuestionIcon} from 'lucide-react';
 import {VisuallyHidden} from 'radix-ui';
@@ -24,6 +26,10 @@ const PropertyJsonSchemaBuilderSheet = ({onChange, onClose, schema, title}: Prop
     const [localSchema, setLocalSchema] = useState<SchemaRecordType | undefined>(schema);
 
     const editorRef = useRef<StandaloneCodeEditorType | null>(null);
+
+    const modelPath = useJsonSchemaModelPath();
+
+    const {setShowResponseSchemaNote, showResponseSchemaNote} = useResponseSchemaNoteStore();
 
     const handleSchemaChange = useCallback(
         (newSchema: SchemaRecordType) => {
@@ -80,10 +86,11 @@ const PropertyJsonSchemaBuilderSheet = ({onChange, onClose, schema, title}: Prop
                     </header>
 
                     <div className="flex min-h-0 flex-1 flex-col gap-3 p-3">
-                        {title === 'Response Schema' && (
+                        {title === 'Response Schema' && showResponseSchemaNote && (
                             <Note
                                 content="Define how you'd like the LLM to structure its responses — essentially a template for its output."
                                 icon={<MessageCircleQuestionIcon />}
+                                onClose={() => setShowResponseSchemaNote(false)}
                             />
                         )}
 
@@ -115,6 +122,7 @@ const PropertyJsonSchemaBuilderSheet = ({onChange, onClose, schema, title}: Prop
                                     onMount={(editor) => {
                                         editorRef.current = editor;
                                     }}
+                                    path={modelPath}
                                     value={JSON.stringify(localSchema, null, SPACE)}
                                 />
                             </Suspense>

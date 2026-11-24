@@ -11,13 +11,20 @@ import com.bytechef.atlas.configuration.exception.WorkflowErrorType;
 import com.bytechef.automation.configuration.domain.ProjectDeployment;
 import com.bytechef.automation.configuration.domain.ProjectDeploymentWorkflow;
 import com.bytechef.automation.configuration.domain.ProjectDeploymentWorkflowConnection;
+import com.bytechef.automation.configuration.domain.ProjectWorkflow;
 import com.bytechef.automation.configuration.security.SkipAutomationAuthorization;
+import com.bytechef.automation.configuration.service.ProjectDeploymentService;
+import com.bytechef.automation.configuration.service.ProjectDeploymentWorkflowService;
 import com.bytechef.automation.configuration.service.ProjectWorkflowService;
 import com.bytechef.commons.util.CollectionUtils;
+import com.bytechef.ee.embedded.ai.mcp.facade.McpAutomationRowFacade;
 import com.bytechef.ee.embedded.configuration.domain.AutomationProjectConfiguration;
 import com.bytechef.ee.embedded.configuration.domain.ConnectedUserProject;
 import com.bytechef.ee.embedded.configuration.domain.ConnectedUserProjectWorkflow;
 import com.bytechef.ee.embedded.configuration.dto.AutomationProjectDTO;
+import com.bytechef.ee.embedded.configuration.dto.ConnectedUserWorkflowCopyDTO;
+import com.bytechef.ee.embedded.configuration.dto.ConnectedUserWorkflowReferenceDTO;
+import com.bytechef.ee.embedded.configuration.dto.ConnectedUserWorkflowReferenceValuesDTO;
 import com.bytechef.ee.embedded.configuration.exception.AutomationTemplateNotVisibleException;
 import com.bytechef.ee.embedded.configuration.exception.ConnectedUserProjectWorkflowErrorType;
 import com.bytechef.ee.embedded.configuration.exception.InvalidWorkflowException;
@@ -28,18 +35,25 @@ import com.bytechef.ee.embedded.configuration.facade.ConnectedUserReferenceDeplo
 import com.bytechef.ee.embedded.configuration.repository.ConnectedUserProjectWorkflowRepository;
 import com.bytechef.ee.embedded.configuration.service.AutomationProjectConfigurationService;
 import com.bytechef.ee.embedded.configuration.service.ConnectedUserProjectService;
+import com.bytechef.ee.embedded.configuration.service.ConnectedUserProjectWorkflowService;
+import com.bytechef.ee.embedded.configuration.util.InternalOnlyInputUtils;
 import com.bytechef.ee.embedded.connected.user.domain.ConnectedUser;
 import com.bytechef.ee.embedded.connected.user.service.ConnectedUserService;
 import com.bytechef.exception.ConfigurationException;
 import com.bytechef.platform.annotation.ConditionalOnEEVersion;
 import com.bytechef.platform.configuration.domain.Environment;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -59,9 +73,13 @@ public class ConnectedUserWorkflowReferenceFacadeImpl implements ConnectedUserWo
     private final ConnectedUserProjectService connectedUserProjectService;
     private final ConnectedUserProjectWorkflowManager connectedUserProjectWorkflowManager;
     private final ConnectedUserProjectWorkflowRepository connectedUserProjectWorkflowRepository;
+    private final ConnectedUserProjectWorkflowService connectedUserProjectWorkflowService;
     private final ConnectedUserReferenceDeploymentManager connectedUserReferenceDeploymentManager;
     private final ConnectedUserReferenceRolloutManager connectedUserReferenceRolloutManager;
     private final ConnectedUserService connectedUserService;
+    private final McpAutomationRowFacade mcpAutomationRowFacade;
+    private final ProjectDeploymentService projectDeploymentService;
+    private final ProjectDeploymentWorkflowService projectDeploymentWorkflowService;
     private final ProjectWorkflowService projectWorkflowService;
 
     @SuppressFBWarnings("EI")
@@ -72,9 +90,13 @@ public class ConnectedUserWorkflowReferenceFacadeImpl implements ConnectedUserWo
         ConnectedUserProjectService connectedUserProjectService,
         ConnectedUserProjectWorkflowManager connectedUserProjectWorkflowManager,
         ConnectedUserProjectWorkflowRepository connectedUserProjectWorkflowRepository,
+        ConnectedUserProjectWorkflowService connectedUserProjectWorkflowService,
         ConnectedUserReferenceDeploymentManager connectedUserReferenceDeploymentManager,
         ConnectedUserReferenceRolloutManager connectedUserReferenceRolloutManager,
-        ConnectedUserService connectedUserService, ProjectWorkflowService projectWorkflowService) {
+        ConnectedUserService connectedUserService, McpAutomationRowFacade mcpAutomationRowFacade,
+        ProjectDeploymentService projectDeploymentService,
+        ProjectDeploymentWorkflowService projectDeploymentWorkflowService,
+        ProjectWorkflowService projectWorkflowService) {
 
         this.automationProjectConfigurationResolver = automationProjectConfigurationResolver;
         this.automationProjectConfigurationService = automationProjectConfigurationService;
@@ -82,9 +104,13 @@ public class ConnectedUserWorkflowReferenceFacadeImpl implements ConnectedUserWo
         this.connectedUserProjectService = connectedUserProjectService;
         this.connectedUserProjectWorkflowManager = connectedUserProjectWorkflowManager;
         this.connectedUserProjectWorkflowRepository = connectedUserProjectWorkflowRepository;
+        this.connectedUserProjectWorkflowService = connectedUserProjectWorkflowService;
         this.connectedUserReferenceDeploymentManager = connectedUserReferenceDeploymentManager;
         this.connectedUserReferenceRolloutManager = connectedUserReferenceRolloutManager;
         this.connectedUserService = connectedUserService;
+        this.mcpAutomationRowFacade = mcpAutomationRowFacade;
+        this.projectDeploymentService = projectDeploymentService;
+        this.projectDeploymentWorkflowService = projectDeploymentWorkflowService;
         this.projectWorkflowService = projectWorkflowService;
     }
 
@@ -140,7 +166,7 @@ public class ConnectedUserWorkflowReferenceFacadeImpl implements ConnectedUserWo
     })
     public ConnectedUserProjectWorkflow getOrCreateReference(
         String externalUserId, String automationUuid, Environment environment) {
-        return provisionReference(externalUserId, automationUuid, environment, Map.of(), null);
+        return provisionReference(externalUserId, automationUuid, environment, Map.of(), null, null);
     }
 
     @Override
@@ -150,7 +176,7 @@ public class ConnectedUserWorkflowReferenceFacadeImpl implements ConnectedUserWo
     public ConnectedUserProjectWorkflow getOrCreateReference(
         String externalUserId, String automationUuid, Environment environment,
         Map<String, Long> requestedConnectionIds) {
-        return provisionReference(externalUserId, automationUuid, environment, requestedConnectionIds, null);
+        return provisionReference(externalUserId, automationUuid, environment, requestedConnectionIds, null, null);
     }
 
     @Override
@@ -160,12 +186,24 @@ public class ConnectedUserWorkflowReferenceFacadeImpl implements ConnectedUserWo
     public ConnectedUserProjectWorkflow getOrCreateReference(
         String externalUserId, String automationUuid, Environment environment,
         Map<String, Long> requestedConnectionIds, @Nullable Map<String, ?> inputs) {
-        return provisionReference(externalUserId, automationUuid, environment, requestedConnectionIds, inputs);
+        return provisionReference(externalUserId, automationUuid, environment, requestedConnectionIds, inputs, null);
+    }
+
+    @Override
+    @Transactional(noRollbackFor = {
+        MissingConnectionException.class, MissingInputException.class
+    })
+    public ConnectedUserProjectWorkflow getOrCreateReference(
+        String externalUserId, String automationUuid, Environment environment,
+        Map<String, Long> requestedConnectionIds, @Nullable Map<String, ?> inputs, @Nullable String provisionedBy) {
+
+        return provisionReference(
+            externalUserId, automationUuid, environment, requestedConnectionIds, inputs, provisionedBy);
     }
 
     private ConnectedUserProjectWorkflow provisionReference(
         String externalUserId, String automationUuid, Environment environment,
-        Map<String, Long> requestedConnectionIds, @Nullable Map<String, ?> inputs) {
+        Map<String, Long> requestedConnectionIds, @Nullable Map<String, ?> inputs, @Nullable String provisionedBy) {
         ConnectedUserProject connectedUserProject = lockConnectedUserProject(externalUserId, environment);
 
         Optional<ConnectedUserProjectWorkflow> existingReference = connectedUserProjectWorkflowRepository
@@ -204,11 +242,156 @@ public class ConnectedUserWorkflowReferenceFacadeImpl implements ConnectedUserWo
         reference.setConnectedUserProjectId(connectedUserProject.getId());
         reference.setEnabled(false);
         reference.setProjectDeploymentId(projectDeploymentId);
+        reference.setProvisionedBy(provisionedBy);
 
         ConnectedUserProjectWorkflow savedReference = connectedUserProjectWorkflowRepository.save(reference);
 
+        mcpAutomationRowFacade.addMissingRowsForReference(savedReference.getId());
+
         return applyWorkflow(
             savedReference, externalUserId, environment, true, ApplyMode.PROVISION, requestedConnectionIds, inputs);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ConnectedUserWorkflowReferenceValuesDTO getReferenceValues(long referenceId) {
+        ConnectedUserProjectWorkflow reference = connectedUserProjectWorkflowRepository.findById(referenceId)
+            .orElseThrow(() -> new ConfigurationException(
+                "No connected user workflow: %s".formatted(referenceId), WorkflowErrorType.WORKFLOW_NOT_FOUND));
+
+        String automationUuid = reference.getAutomationUuid();
+        Long projectDeploymentId = reference.getProjectDeploymentId();
+
+        if (automationUuid == null || projectDeploymentId == null) {
+            throw new ConfigurationException(
+                "Connected user workflow %s is not a reference".formatted(referenceId),
+                WorkflowErrorType.WORKFLOW_NOT_FOUND);
+        }
+
+        Optional<ProjectDeploymentWorkflow> rowOptional = connectedUserReferenceDeploymentManager.fetchRow(
+            projectDeploymentId, automationUuid);
+
+        if (rowOptional.isEmpty()) {
+            return new ConnectedUserWorkflowReferenceValuesDTO(Map.of(), Map.of());
+        }
+
+        ProjectDeploymentWorkflow row = rowOptional.get();
+
+        ConnectedUserProject connectedUserProject = connectedUserProjectService.getConnectedUserProject(
+            reference.getConnectedUserProjectId());
+        ProjectDeployment projectDeployment = connectedUserReferenceDeploymentManager.getDeployment(
+            projectDeploymentId);
+
+        Set<String> providedComponentNames = connectedUserReferenceDeploymentManager.getProvidedComponentNames(
+            connectedUserProject.getConnectedUserId(), projectDeployment.getProjectId(), automationUuid);
+
+        Map<String, Long> connectionIds = new LinkedHashMap<>(
+            connectedUserReferenceDeploymentManager.getConnectionIdsByComponentName(row));
+
+        connectionIds.keySet()
+            .removeAll(providedComponentNames);
+
+        Map<String, Object> inputs = InternalOnlyInputUtils.removeInternalOnlyInputs(
+            connectedUserReferenceDeploymentManager.getWorkflow(row.getWorkflowId()), row.getInputs());
+
+        return new ConnectedUserWorkflowReferenceValuesDTO(connectionIds, inputs);
+    }
+
+    @Override
+    @PreAuthorize("isTenantAdmin()")
+    @Transactional(readOnly = true)
+    public List<ConnectedUserWorkflowCopyDTO> getCopies(Set<String> automationUuids, Environment environment) {
+        if (automationUuids.isEmpty()) {
+            return List.of();
+        }
+
+        List<ConnectedUserProjectWorkflow> copies =
+            connectedUserProjectWorkflowService.getCopiedConnectedUserProjectWorkflows(automationUuids);
+
+        List<Long> connectedUserProjectIds = copies.stream()
+            .map(ConnectedUserProjectWorkflow::getConnectedUserProjectId)
+            .distinct()
+            .toList();
+
+        Map<Long, ConnectedUserProject> connectedUserProjectMap =
+            connectedUserProjectService.getConnectedUserProjects(connectedUserProjectIds)
+                .stream()
+                .collect(Collectors.toMap(ConnectedUserProject::getId, Function.identity()));
+
+        List<Long> connectedUserIds = connectedUserProjectMap.values()
+            .stream()
+            .map(ConnectedUserProject::getConnectedUserId)
+            .distinct()
+            .toList();
+
+        Map<Long, ConnectedUser> connectedUserMap = connectedUserService.getConnectedUsers(connectedUserIds)
+            .stream()
+            .collect(Collectors.toMap(ConnectedUser::getId, Function.identity()));
+
+        return copies.stream()
+            .filter(copy -> {
+                ConnectedUser connectedUser = getCopyConnectedUser(copy, connectedUserProjectMap, connectedUserMap);
+
+                return connectedUser.getEnvironment() == environment;
+            })
+            .map(copy -> toCopyDTO(
+                copy, getCopyConnectedUser(copy, connectedUserProjectMap, connectedUserMap), environment))
+            .toList();
+    }
+
+    @Override
+    @PreAuthorize("isTenantAdmin()")
+    @Transactional(readOnly = true)
+    public List<ConnectedUserWorkflowReferenceDTO> getReferences(Set<String> automationUuids) {
+        List<ConnectedUserProjectWorkflow> references =
+            connectedUserProjectWorkflowRepository.findAllByAutomationUuidIn(automationUuids);
+
+        List<Long> connectedUserProjectIds = references.stream()
+            .map(ConnectedUserProjectWorkflow::getConnectedUserProjectId)
+            .distinct()
+            .toList();
+
+        Map<Long, ConnectedUserProject> connectedUserProjectMap =
+            connectedUserProjectService.getConnectedUserProjects(connectedUserProjectIds)
+                .stream()
+                .collect(Collectors.toMap(ConnectedUserProject::getId, Function.identity()));
+
+        List<Long> connectedUserIds = connectedUserProjectMap.values()
+            .stream()
+            .map(ConnectedUserProject::getConnectedUserId)
+            .distinct()
+            .toList();
+
+        Map<Long, ConnectedUser> connectedUserMap = connectedUserService.getConnectedUsers(connectedUserIds)
+            .stream()
+            .collect(Collectors.toMap(ConnectedUser::getId, Function.identity()));
+
+        List<Long> projectIds = connectedUserProjectMap.values()
+            .stream()
+            .map(ConnectedUserProject::getProjectId)
+            .distinct()
+            .toList();
+
+        Map<Long, String> workflowIds = projectWorkflowService.getProjectWorkflows(projectIds)
+            .stream()
+            .collect(Collectors.toMap(ProjectWorkflow::getId, ProjectWorkflow::getWorkflowId));
+
+        return references.stream()
+            .map(reference -> toDTO(reference, connectedUserProjectMap, connectedUserMap, workflowIds))
+            .toList();
+    }
+
+    @Override
+    @PreAuthorize("isTenantAdmin()")
+    @Transactional(readOnly = true)
+    public List<ConnectedUserWorkflowReferenceDTO> getReferences(
+        Set<String> automationUuids, Environment environment) {
+
+        List<ConnectedUserWorkflowReferenceDTO> references = getReferences(automationUuids);
+
+        return references.stream()
+            .filter(reference -> Objects.equals(reference.environment(), environment.name()))
+            .toList();
     }
 
     @Override
@@ -228,6 +411,52 @@ public class ConnectedUserWorkflowReferenceFacadeImpl implements ConnectedUserWo
         }
     }
 
+    private static ConnectedUser getCopyConnectedUser(
+        ConnectedUserProjectWorkflow copy, Map<Long, ConnectedUserProject> connectedUserProjectMap,
+        Map<Long, ConnectedUser> connectedUserMap) {
+
+        ConnectedUserProject connectedUserProject = connectedUserProjectMap.get(copy.getConnectedUserProjectId());
+
+        return connectedUserMap.get(connectedUserProject.getConnectedUserId());
+    }
+
+    private boolean isCopyEnabled(ProjectWorkflow projectWorkflow, Environment environment) {
+        return projectDeploymentService.fetchProjectDeployment(projectWorkflow.getProjectId(), environment)
+            .flatMap(projectDeployment -> projectWorkflowService
+                .fetchProjectWorkflowWorkflowId(projectDeployment.getId(), projectWorkflow.getUuidAsString())
+                .map(workflowId -> projectDeploymentWorkflowService.isProjectDeploymentWorkflowEnabled(
+                    projectDeployment.getId(), workflowId)))
+            .orElse(false);
+    }
+
+    private ConnectedUserWorkflowCopyDTO toCopyDTO(
+        ConnectedUserProjectWorkflow copy, ConnectedUser connectedUser, Environment environment) {
+
+        ProjectWorkflow projectWorkflow = projectWorkflowService.getProjectWorkflow(
+            Objects.requireNonNull(copy.getProjectWorkflowId()));
+
+        return new ConnectedUserWorkflowCopyDTO(
+            copy.getCopiedFromWorkflowUuid(), projectWorkflow.getUuidAsString(), connectedUser.getExternalId(),
+            connectedUser.getName(), connectedUser.getEmail(), isCopyEnabled(projectWorkflow, environment));
+    }
+
+    private ConnectedUserWorkflowReferenceDTO toDTO(
+        ConnectedUserProjectWorkflow reference, Map<Long, ConnectedUserProject> connectedUserProjectMap,
+        Map<Long, ConnectedUser> connectedUserMap, Map<Long, String> workflowIds) {
+        ConnectedUserProject connectedUserProject = connectedUserProjectMap.get(
+            reference.getConnectedUserProjectId());
+
+        ConnectedUser connectedUser = connectedUserMap.get(connectedUserProject.getConnectedUserId());
+
+        Environment environment = connectedUser.getEnvironment();
+
+        return new ConnectedUserWorkflowReferenceDTO(
+            reference.getAutomationUuid(), connectedUser.getId(), connectedUser.getExternalId(),
+            environment.name(),
+            reference.isEnabled(), reference.isDangling(), reference.getDanglingReason(),
+            workflowIds.get(reference.getProjectWorkflowId()), reference.getProjectDeploymentId());
+    }
+
     private ConnectedUserProjectWorkflow applyWorkflow(
         ConnectedUserProjectWorkflow reference, String externalUserId, Environment environment, boolean enable,
         ApplyMode applyMode, Map<String, Long> requestedConnectionIds, @Nullable Map<String, ?> inputs) {
@@ -238,12 +467,11 @@ public class ConnectedUserWorkflowReferenceFacadeImpl implements ConnectedUserWo
         int projectVersion = projectDeployment.getProjectVersion();
         String automationUuid = reference.getAutomationUuid();
 
-        connectedUserReferenceDeploymentManager.checkProvidedValuesNotRequested(
-            connectedUser.getId(), projectDeployment.getProjectId(), automationUuid, requestedConnectionIds,
-            inputs);
-
         String workflowId = connectedUserReferenceDeploymentManager.getWorkflowId(
             projectDeployment.getProjectId(), projectVersion, automationUuid);
+
+        connectedUserReferenceDeploymentManager.checkProvidedConnectionsNotRequested(
+            connectedUser.getId(), projectDeployment.getProjectId(), automationUuid, requestedConnectionIds);
 
         Optional<ProjectDeploymentWorkflow> currentRow = connectedUserReferenceDeploymentManager.fetchWorkflowRow(
             reference.getProjectDeploymentId(), workflowId);
@@ -272,7 +500,8 @@ public class ConnectedUserWorkflowReferenceFacadeImpl implements ConnectedUserWo
         connectedUserReferenceDeploymentManager.putWorkflows(
             reference.getProjectDeploymentId(), projectVersion, Map.of(automationUuid, rowSpec));
 
-        reference.setEnabled(enable && (reference.isEnabled() || requestedEnabled));
+        reference.setEnabled(
+            enable && (reference.isEnabled() || requestedEnabled || resolution.awaitingConfiguration()));
 
         ConnectedUserProjectWorkflow savedReference = connectedUserProjectWorkflowRepository.save(reference);
 

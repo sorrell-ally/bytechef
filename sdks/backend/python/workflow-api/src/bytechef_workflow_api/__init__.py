@@ -1,0 +1,241 @@
+"""Type definitions for ByteChef script code workflows.
+
+They describe the dict a Python code workflow file evaluates to and the context ByteChef passes to each task's
+``perform(input, context)`` or ``perform(input, connection, context)``. The ByteChef runtime can't import this package: import it under ``typing.TYPE_CHECKING``.
+"""
+
+from typing import Any, Callable, Dict, List, Literal, Protocol, TypedDict, Union
+
+__all__ = [
+    "ClusterElement",
+    "ClusterElements",
+    "ComponentTaskDefinition",
+    "ConnectionRequirement",
+    "ConnectionSpec",
+    "ForkJoinTaskDefinition",
+    "InputDefinition",
+    "InputType",
+    "IntegrationDefinition",
+    "LogLevel",
+    "OutputDefinition",
+    "ParallelTaskDefinition",
+    "ProjectDefinition",
+    "TaskContext",
+    "TaskDefinition",
+    "TaskOutputDefinition",
+    "TriggerDefinition",
+    "ValueOutputDefinition",
+    "WorkflowDefinition",
+    "WorkflowTask",
+]
+
+LogLevel = Literal["trace", "debug", "info", "warn", "error", "TRACE", "DEBUG", "INFO", "WARN", "ERROR"]
+
+InputType = Literal["BOOLEAN", "DATE", "DATE_TIME", "FIELD_MAPPING", "INTEGER", "NUMBER", "STRING", "TIME"]
+
+
+class _ClusterElementRequired(TypedDict):
+    type: str
+
+
+class ClusterElement(_ClusterElementRequired, total=False):
+    """A cluster element composed at the call site, for actions that read cluster elements, such as the AI Agent's
+    ``chat``. ``type`` is ``<componentName>/v<version>/<elementName>``, for example ``openAi/v1/model``;
+    ``connection`` names one of the task's declared connections; for a tool, ``name`` is what the model calls it."""
+
+    connection: str
+    name: str
+    parameters: Dict[str, Any]
+
+
+ClusterElements = Dict[str, Union[ClusterElement, List[ClusterElement]]]
+"""Cluster elements keyed by cluster element type (``model``, ``tools``, ``chatMemory``, ``rag``, ...)."""
+
+
+class TaskContext(Protocol):
+    """The context ByteChef passes to ``perform``.
+
+    ``component`` calls a component action:
+    ``context.component.<componentName>.<actionName>(input, connection_name, cluster_elements)``.
+    """
+
+    component: Any
+
+    def log(self, level: LogLevel, message: str) -> None:
+        """Writes to the task's execution log."""
+        ...
+
+
+class _ConnectionRequirementRequired(TypedDict):
+    componentName: str
+    name: str
+
+
+class ConnectionRequirement(_ConnectionRequirementRequired, total=False):
+    """A connection a task uses. ``name`` is the key of its parameters in ``perform``'s ``connection`` argument and
+    the connection name a component call passes. ``componentVersion`` defaults to the component's latest version at
+    save time."""
+
+    componentVersion: int
+
+
+class _ConnectionSpecRequired(TypedDict):
+    componentName: str
+
+
+class ConnectionSpec(_ConnectionSpecRequired, total=False):
+    """A connection in the map form of ``connections``, keyed by connection name."""
+
+    componentVersion: int
+
+
+class _TaskDefinitionRequired(TypedDict):
+    name: str
+    perform: Callable[..., Any]
+
+
+class TaskDefinition(_TaskDefinitionRequired, total=False):
+    """A task: one step of a workflow. ByteChef calls ``perform(input, context)`` when the task runs, or
+    ``perform(input, connection, context)`` when ``perform`` takes three required parameters; its return value becomes
+    the task's output. ``input`` holds the workflow inputs plus the output of every task that already ran, keyed by
+    name; ``connection`` maps each declared connection's name to its parameters, credentials included. Task names must
+    be unique across the workflow, nesting included."""
+
+    connections: Union[List[ConnectionRequirement], Dict[str, ConnectionSpec]]
+    description: str
+    label: str
+
+
+class _ComponentTaskDefinitionRequired(TypedDict):
+    name: str
+    type: str
+
+
+class ComponentTaskDefinition(_ComponentTaskDefinitionRequired, total=False):
+    """A task that runs a component action, as the same task in a visual workflow does. ``type`` names the action as
+    ``<component>/v<version>/<action>``; ``parameters`` are the action's inputs, and string values may hold ``${...}``
+    expressions such as ``${fetch_orders}``. It has no ``perform`` and no ``connections``: the deployment supplies the
+    component's connection."""
+
+    description: str
+    label: str
+    parameters: Dict[str, Any]
+
+
+class _ParallelTaskDefinitionRequired(TypedDict):
+    name: str
+    tasks: List[Union[TaskDefinition, ComponentTaskDefinition]]
+    type: Literal["parallel"]
+
+
+class ParallelTaskDefinition(_ParallelTaskDefinitionRequired, total=False):
+    """A group whose tasks all start at the same time. They can't read each other's output."""
+
+    description: str
+    label: str
+
+
+class _ForkJoinTaskDefinitionRequired(TypedDict):
+    branches: List[List[Union[TaskDefinition, ComponentTaskDefinition]]]
+    name: str
+    type: Literal["forkJoin"]
+
+
+class ForkJoinTaskDefinition(_ForkJoinTaskDefinitionRequired, total=False):
+    """A group whose branches run at the same time. The tasks within a branch run in order."""
+
+    description: str
+    label: str
+
+
+WorkflowTask = Union[TaskDefinition, ComponentTaskDefinition, ParallelTaskDefinition, ForkJoinTaskDefinition]
+"""An entry of a workflow's ``tasks``. A group can't contain another group."""
+
+
+class _InputDefinitionRequired(TypedDict):
+    name: str
+
+
+class InputDefinition(_InputDefinitionRequired, total=False):
+    """A workflow input. At run time it arrives in ``perform``'s ``input`` under its own name. ``type`` defaults to
+    ``STRING``; ``componentName``, ``componentVersion`` and ``groupName`` name the component input it takes its
+    options from. ``internalOnly`` keeps an embedded integration's input on its configuration, set by an administrator
+    and hidden from connected users."""
+
+    componentName: str
+    componentVersion: int
+    groupName: str
+    internalOnly: bool
+    label: str
+    required: bool
+    type: InputType
+
+
+class TaskOutputDefinition(TypedDict):
+    """A workflow output whose value is a task's output."""
+
+    name: str
+    task: str
+
+
+class ValueOutputDefinition(TypedDict):
+    """A workflow output whose value is a literal or a ``${...}`` expression."""
+
+    name: str
+    value: Any
+
+
+OutputDefinition = Union[TaskOutputDefinition, ValueOutputDefinition]
+
+
+class _TriggerDefinitionRequired(TypedDict):
+    name: str
+    type: str
+
+
+class TriggerDefinition(_TriggerDefinitionRequired, total=False):
+    """A component trigger that starts the workflow. ``type`` is ``<componentName>/v<version>/<triggerName>``, for
+    example ``schedule/v1/interval``."""
+
+    parameters: Dict[str, Any]
+
+
+class _WorkflowDefinitionRequired(TypedDict):
+    name: str
+
+
+class WorkflowDefinition(_WorkflowDefinitionRequired, total=False):
+    description: str
+    inputs: List[InputDefinition]
+    label: str
+    outputs: List[OutputDefinition]
+    tasks: List[WorkflowTask]
+    triggers: List[TriggerDefinition]
+
+
+class _ProjectDefinitionRequired(TypedDict):
+    name: str
+
+
+class ProjectDefinition(_ProjectDefinitionRequired, total=False):
+    """An automation code project, or an embedded catalog code project. ``name`` is the project's identity: deploying
+    again under the same name updates the project. ``version`` defaults to ``0.0.1``."""
+
+    description: str
+    version: str
+    workflows: List[WorkflowDefinition]
+
+
+class _IntegrationDefinitionRequired(TypedDict):
+    componentName: str
+    componentVersion: int
+
+
+class IntegrationDefinition(_IntegrationDefinitionRequired, total=False):
+    """An embedded code integration, identified by ``componentName`` and ``componentVersion``. ``name`` is its
+    display name; it defaults to ``componentName``."""
+
+    description: str
+    name: str
+    version: str
+    workflows: List[WorkflowDefinition]

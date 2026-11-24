@@ -13,6 +13,10 @@ import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/c
 import MoveConnectedUsersImpact from '@/ee/pages/embedded/connected-users/components/move-connected-users-dialog/MoveConnectedUsersImpact';
 import MoveConnectedUsersResult from '@/ee/pages/embedded/connected-users/components/move-connected-users-dialog/MoveConnectedUsersResult';
 import {formatSkippedReason} from '@/ee/pages/embedded/connected-users/components/move-connected-users-dialog/moveConnectedUsersReasons';
+import useMoveWorkflowInputs, {
+    MoveImpactWorkflowI,
+    MoveWorkflowInputsI,
+} from '@/ee/pages/embedded/connected-users/components/move-connected-users-dialog/useMoveWorkflowInputs';
 import {ConnectedUser} from '@/ee/shared/middleware/embedded/connected-user';
 import {AlertTriangleIcon} from 'lucide-react';
 import {useMemo, useState} from 'react';
@@ -34,23 +38,19 @@ export interface UpgradeOptionI {
 export interface UpgradeImpactI {
     mcpServerCount?: number;
     skipped: MoveConnectedUsersSkippedI[];
-    workflows: Array<{
-        affectedConnectedUserCount: number;
-        label: string;
-        newRequiredConnections: string[];
-        newRequiredInputs: string[];
-    }>;
+    workflows: MoveImpactWorkflowI[];
 }
 
 interface UpgradeConnectedUsersDialogViewProps {
     connectedUsers: ConnectedUser[];
+    editableInputs?: boolean;
     emptyParentMessage: string;
     impact?: UpgradeImpactI;
     notOnSourceReason: string;
     onClose: () => void;
     onParentChange: (parentId: string) => void;
     onTargetChange: (targetId: string) => void;
-    onUpgrade: () => Promise<MoveConnectedUsersResultI>;
+    onUpgrade: (workflowInputs: MoveWorkflowInputsI[]) => Promise<MoveConnectedUsersResultI>;
     onUpgraded: () => void;
     parentId?: string;
     parentLabel: string;
@@ -64,6 +64,7 @@ interface UpgradeConnectedUsersDialogViewProps {
 
 const UpgradeConnectedUsersDialogView = ({
     connectedUsers,
+    editableInputs = false,
     emptyParentMessage,
     impact,
     notOnSourceReason,
@@ -83,6 +84,8 @@ const UpgradeConnectedUsersDialogView = ({
 }: UpgradeConnectedUsersDialogViewProps) => {
     const [result, setResult] = useState<MoveConnectedUsersResultI>();
     const [upgrading, setUpgrading] = useState(false);
+
+    const {inputValues, missingRequiredInput, setInputValue, workflowInputs} = useMoveWorkflowInputs(impact?.workflows);
 
     const labelByConnectedUserId = useMemo(
         () =>
@@ -110,7 +113,13 @@ const UpgradeConnectedUsersDialogView = ({
     }, [connectedUsers, impact]);
 
     const canUpgrade =
-        !!targetId && !!impact && !noConnectedUserWouldMove && !previewLoading && !previewError && !upgrading;
+        !!targetId &&
+        !!impact &&
+        !noConnectedUserWouldMove &&
+        !previewLoading &&
+        !previewError &&
+        !upgrading &&
+        !(editableInputs && missingRequiredInput);
 
     const toSkippedUser = (skippedUser: MoveConnectedUsersSkippedI): SkippedUserDisplayI => {
         const connectedUserId = String(skippedUser.connectedUserId);
@@ -138,7 +147,7 @@ const UpgradeConnectedUsersDialogView = ({
         setUpgrading(true);
 
         try {
-            setResult(await onUpgrade());
+            setResult(await onUpgrade(editableInputs ? workflowInputs : []));
         } catch {
             setResult(undefined);
         } finally {
@@ -219,7 +228,9 @@ const UpgradeConnectedUsersDialogView = ({
 
                         <MoveConnectedUsersImpact
                             impact={impact?.workflows}
+                            inputValues={inputValues}
                             mcpServerCount={impact?.mcpServerCount}
+                            onInputChange={editableInputs ? setInputValue : undefined}
                             previewError={previewError}
                             previewSkipped={impact?.skipped}
                             toSkippedUser={toSkippedUser}

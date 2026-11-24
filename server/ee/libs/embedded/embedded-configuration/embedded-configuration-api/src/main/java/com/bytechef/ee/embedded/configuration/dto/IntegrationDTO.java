@@ -26,29 +26,46 @@ import org.jspecify.annotations.Nullable;
  */
 @SuppressFBWarnings("EI")
 public record IntegrationDTO(
-    Category category, String componentName, int componentVersion, String createdBy, Instant createdDate,
-    String description, Integer developmentConfigurationCount, String icon, Long id,
+    Category category, boolean codeWorkflow, String codeWorkflowLanguage, String componentName, int componentVersion,
+    String createdBy, Instant createdDate, String description, Integer developmentConfigurationCount, String icon,
+    Long id,
     List<IntegrationVersion> integrationVersions, List<Long> integrationWorkflowIds, String lastModifiedBy,
     Instant lastModifiedDate, Instant lastPublishedDate, Status lastStatus, Integer lastIntegrationVersion,
-    boolean multipleInstances, String name, String permissionExpression, List<Tag> tags, String title, int version) {
+    boolean multipleInstances, String name, String permissionExpression, List<Tag> tags, String title, int version,
+    boolean unpublishedChanges) {
+
+    public IntegrationDTO(
+        Category category, String componentName, int componentVersion, String createdBy, Instant createdDate,
+        String description, Integer developmentConfigurationCount, String icon, Long id,
+        List<IntegrationVersion> integrationVersions, List<Long> integrationWorkflowIds, String lastModifiedBy,
+        Instant lastModifiedDate, Instant lastPublishedDate, Status lastStatus, Integer lastIntegrationVersion,
+        boolean multipleInstances, String name, String permissionExpression, List<Tag> tags, String title,
+        int version) {
+
+        this(
+            category, false, null, componentName, componentVersion, createdBy, createdDate, description,
+            developmentConfigurationCount, icon, id, integrationVersions, integrationWorkflowIds, lastModifiedBy,
+            lastModifiedDate, lastPublishedDate, lastStatus, lastIntegrationVersion, multipleInstances, name,
+            permissionExpression, tags, title, version, false);
+    }
 
     public IntegrationDTO(Integration integration) {
         this(
-            integration.getCategoryId() == null ? null : new Category(integration.getCategoryId()),
+            integration.getCategoryId() == null ? null : new Category(integration.getCategoryId()), false, null,
             integration.getComponentName(), integration.getComponentVersion(), integration.getCreatedBy(),
             integration.getCreatedDate(), integration.getDescription(), null, null, integration.getId(),
             integration.getIntegrationVersions(), List.of(), integration.getLastModifiedBy(),
             integration.getLastModifiedDate(), integration.getLastPublishedDate(), integration.getLastStatus(),
             integration.getLastIntegrationVersion(), integration.isMultipleInstances(), integration.getName(),
             integration.getPermissionExpression(), List.of(), null,
-            integration.getVersion());
+            integration.getVersion(), false);
     }
 
     public IntegrationDTO(
         Category category, @Nullable ComponentDefinition componentDefinition, Integration integration,
         List<Long> integrationWorkflowIds, List<Tag> tags) {
 
-        this(category, componentDefinition, integration, integrationWorkflowIds, tags, null);
+        this(category, componentDefinition, integration, integrationWorkflowIds, tags, null, false, null);
     }
 
     public IntegrationDTO(
@@ -56,7 +73,26 @@ public record IntegrationDTO(
         List<Long> integrationWorkflowIds, List<Tag> tags, Integer developmentConfigurationCount) {
 
         this(
-            category, integration.getComponentName(),
+            category, componentDefinition, integration, integrationWorkflowIds, tags, developmentConfigurationCount,
+            false, null);
+    }
+
+    public IntegrationDTO(
+        Category category, @Nullable ComponentDefinition componentDefinition, Integration integration,
+        List<Long> integrationWorkflowIds, List<Tag> tags, boolean codeWorkflow, String codeWorkflowLanguage) {
+
+        this(
+            category, componentDefinition, integration, integrationWorkflowIds, tags, null, codeWorkflow,
+            codeWorkflowLanguage);
+    }
+
+    public IntegrationDTO(
+        Category category, @Nullable ComponentDefinition componentDefinition, Integration integration,
+        List<Long> integrationWorkflowIds, List<Tag> tags, Integer developmentConfigurationCount,
+        boolean codeWorkflow, String codeWorkflowLanguage) {
+
+        this(
+            category, codeWorkflow, codeWorkflowLanguage, integration.getComponentName(),
             integration.getComponentVersion(), integration.getCreatedBy(), integration.getCreatedDate(),
             getDescription(componentDefinition, integration), developmentConfigurationCount,
             componentDefinition == null ? null : componentDefinition.getIcon(), integration.getId(),
@@ -65,7 +101,16 @@ public record IntegrationDTO(
             integration.getLastIntegrationVersion(), integration.isMultipleInstances(), integration.getName(),
             integration.getPermissionExpression(), tags,
             componentDefinition == null ? integration.getComponentName() : componentDefinition.getTitle(),
-            integration.getVersion());
+            integration.getVersion(), false);
+    }
+
+    public IntegrationDTO withUnpublishedChanges(boolean unpublishedChanges) {
+        return new IntegrationDTO(
+            category, codeWorkflow, codeWorkflowLanguage, componentName, componentVersion, createdBy, createdDate,
+            description, developmentConfigurationCount, icon, id, integrationVersions, integrationWorkflowIds,
+            lastModifiedBy,
+            lastModifiedDate, lastPublishedDate, lastStatus, lastIntegrationVersion, multipleInstances, name,
+            permissionExpression, tags, title, version, unpublishedChanges);
     }
 
     public static Builder builder() {
@@ -94,6 +139,8 @@ public record IntegrationDTO(
     public static final class Builder {
         private boolean multipleInstances;
         private Category category;
+        private boolean codeWorkflow;
+        private String codeWorkflowLanguage;
         private String componentName;
         private int componentVersion = 1;
         private String createdBy;
@@ -123,6 +170,18 @@ public record IntegrationDTO(
 
         public Builder category(Category category) {
             this.category = category;
+
+            return this;
+        }
+
+        public Builder codeWorkflow(boolean codeWorkflow) {
+            this.codeWorkflow = codeWorkflow;
+
+            return this;
+        }
+
+        public Builder codeWorkflowLanguage(String codeWorkflowLanguage) {
+            this.codeWorkflowLanguage = codeWorkflowLanguage;
 
             return this;
         }
@@ -231,10 +290,10 @@ public record IntegrationDTO(
 
         public IntegrationDTO build() {
             return new IntegrationDTO(
-                category, componentName, componentVersion, createdBy,
+                category, codeWorkflow, codeWorkflowLanguage, componentName, componentVersion, createdBy,
                 createdDate, description, null, null, id, integrationVersions, integrationWorkflowIds, lastModifiedBy,
                 lastModifiedDate, lastPublishedDate, lastStatus, lastIntegrationVersion, multipleInstances, name,
-                permissionExpression, tags, null, version);
+                permissionExpression, tags, null, version, false);
         }
     }
 

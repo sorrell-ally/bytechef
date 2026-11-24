@@ -16,7 +16,7 @@
 
 package com.bytechef.automation.knowledgebase.web.graphql;
 
-import com.bytechef.platform.knowledgebase.facade.KnowledgeBaseTagFacade;
+import com.bytechef.automation.knowledgebase.facade.WorkspaceKnowledgeBaseFacade;
 import com.bytechef.platform.tag.domain.Tag;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.List;
@@ -35,21 +35,21 @@ import org.springframework.stereotype.Controller;
 @SuppressFBWarnings("EI")
 public class KnowledgeBaseTagGraphQlController {
 
-    private final KnowledgeBaseTagFacade knowledgeBaseTagFacade;
+    private final WorkspaceKnowledgeBaseFacade workspaceKnowledgeBaseFacade;
 
     @SuppressFBWarnings("EI")
-    public KnowledgeBaseTagGraphQlController(KnowledgeBaseTagFacade knowledgeBaseTagFacade) {
-        this.knowledgeBaseTagFacade = knowledgeBaseTagFacade;
+    public KnowledgeBaseTagGraphQlController(WorkspaceKnowledgeBaseFacade workspaceKnowledgeBaseFacade) {
+        this.workspaceKnowledgeBaseFacade = workspaceKnowledgeBaseFacade;
     }
 
     @QueryMapping
-    public List<Tag> knowledgeBaseTags() {
-        return knowledgeBaseTagFacade.getAllTags();
+    public List<Tag> knowledgeBaseTags(@Argument long workspaceId) {
+        return workspaceKnowledgeBaseFacade.getWorkspaceKnowledgeBaseTags(workspaceId);
     }
 
     @QueryMapping
-    public List<KnowledgeBaseTagsEntry> knowledgeBaseTagsByKnowledgeBase() {
-        return knowledgeBaseTagFacade.getTagsByKnowledgeBaseId()
+    public List<KnowledgeBaseTagsEntry> knowledgeBaseTagsByKnowledgeBase(@Argument long workspaceId) {
+        return workspaceKnowledgeBaseFacade.getWorkspaceKnowledgeBaseTagsByKnowledgeBaseId(workspaceId)
             .entrySet()
             .stream()
             .map(entry -> new KnowledgeBaseTagsEntry(entry.getKey(), entry.getValue()))
@@ -73,7 +73,7 @@ public class KnowledgeBaseTagGraphQlController {
             })
             .collect(Collectors.toList());
 
-        knowledgeBaseTagFacade.updateTags(input.knowledgeBaseId(), tags);
+        workspaceKnowledgeBaseFacade.updateKnowledgeBaseTags(input.knowledgeBaseId(), tags);
 
         return true;
     }

@@ -19,9 +19,12 @@ Name | Type
 `lastProjectVersion` | number
 `uuid` | string
 `category` | [Category](Category.md)
+`codeWorkflow` | boolean
+`codeWorkflowLanguage` | string
 `developmentDeploymentCount` | number
 `projectWorkflowIds` | Array&lt;number&gt;
 `tags` | [Array&lt;Tag&gt;](Tag.md)
+`unpublishedChanges` | boolean
 `workspaceId` | number
 `version` | number
 
@@ -44,9 +47,12 @@ const example = {
   "lastProjectVersion": null,
   "uuid": null,
   "category": null,
+  "codeWorkflow": null,
+  "codeWorkflowLanguage": null,
   "developmentDeploymentCount": null,
   "projectWorkflowIds": null,
   "tags": null,
+  "unpublishedChanges": null,
   "workspaceId": null,
   "version": null,
 } satisfies Project

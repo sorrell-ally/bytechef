@@ -26,6 +26,7 @@ info:
     postHog:
       apiKey: ${bytechef.analytics.postHog.apiKey:}
       host: ${bytechef.analytics.postHog.host:}
+      uiHost: ${bytechef.analytics.postHog.uiHost:}
   application:
     edition: ${bytechef.edition:}
   docs:
@@ -278,6 +279,9 @@ bytechef:
         test-retention: 24h
         # Largest size of one Claude Code workspace; 0 means no limit
         max-size: 1GB
+    custom-component:
+      java:
+        enabled: true
   coordinator:
     # Whether this instance runs the coordinator (orchestrates job and trigger execution)
     enabled: true
@@ -361,6 +365,24 @@ bytechef:
   scheduler:
     # Trigger scheduler provider (AWS(EE) | QUARTZ) default: QUARTZ
     provider: QUARTZ
+  script:
+    # Task runner allowlist. A runner absent from this map is disabled, which is the intended default for the
+    # out-of-process runners but not for GraalVM, the in-process runner every script action falls back to.
+    runners:
+      graalvm:
+        enabled: true
+    # Gives script and commands tasks on the process, docker, kubernetes and aws-batch runners the parameters of the
+    # connections they declare, in the JSON file BYTECHEF_CONNECTIONS_FILE names, masked in the captured output.
+    inject-connections: true
+    sandbox:
+      enabled: true
+      max-concurrent-executions: 16
+      max-cpu-time: 5m
+      max-heap-memory: 512MB
+    trusted:
+      # Lets a script task ask for mode: trusted, which runs it with full host access and no resource limits.
+      # Self-hosted default; set it to false on a multi-tenant deployment.
+      enabled: true
   security:
     content-security-policy: "default-src 'self'; frame-src 'self' data:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://storage.googleapis.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data:; font-src 'self' data:; script-src: https://*.command.ai; frame-src: https://*.command.ai; img-src: https://*.command.ai; media-src: https://*.command.ai; connect-src: https://*.command.ai; style-src: https://*.command.ai;"
   sign-up:
@@ -394,6 +416,9 @@ bytechef:
       # Concurrent executions in the synchronous, interactive lane (API Platform sync path, editor Test button)
       sync-concurrency-limit: 5
   workflow:
+    code-workflow:
+      java:
+        enabled: true
     execution:
       agent:
         # Maximum nesting depth of sub-workflows called by AI agent tools default: 10

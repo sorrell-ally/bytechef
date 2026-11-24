@@ -43,11 +43,17 @@ vi.mock(
         default: ({
             expandAll,
             integrationInstanceConfigurations,
+            showOpenInIntegration,
         }: {
             expandAll?: boolean;
             integrationInstanceConfigurations: IntegrationInstanceConfiguration[];
+            showOpenInIntegration?: boolean;
         }) => (
-            <ul data-expand-all={String(!!expandAll)} data-testid="integration-instance-configuration-list">
+            <ul
+                data-expand-all={String(!!expandAll)}
+                data-show-open-in-integration={String(!!showOpenInIntegration)}
+                data-testid="integration-instance-configuration-list"
+            >
                 {integrationInstanceConfigurations.map((integrationInstanceConfiguration) => (
                     <li key={integrationInstanceConfiguration.id}>{integrationInstanceConfiguration.name}</li>
                 ))}
@@ -112,7 +118,7 @@ describe('IntegrationInstanceConfigurationsPanel', () => {
         expect(hoisted.queryRequests[0]).toEqual({enabled: true, filters: {environmentId: 0, integrationId: 7}});
     });
 
-    it('lists the instance configurations sorted by name and expanded', () => {
+    it('lists the instance configurations sorted by name, expanded and with workflow links', () => {
         hoisted.integrationInstanceConfigurations = [
             {environmentId: 0, id: 2, integrationId: 7, integrationVersion: 1, name: 'Zeta'},
             {environmentId: 0, id: 1, integrationId: 7, integrationVersion: 1, name: 'Alpha'},
@@ -123,6 +129,7 @@ describe('IntegrationInstanceConfigurationsPanel', () => {
         const list = screen.getByTestId('integration-instance-configuration-list');
 
         expect(list).toHaveAttribute('data-expand-all', 'true');
+        expect(list).toHaveAttribute('data-show-open-in-integration', 'true');
         expect(list).toHaveTextContent('AlphaZeta');
     });
 
@@ -133,8 +140,8 @@ describe('IntegrationInstanceConfigurationsPanel', () => {
         expect(screen.getByText('Configuration dialog for integration 7 in environment 0')).toBeInTheDocument();
     });
 
-    it('asks to publish the integration first when it has no published version', () => {
-        renderPanel({lastPublishedDate: undefined});
+    it('asks to publish the integration first when it has workflows but no published version', () => {
+        renderPanel({integrationWorkflowIds: [1], lastPublishedDate: undefined});
 
         expect(screen.getByText('Publish the integration to configure it')).toBeInTheDocument();
         expect(screen.queryByText(/Configuration dialog/)).not.toBeInTheDocument();
@@ -150,10 +157,11 @@ describe('IntegrationInstanceConfigurationsPanel', () => {
         expect(screen.getByText('Publish dialog for integration 7')).toBeInTheDocument();
     });
 
-    it('disables publishing from the empty state of an integration without workflows', () => {
+    it('offers creating a configuration of an unpublished integration without workflows', () => {
         renderPanel({integrationWorkflowIds: [], lastPublishedDate: undefined});
 
-        expect(screen.getByRole('button', {name: 'Publish'})).toBeDisabled();
+        expect(screen.getByText('Configuration dialog for integration 7 in environment 0')).toBeInTheDocument();
+        expect(screen.queryByText('Publish the integration to configure it')).not.toBeInTheDocument();
     });
 
     it('shows one skeleton card with a row per integration workflow while loading', () => {

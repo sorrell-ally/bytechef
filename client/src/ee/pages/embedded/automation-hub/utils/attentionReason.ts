@@ -1,7 +1,8 @@
+export const AWAITING_CONFIGURATION_REASON = 'AWAITING_CONFIGURATION';
 const INPUT_REQUIRED_PREFIX = 'INPUT_REQUIRED:';
 const INVALID_WORKFLOW_PREFIX = 'INVALID_WORKFLOW:';
 const MISSING_CONNECTION_PREFIX = 'MISSING_CONNECTION:';
-const TURNED_OFF_BY_ADMINISTRATOR_REASON = 'TURNED_OFF_BY_ADMINISTRATOR';
+export const TURNED_OFF_BY_ADMINISTRATOR_REASON = 'TURNED_OFF_BY_ADMINISTRATOR';
 
 export const describeWorkflowErrors = (errorCount: number | undefined): string => {
     if (errorCount === 1) {
@@ -35,6 +36,10 @@ export const describeAttentionReason = (attentionReason: string | undefined): st
         const errorCount = Number.parseInt(attentionReason.slice(INVALID_WORKFLOW_PREFIX.length), 10);
 
         return `Fix ${describeWorkflowErrors(Number.isNaN(errorCount) ? undefined : errorCount)} in this workflow to turn it on`;
+    }
+
+    if (attentionReason === AWAITING_CONFIGURATION_REASON) {
+        return 'Waiting for your administrator to finish setting it up; it starts once they do';
     }
 
     if (attentionReason === TURNED_OFF_BY_ADMINISTRATOR_REASON) {

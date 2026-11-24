@@ -47,6 +47,7 @@ type AutomationProjectConfigurationInput {
     label: String
     type: String
     required: Boolean!
+    internalOnly: Boolean!
     componentName: String
     componentVersion: Int
     groupName: String
@@ -69,6 +70,7 @@ type AutomationProjectConfigurationVersionImpactWorkflow {
     newRequiredInputs: [String!]!
     newRequiredConnections: [String!]!
     affectedConnectedUserCount: Int!
+    awaitsConfiguration: Boolean!
 }
 
 type AutomationProjectConfigurationDeleteImpact {
@@ -94,6 +96,11 @@ type ConfigurationMoveResult {
     skipped: [ConfigurationMoveSkipped!]!
 }
 
+input ConfigurationMoveWorkflowInputs {
+    workflowUuid: ID!
+    inputs: Map!
+}
+
 type ConfigurationMoveSkipped {
     connectedUserId: ID!
     reason: String!
@@ -102,9 +109,11 @@ type ConfigurationMoveSkipped {
 
 extend type Query {
     automationProjectConfigurations(projectId: ID!, environmentId: ID): [AutomationProjectConfiguration!]!
-    automationProjectConfigurationWorkflowProvidableValues(id: ID!, workflowUuid: ID!): AutomationProjectConfigurationWorkflowProvidableValues!
-    automationProjectConfigurationWorkflowInputOptions(id: ID!, workflowUuid: ID!, inputName: String!, propertyName: String!, connectionId: ID!, lookupDependsOnValues: Map, searchText: String): [AutomationProjectConfigurationInputOption!]!
+    automationProjectConfigurationWorkflowProvidableValues(id: ID!, workflowUuid: ID!, projectVersion: Int): AutomationProjectConfigurationWorkflowProvidableValues!
+    automationProjectConfigurationWorkflowInputOptions(id: ID!, workflowUuid: ID!, projectVersion: Int, inputName: String!, propertyName: String!, connectionId: ID!, lookupDependsOnValues: Map, searchText: String): [AutomationProjectConfigurationInputOption!]!
     automationProjectConfigurationVersionImpact(id: ID!, projectVersion: Int!): AutomationProjectConfigurationVersionImpact!
+    automationProjectWorkflowProvidableValues(projectId: ID!, environmentId: ID!, projectVersion: Int!, workflowUuid: ID!): AutomationProjectConfigurationWorkflowProvidableValues!
+    automationProjectWorkflowInputOptions(projectId: ID!, environmentId: ID!, projectVersion: Int!, workflowUuid: ID!, inputName: String!, propertyName: String!, connectionId: ID!, lookupDependsOnValues: Map, searchText: String): [AutomationProjectConfigurationInputOption!]!
     automationProjectConfigurationDeleteImpact(id: ID!): AutomationProjectConfigurationDeleteImpact!
     automationProjectConfigurationConnectedUsers(id: ID!): [AutomationProjectConfigurationConnectedUser!]!
     automationProjectConfigurationMoveImpact(sourceId: ID!, targetId: ID!, connectedUserIds: [ID!]!): AutomationProjectConfigurationMoveImpact!
@@ -112,12 +121,14 @@ extend type Query {
 }
 
 extend type Mutation {
+    changeAutomationProjectConfigurationConnectedUserVersion(sourceId: ID!, connectedUserId: ID!, projectVersion: Int!, targetId: ID, workflowInputs: [ConfigurationMoveWorkflowInputs!]): ConfigurationMoveResult!
     createAutomationProjectConfiguration(projectId: ID!, environmentId: ID!, name: String!, permissionExpression: String, projectVersion: Int!, enabled: Boolean!, automationHubVisible: Boolean!): ID!
     updateAutomationProjectConfiguration(id: ID!, name: String!, permissionExpression: String, projectVersion: Int!, enabled: Boolean!, automationHubVisible: Boolean!): Boolean!
     deleteAutomationProjectConfiguration(id: ID!): Boolean!
     enableAutomationProjectConfiguration(id: ID!, enable: Boolean!): Boolean!
     enableAutomationProjectConfigurationWorkflow(id: ID!, workflowUuid: ID!, enable: Boolean!): Boolean!
-    moveAutomationProjectConfigurationConnectedUsers(sourceId: ID!, targetId: ID!, connectedUserIds: [ID!]!): ConfigurationMoveResult!
-    upgradeAutomationProjectConfigurationConnectedUsers(targetId: ID!, connectedUserIds: [ID!]!): ConfigurationMoveResult!
+    enableConnectedUserAutomationProjectConfiguration(connectedUserId: ID!, projectId: ID!, enable: Boolean!): Boolean!
+    moveAutomationProjectConfigurationConnectedUsers(sourceId: ID!, targetId: ID!, connectedUserIds: [ID!]!, workflowInputs: [ConfigurationMoveWorkflowInputs!]): ConfigurationMoveResult!
+    upgradeAutomationProjectConfigurationConnectedUsers(targetId: ID!, connectedUserIds: [ID!]!, workflowInputs: [ConfigurationMoveWorkflowInputs!]): ConfigurationMoveResult!
     updateAutomationProjectConfigurationWorkflow(id: ID!, workflowUuid: ID!, providedConnections: Map, providedInputs: Map): Boolean!
 }

@@ -11,6 +11,7 @@ import com.bytechef.automation.configuration.domain.Project;
 import com.bytechef.automation.configuration.repository.ProjectRepository;
 import com.bytechef.automation.configuration.security.AutomationAuthorizationContext;
 import com.bytechef.automation.configuration.security.ResourceOwnershipResolver;
+import com.bytechef.automation.configuration.service.CurrentUserResolver;
 import com.bytechef.automation.configuration.service.PermissionService;
 import com.bytechef.ee.automation.configuration.repository.WorkspaceUserRepository;
 import com.bytechef.ee.automation.configuration.security.constant.WorkspaceRole;
@@ -48,7 +49,7 @@ public class PermissionServiceImpl implements PermissionService {
     private final CurrentUserResolver currentUserResolver;
     private final PermissionScopeRegistry permissionScopeRegistry;
     private final ProjectRepository projectRepository;
-    private final WorkspaceScopeCacheService workspaceScopeCacheService;
+    private final WorkspaceScopeCache workspaceScopeCache;
     private final WorkspaceUserRepository workspaceUserRepository;
     private final Map<String, ResourceOwnershipResolver> resourceOwnershipResolvers;
 
@@ -57,14 +58,14 @@ public class PermissionServiceImpl implements PermissionService {
     })
     public PermissionServiceImpl(
         CurrentUserResolver currentUserResolver, PermissionScopeRegistry permissionScopeRegistry,
-        ProjectRepository projectRepository, WorkspaceScopeCacheService workspaceScopeCacheService,
+        ProjectRepository projectRepository, WorkspaceScopeCache workspaceScopeCache,
         WorkspaceUserRepository workspaceUserRepository,
         List<ResourceOwnershipResolver> resourceOwnershipResolvers) {
 
         this.currentUserResolver = currentUserResolver;
         this.permissionScopeRegistry = permissionScopeRegistry;
         this.projectRepository = projectRepository;
-        this.workspaceScopeCacheService = workspaceScopeCacheService;
+        this.workspaceScopeCache = workspaceScopeCache;
         this.workspaceUserRepository = workspaceUserRepository;
         this.resourceOwnershipResolvers = resourceOwnershipResolvers.stream()
             .collect(Collectors.toMap(ResourceOwnershipResolver::resourceType, Function.identity()));
@@ -130,7 +131,7 @@ public class PermissionServiceImpl implements PermissionService {
             return false;
         }
 
-        Set<String> scopeNames = workspaceScopeCacheService.getWorkspaceScopes(userId.getAsLong(), workspaceId);
+        Set<String> scopeNames = workspaceScopeCache.getWorkspaceScopes(userId.getAsLong(), workspaceId);
 
         return scopeNames.contains(scope);
     }
@@ -283,22 +284,22 @@ public class PermissionServiceImpl implements PermissionService {
             return Collections.emptySet();
         }
 
-        return Set.copyOf(workspaceScopeCacheService.getWorkspaceScopes(userId.getAsLong(), workspaceId));
+        return Set.copyOf(workspaceScopeCache.getWorkspaceScopes(userId.getAsLong(), workspaceId));
     }
 
     @Override
     public void evictWorkspaceScopeCache(long userId, long workspaceId) {
-        workspaceScopeCacheService.evictWorkspaceScopeCache(userId, workspaceId);
+        workspaceScopeCache.evictWorkspaceScopeCache(userId, workspaceId);
     }
 
     @Override
     public void evictWorkspaceScopeCaches(Collection<UserWorkspacePair> userWorkspacePairs) {
-        workspaceScopeCacheService.evictWorkspaceScopeCaches(userWorkspacePairs);
+        workspaceScopeCache.evictWorkspaceScopeCaches(userWorkspacePairs);
     }
 
     @Override
     public void evictAllWorkspaceScopeCache() {
-        workspaceScopeCacheService.evictAllWorkspaceScopeCache();
+        workspaceScopeCache.evictAllWorkspaceScopeCache();
     }
 
     private static boolean isAutomationAuthorizationSkipped() {

@@ -25,7 +25,7 @@ import com.bytechef.ee.embedded.configuration.dto.AutomationProjectConfiguration
 import com.bytechef.ee.embedded.configuration.dto.ConfigurationMoveImpactDTO;
 import com.bytechef.ee.embedded.configuration.dto.ConfigurationMoveResultDTO;
 import com.bytechef.ee.embedded.configuration.exception.AutomationProjectConfigurationErrorType;
-import com.bytechef.ee.embedded.configuration.facade.AutomationProjectConfigurationAdminFacade;
+import com.bytechef.ee.embedded.configuration.facade.AutomationProjectConfigurationFacade;
 import com.bytechef.ee.embedded.configuration.web.graphql.config.EmbeddedConfigurationGraphQlConfigurationSharedMocks;
 import com.bytechef.ee.embedded.configuration.web.graphql.config.EmbeddedConfigurationGraphQlTestConfiguration;
 import com.bytechef.exception.ConfigurationException;
@@ -57,11 +57,11 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
         "spring.graphql.schema.locations=classpath*:/graphql/"
     })
 @EmbeddedConfigurationGraphQlConfigurationSharedMocks
-@MockitoBean(types = AutomationProjectConfigurationAdminFacade.class)
+@MockitoBean(types = AutomationProjectConfigurationFacade.class)
 class AutomationProjectConfigurationGraphQlControllerIntTest {
 
     @Autowired
-    private AutomationProjectConfigurationAdminFacade automationProjectConfigurationAdminFacade;
+    private AutomationProjectConfigurationFacade automationProjectConfigurationFacade;
 
     @Autowired
     private AutomationProjectConfigurationGraphQlController automationProjectConfigurationGraphQlController;
@@ -74,7 +74,7 @@ class AutomationProjectConfigurationGraphQlControllerIntTest {
         AutomationProjectConfigurationDTO configuration = new AutomationProjectConfigurationDTO(
             5L, 7L, 1L, "Standard", null, 1, true, true, 0, List.of(), Instant.parse("2026-10-28T10:00:00Z"), null);
 
-        when(automationProjectConfigurationAdminFacade.getConfigurations(7L, 1L))
+        when(automationProjectConfigurationFacade.getConfigurations(7L, 1L))
             .thenReturn(List.of(configuration));
 
         this.graphQlTester
@@ -94,7 +94,7 @@ class AutomationProjectConfigurationGraphQlControllerIntTest {
             .entity(String.class)
             .isEqualTo("1");
 
-        verify(automationProjectConfigurationAdminFacade, never()).getConfigurations(7L);
+        verify(automationProjectConfigurationFacade, never()).getConfigurations(7L);
     }
 
     @Test
@@ -108,7 +108,7 @@ class AutomationProjectConfigurationGraphQlControllerIntTest {
                     null, Map.of(), Map.of())),
             Instant.parse("2026-10-28T10:00:00Z"), null);
 
-        when(automationProjectConfigurationAdminFacade.getConfigurations(7L))
+        when(automationProjectConfigurationFacade.getConfigurations(7L))
             .thenReturn(List.of(configuration));
 
         this.graphQlTester
@@ -176,14 +176,42 @@ class AutomationProjectConfigurationGraphQlControllerIntTest {
     }
 
     @Test
-    void testAutomationProjectConfigurationWorkflowProvidableValuesReturnsTheComponentReferenceOfAnInput() {
-        when(automationProjectConfigurationAdminFacade.getConfigurationWorkflowProvidableValues(5L, "uuid-one"))
+    void testAutomationProjectWorkflowProvidableValuesReadsTheProjectVersionWithoutAConfiguration() {
+        when(automationProjectConfigurationFacade.getProjectWorkflowProvidableValues(7L, 2L, 3, "uuid-one"))
             .thenReturn(
                 new AutomationProjectConfigurationWorkflowProvidableValuesDTO(
                     List.of(),
                     List.of(
                         new AutomationProjectConfigurationWorkflowProvidableValuesDTO.Input(
-                            "channel", "Slack Channel", "STRING", true, "slack", 1, "channel",
+                            "channel", "Slack Channel", "STRING", true, true)),
+                    Map.of(), Map.of()));
+
+        this.graphQlTester
+            .document("""
+                query {
+                    automationProjectWorkflowProvidableValues(
+                        projectId: "7", environmentId: "2", projectVersion: 3, workflowUuid: "uuid-one") {
+                        inputs {
+                            name
+                        }
+                    }
+                }
+                """)
+            .execute()
+            .path("automationProjectWorkflowProvidableValues.inputs[0].name")
+            .entity(String.class)
+            .isEqualTo("channel");
+    }
+
+    @Test
+    void testAutomationProjectConfigurationWorkflowProvidableValuesReturnsTheComponentReferenceOfAnInput() {
+        when(automationProjectConfigurationFacade.getConfigurationWorkflowProvidableValues(5L, "uuid-one", null))
+            .thenReturn(
+                new AutomationProjectConfigurationWorkflowProvidableValuesDTO(
+                    List.of(),
+                    List.of(
+                        new AutomationProjectConfigurationWorkflowProvidableValuesDTO.Input(
+                            "channel", "Slack Channel", "STRING", true, false, "slack", 1, "channel",
                             List.of(
                                 new AutomationProjectConfigurationWorkflowProvidableValuesDTO.ProvidableConnection(
                                     31L, "Company Slack")))),
@@ -225,9 +253,33 @@ class AutomationProjectConfigurationGraphQlControllerIntTest {
     }
 
     @Test
+    void testAutomationProjectConfigurationWorkflowProvidableValuesPassesTheProjectVersion() {
+        when(automationProjectConfigurationFacade.getConfigurationWorkflowProvidableValues(5L, "uuid-one", 3))
+            .thenReturn(
+                new AutomationProjectConfigurationWorkflowProvidableValuesDTO(
+                    List.of(), List.of(), Map.of(), Map.of()));
+
+        this.graphQlTester
+            .document("""
+                query {
+                    automationProjectConfigurationWorkflowProvidableValues(
+                        id: "5", workflowUuid: "uuid-one", projectVersion: 3) {
+                        providedConnections
+                    }
+                }
+                """)
+            .execute()
+            .path("automationProjectConfigurationWorkflowProvidableValues.providedConnections")
+            .entity(Map.class)
+            .isEqualTo(Map.of());
+
+        verify(automationProjectConfigurationFacade).getConfigurationWorkflowProvidableValues(5L, "uuid-one", 3);
+    }
+
+    @Test
     void testAutomationProjectConfigurationWorkflowInputOptionsPassesTheConnectionAndDependencies() {
-        when(automationProjectConfigurationAdminFacade.getConfigurationWorkflowInputOptions(
-            5L, "uuid-one", "channel", "channel", 31L, Map.of("workspace", "acme"), "gen"))
+        when(automationProjectConfigurationFacade.getConfigurationWorkflowInputOptions(
+            5L, "uuid-one", null, "channel", "channel", 31L, Map.of("workspace", "acme"), "gen"))
                 .thenReturn(
                     List.of(
                         new AutomationProjectConfigurationWorkflowProvidableValuesDTO.InputOption(
@@ -260,7 +312,7 @@ class AutomationProjectConfigurationGraphQlControllerIntTest {
 
     @Test
     void testAutomationProjectConfigurationWorkflowProvidableValuesReturnsSlotsInputsAndProvidedValues() {
-        when(automationProjectConfigurationAdminFacade.getConfigurationWorkflowProvidableValues(5L, "uuid-one"))
+        when(automationProjectConfigurationFacade.getConfigurationWorkflowProvidableValues(5L, "uuid-one", null))
             .thenReturn(
                 new AutomationProjectConfigurationWorkflowProvidableValuesDTO(
                     List.of(
@@ -271,7 +323,7 @@ class AutomationProjectConfigurationGraphQlControllerIntTest {
                                     42L, "Company OpenAI")))),
                     List.of(
                         new AutomationProjectConfigurationWorkflowProvidableValuesDTO.Input(
-                            "channel", "Channel", "STRING", true)),
+                            "channel", "Channel", "STRING", true, true)),
                     Map.of("openai", 42L), Map.of("channel", "general")));
 
         this.graphQlTester
@@ -292,6 +344,7 @@ class AutomationProjectConfigurationGraphQlControllerIntTest {
                             label
                             type
                             required
+                            internalOnly
                         }
                         providedConnections
                         providedInputs
@@ -320,6 +373,9 @@ class AutomationProjectConfigurationGraphQlControllerIntTest {
             .entity(String.class)
             .isEqualTo("channel")
             .path("automationProjectConfigurationWorkflowProvidableValues.inputs[0].required")
+            .entity(Boolean.class)
+            .isEqualTo(true)
+            .path("automationProjectConfigurationWorkflowProvidableValues.inputs[0].internalOnly")
             .entity(Boolean.class)
             .isEqualTo(true)
             .path("automationProjectConfigurationWorkflowProvidableValues.providedConnections.openai")
@@ -353,12 +409,12 @@ class AutomationProjectConfigurationGraphQlControllerIntTest {
 
     @Test
     void testAutomationProjectConfigurationVersionImpactReturnsTheWorkflowsItWouldPause() {
-        when(automationProjectConfigurationAdminFacade.getVersionImpact(5L, 4))
+        when(automationProjectConfigurationFacade.getVersionImpact(5L, 4))
             .thenReturn(
                 new AutomationProjectConfigurationVersionImpactDTO(
                     List.of(
                         new AutomationProjectConfigurationVersionImpactDTO.Workflow(
-                            "uuid-one", "Notify Slack", List.of("channel"), List.of("jira"), 12))));
+                            "uuid-one", "Notify Slack", List.of("channel"), List.of("jira"), 12, true))));
 
         this.graphQlTester
             .document("""
@@ -370,6 +426,7 @@ class AutomationProjectConfigurationGraphQlControllerIntTest {
                             newRequiredInputs
                             newRequiredConnections
                             affectedConnectedUserCount
+                            awaitsConfiguration
                         }
                     }
                 }
@@ -389,12 +446,15 @@ class AutomationProjectConfigurationGraphQlControllerIntTest {
             .containsExactly("jira")
             .path("automationProjectConfigurationVersionImpact.workflows[0].affectedConnectedUserCount")
             .entity(Integer.class)
-            .isEqualTo(12);
+            .isEqualTo(12)
+            .path("automationProjectConfigurationVersionImpact.workflows[0].awaitsConfiguration")
+            .entity(Boolean.class)
+            .isEqualTo(true);
     }
 
     @Test
     void testAutomationProjectConfigurationDeleteImpactReturnsTheCounts() {
-        when(automationProjectConfigurationAdminFacade.getDeleteImpact(5L))
+        when(automationProjectConfigurationFacade.getDeleteImpact(5L))
             .thenReturn(new AutomationProjectConfigurationDeleteImpactDTO(3, 7));
 
         this.graphQlTester
@@ -417,7 +477,7 @@ class AutomationProjectConfigurationGraphQlControllerIntTest {
 
     @Test
     void testAutomationProjectConfigurationConnectedUsersReturnsTheAssignedUsers() {
-        when(automationProjectConfigurationAdminFacade.getConfigurationConnectedUsers(5L))
+        when(automationProjectConfigurationFacade.getConfigurationConnectedUsers(5L))
             .thenReturn(
                 List.of(
                     new AutomationProjectConfigurationConnectedUserDTO(
@@ -456,12 +516,12 @@ class AutomationProjectConfigurationGraphQlControllerIntTest {
 
     @Test
     void testAutomationProjectConfigurationMoveImpactReturnsWorkflowsAndSkippedUsers() {
-        when(automationProjectConfigurationAdminFacade.getMoveImpact(5L, 6L, List.of(21L, 22L)))
+        when(automationProjectConfigurationFacade.getMoveImpact(5L, 6L, List.of(21L, 22L)))
             .thenReturn(
                 new ConfigurationMoveImpactDTO(
                     List.of(
                         new AutomationProjectConfigurationVersionImpactDTO.Workflow(
-                            "uuid-one", "Notify Slack", List.of("channel"), List.of("jira"), 1)),
+                            "uuid-one", "Notify Slack", List.of("channel"), List.of("jira"), 1, false)),
                     List.of(
                         new ConfigurationMoveResultDTO.Skipped(
                             22L, ConfigurationMoveResultDTO.Skipped.TARGET_LACKS_REFERENCED_WORKFLOWS,
@@ -512,15 +572,76 @@ class AutomationProjectConfigurationGraphQlControllerIntTest {
     }
 
     @Test
+    void testChangeAutomationProjectConfigurationConnectedUserVersionReturnsTheResult() {
+        when(automationProjectConfigurationFacade.changeConnectedUserVersion(5L, 21L, 3, null, Map.of()))
+            .thenReturn(new ConfigurationMoveResultDTO(List.of(21L), List.of(), List.of(), 7L));
+
+        this.graphQlTester
+            .document("""
+                mutation {
+                    changeAutomationProjectConfigurationConnectedUserVersion(
+                        sourceId: "5", connectedUserId: "21", projectVersion: 3) {
+                        movedConnectedUserIds
+                        needsAttentionConnectedUserIds
+                    }
+                }
+                """)
+            .execute()
+            .path("changeAutomationProjectConfigurationConnectedUserVersion.movedConnectedUserIds")
+            .entityList(String.class)
+            .containsExactly("21")
+            .path("changeAutomationProjectConfigurationConnectedUserVersion.needsAttentionConnectedUserIds")
+            .entityList(String.class)
+            .hasSize(0);
+    }
+
+    @Test
+    void testChangeAutomationProjectConfigurationConnectedUserVersionPassesTheTarget() {
+        when(automationProjectConfigurationFacade.changeConnectedUserVersion(5L, 21L, 1, 7L, Map.of()))
+            .thenReturn(
+                new ConfigurationMoveResultDTO(
+                    List.of(),
+                    List.of(
+                        new ConfigurationMoveResultDTO.Skipped(
+                            21L, ConfigurationMoveResultDTO.Skipped.TARGET_LACKS_REFERENCED_WORKFLOWS,
+                            List.of("Sync"))),
+                    List.of(), 9L));
+
+        this.graphQlTester
+            .document("""
+                mutation {
+                    changeAutomationProjectConfigurationConnectedUserVersion(
+                        sourceId: "5", connectedUserId: "21", projectVersion: 1, targetId: "7") {
+                        skipped {
+                            connectedUserId
+                            reason
+                            workflowLabels
+                        }
+                    }
+                }
+                """)
+            .execute()
+            .path("changeAutomationProjectConfigurationConnectedUserVersion.skipped[0].connectedUserId")
+            .entity(String.class)
+            .isEqualTo("21")
+            .path("changeAutomationProjectConfigurationConnectedUserVersion.skipped[0].reason")
+            .entity(String.class)
+            .isEqualTo("TARGET_LACKS_REFERENCED_WORKFLOWS")
+            .path("changeAutomationProjectConfigurationConnectedUserVersion.skipped[0].workflowLabels")
+            .entityList(String.class)
+            .containsExactly("Sync");
+    }
+
+    @Test
     void testMoveAutomationProjectConfigurationConnectedUsersReturnsTheResult() {
-        when(automationProjectConfigurationAdminFacade.moveConnectedUsers(5L, 6L, List.of(21L, 22L, 23L)))
+        when(automationProjectConfigurationFacade.moveConnectedUsers(5L, 6L, List.of(21L, 22L, 23L), Map.of()))
             .thenReturn(
                 new ConfigurationMoveResultDTO(
                     List.of(21L, 23L),
                     List.of(
                         new ConfigurationMoveResultDTO.Skipped(
                             22L, ConfigurationMoveResultDTO.Skipped.NOT_ON_SOURCE, List.of())),
-                    List.of(23L)));
+                    List.of(23L), 9L));
 
         this.graphQlTester
             .document("""
@@ -556,13 +677,38 @@ class AutomationProjectConfigurationGraphQlControllerIntTest {
     }
 
     @Test
+    void testMoveAutomationProjectConfigurationConnectedUsersPassesTheWorkflowInputs() {
+        when(
+            automationProjectConfigurationFacade.moveConnectedUsers(
+                5L, 6L, List.of(21L), Map.of("uuid-one", Map.of("contactPageUrl", "https://example.com/contact"))))
+                    .thenReturn(new ConfigurationMoveResultDTO(List.of(21L), List.of(), List.of(), 6L));
+
+        this.graphQlTester
+            .document("""
+                mutation {
+                    moveAutomationProjectConfigurationConnectedUsers(
+                        sourceId: "5", targetId: "6", connectedUserIds: ["21"],
+                        workflowInputs: [
+                            {workflowUuid: "uuid-one", inputs: {contactPageUrl: "https://example.com/contact"}}
+                        ]) {
+                        movedConnectedUserIds
+                    }
+                }
+                """)
+            .execute()
+            .path("moveAutomationProjectConfigurationConnectedUsers.movedConnectedUserIds")
+            .entityList(String.class)
+            .containsExactly("21");
+    }
+
+    @Test
     void testAutomationProjectConfigurationUpgradeImpactReturnsWorkflowsAndSkippedUsers() {
-        when(automationProjectConfigurationAdminFacade.getUpgradeImpact(6L, List.of(21L, 22L)))
+        when(automationProjectConfigurationFacade.getUpgradeImpact(6L, List.of(21L, 22L)))
             .thenReturn(
                 new ConfigurationMoveImpactDTO(
                     List.of(
                         new AutomationProjectConfigurationVersionImpactDTO.Workflow(
-                            "uuid-one", "Notify Slack", List.of("channel"), List.of("jira"), 1)),
+                            "uuid-one", "Notify Slack", List.of("channel"), List.of("jira"), 1, false)),
                     List.of(
                         new ConfigurationMoveResultDTO.Skipped(
                             22L, ConfigurationMoveResultDTO.Skipped.TARGET_LACKS_REFERENCED_WORKFLOWS,
@@ -611,19 +757,19 @@ class AutomationProjectConfigurationGraphQlControllerIntTest {
             .entityList(String.class)
             .containsExactly("Sync Leads");
 
-        verify(automationProjectConfigurationAdminFacade).getUpgradeImpact(6L, List.of(21L, 22L));
+        verify(automationProjectConfigurationFacade).getUpgradeImpact(6L, List.of(21L, 22L));
     }
 
     @Test
     void testUpgradeAutomationProjectConfigurationConnectedUsersReturnsTheResult() {
-        when(automationProjectConfigurationAdminFacade.upgradeConnectedUsers(6L, List.of(21L, 22L, 23L)))
+        when(automationProjectConfigurationFacade.upgradeConnectedUsers(6L, List.of(21L, 22L, 23L), Map.of()))
             .thenReturn(
                 new ConfigurationMoveResultDTO(
                     List.of(21L, 23L),
                     List.of(
                         new ConfigurationMoveResultDTO.Skipped(
                             22L, ConfigurationMoveResultDTO.Skipped.NOT_ON_SOURCE, List.of())),
-                    List.of(23L)));
+                    List.of(23L), 9L));
 
         this.graphQlTester
             .document("""
@@ -657,12 +803,12 @@ class AutomationProjectConfigurationGraphQlControllerIntTest {
             .entityList(String.class)
             .hasSize(0);
 
-        verify(automationProjectConfigurationAdminFacade).upgradeConnectedUsers(6L, List.of(21L, 22L, 23L));
+        verify(automationProjectConfigurationFacade).upgradeConnectedUsers(6L, List.of(21L, 22L, 23L), Map.of());
     }
 
     @Test
     void testCreateAutomationProjectConfigurationDelegatesAndReturnsId() {
-        when(automationProjectConfigurationAdminFacade.createConfiguration(
+        when(automationProjectConfigurationFacade.createConfiguration(
             7L, 0L, "Beta", "metadata['beta'] == 'true'", 2, true, false))
                 .thenReturn(11L);
 
@@ -683,7 +829,7 @@ class AutomationProjectConfigurationGraphQlControllerIntTest {
 
     @Test
     void testCreateAutomationProjectConfigurationWithoutPermissionExpressionPassesNull() {
-        when(automationProjectConfigurationAdminFacade.createConfiguration(
+        when(automationProjectConfigurationFacade.createConfiguration(
             7L, 0L, "Alpha", null, 2, true, true))
                 .thenReturn(12L);
 
@@ -716,7 +862,7 @@ class AutomationProjectConfigurationGraphQlControllerIntTest {
             .entity(Boolean.class)
             .isEqualTo(true);
 
-        verify(automationProjectConfigurationAdminFacade).updateConfiguration(
+        verify(automationProjectConfigurationFacade).updateConfiguration(
             5L, "Gamma", "metadata['gamma'] == 'true'", 3, false, true);
     }
 
@@ -733,7 +879,7 @@ class AutomationProjectConfigurationGraphQlControllerIntTest {
             .entity(Boolean.class)
             .isEqualTo(true);
 
-        verify(automationProjectConfigurationAdminFacade)
+        verify(automationProjectConfigurationFacade)
             .enableConfigurationWorkflow(5L, "uuid", false);
     }
 
@@ -752,7 +898,7 @@ class AutomationProjectConfigurationGraphQlControllerIntTest {
             .entity(Boolean.class)
             .isEqualTo(true);
 
-        verify(automationProjectConfigurationAdminFacade)
+        verify(automationProjectConfigurationFacade)
             .updateConfigurationWorkflow(
                 5L, "uuid", Map.of("openai", 42L, "slack", 43L), Map.of("channel", "general", "limit", 3));
     }
@@ -770,7 +916,7 @@ class AutomationProjectConfigurationGraphQlControllerIntTest {
             .entity(Boolean.class)
             .isEqualTo(true);
 
-        verify(automationProjectConfigurationAdminFacade)
+        verify(automationProjectConfigurationFacade)
             .updateConfigurationWorkflow(5L, "uuid", Map.of(), Map.of());
     }
 
@@ -797,7 +943,7 @@ class AutomationProjectConfigurationGraphQlControllerIntTest {
                                 AutomationProjectConfigurationErrorType.INVALID_PROVIDED_VALUE.getErrorKey());
                         });
 
-        verify(automationProjectConfigurationAdminFacade, never())
+        verify(automationProjectConfigurationFacade, never())
             .updateConfigurationWorkflow(anyLong(), anyString(), anyMap(), any());
     }
 
@@ -814,6 +960,6 @@ class AutomationProjectConfigurationGraphQlControllerIntTest {
             .entity(Boolean.class)
             .isEqualTo(true);
 
-        verify(automationProjectConfigurationAdminFacade).deleteConfiguration(5L);
+        verify(automationProjectConfigurationFacade).deleteConfiguration(5L);
     }
 }

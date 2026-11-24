@@ -22,14 +22,16 @@ import com.bytechef.platform.workflow.WorkflowExecutionId;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * Resolves the static webhook url of a connected user's automation workflow, the same url the automation project
- * deployment exposes for a workflow that starts with a static webhook trigger (e.g. Request or Webhook).
+ * Resolves the static webhook url of a connected user's workflow that starts with a static webhook trigger (e.g.
+ * Webhook): an automation workflow, the same url the automation project deployment exposes, or an integration instance
+ * workflow, the url its trigger was enabled with.
  *
  * @version ee
  *
@@ -41,7 +43,7 @@ class ConnectedUserWorkflowWebhookUrlResolver {
 
     private static final Logger log = LoggerFactory.getLogger(ConnectedUserWorkflowWebhookUrlResolver.class);
 
-    private static final String REQUEST_COMPONENT_NAME = "request";
+    private static final Set<String> EMBEDDED_API_TRIGGER_COMPONENT_NAMES = Set.of("appEvent", "request");
 
     private final ProjectWorkflowService projectWorkflowService;
     private final TriggerDefinitionService triggerDefinitionService;
@@ -79,14 +81,43 @@ class ConnectedUserWorkflowWebhookUrlResolver {
             return null;
         }
 
-        Workflow workflow = workflowService.getWorkflow(workflowId.get());
+        return resolve(
+            PlatformType.AUTOMATION, projectDeploymentId, workflowUuid, workflowService.getWorkflow(workflowId.get()));
+    }
 
+    @Nullable
+    String resolveIntegrationInstanceWorkflow(
+        long integrationInstanceId, String workflowUuid, @Nullable Workflow workflow) {
+
+        if (workflow == null || webhookUrl == null) {
+            return null;
+        }
+
+        return resolve(PlatformType.EMBEDDED, integrationInstanceId, workflowUuid, workflow);
+    }
+
+    boolean hasStaticWebhookTrigger(@Nullable Workflow workflow) {
+        if (workflow == null) {
+            return false;
+        }
+
+        for (WorkflowTrigger workflowTrigger : WorkflowTrigger.ofEnabled(workflow)) {
+            if (isStaticWebhookTrigger(WorkflowNodeType.ofType(workflowTrigger.getType()))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    @Nullable
+    private String resolve(PlatformType platformType, long id, String workflowUuid, Workflow workflow) {
         for (WorkflowTrigger workflowTrigger : WorkflowTrigger.ofEnabled(workflow)) {
             WorkflowNodeType workflowNodeType = WorkflowNodeType.ofType(workflowTrigger.getType());
 
             if (isStaticWebhookTrigger(workflowNodeType)) {
                 WorkflowExecutionId workflowExecutionId = WorkflowExecutionId.of(
-                    PlatformType.AUTOMATION, projectDeploymentId, workflowUuid, workflowTrigger.getName());
+                    platformType, id, workflowUuid, workflowTrigger.getName());
 
                 return webhookUrl.replace("{id}", workflowExecutionId.toString());
             }
@@ -102,9 +133,7 @@ class ConnectedUserWorkflowWebhookUrlResolver {
             return false;
         }
 
-        // The request component's triggers are static webhooks for the engine, but connected users start them through
-        // the embedded public API with their own token, not through the shared webhook url
-        if (Objects.equals(workflowNodeType.name(), REQUEST_COMPONENT_NAME)) {
+        if (EMBEDDED_API_TRIGGER_COMPONENT_NAMES.contains(workflowNodeType.name())) {
             return false;
         }
 

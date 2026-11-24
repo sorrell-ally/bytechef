@@ -2448,8 +2448,14 @@ public final class ComponentDsl {
         implements Property.FileEntryProperty {
 
         private final List<? extends ValueProperty<?>> properties = List.of(
-            string("extension").required(true), string("mimeType").required(true),
-            string("name").required(true), string("url").required(true));
+            string("extension").exampleValue("xlsx")
+                .required(true),
+            string("mimeType").exampleValue("application/vnd.openxmlformats-officedocument")
+                .required(true),
+            string("name").exampleValue("deposit-20261101.xlsx")
+                .required(true),
+            string("url").exampleValue("file:/editor/temp/5f0b3d46-548b-42d3-8c30-b1bf5e0d1de2.xlsx")
+                .required(true));
 
         private ModifiableFileEntryProperty() {
             this(null);
@@ -3624,6 +3630,7 @@ public final class ComponentDsl {
         private String title;
         private TriggerType type;
         private Boolean webhookRawBody = Boolean.FALSE;
+        private WebhookResponseFunction webhookResponseFunction;
         private WebhookValidateFunction webhookValidateFunction;
         private WebhookValidateOnEnableFunction webhookValidateOnEnableFunction;
         private WorkflowNodeDescriptionFunction workflowNodeDescriptionFunction;
@@ -3807,6 +3814,12 @@ public final class ComponentDsl {
             return this;
         }
 
+        public ModifiableTriggerDefinition webhookResponse(WebhookResponseFunction webhookResponse) {
+            this.webhookResponseFunction = webhookResponse;
+
+            return this;
+        }
+
         public ModifiableTriggerDefinition webhookValidateOnEnable(
             WebhookValidateOnEnableFunction webhookValidateEnable) {
 
@@ -3853,6 +3866,7 @@ public final class ComponentDsl {
                 Objects.equals(pollFunction, that.pollFunction) && Objects.equals(properties, that.properties) &&
                 Objects.equals(title, that.title) && type == that.type &&
                 Objects.equals(webhookRawBody, that.webhookRawBody) &&
+                Objects.equals(webhookResponseFunction, that.webhookResponseFunction) &&
                 Objects.equals(webhookValidateFunction, that.webhookValidateFunction) &&
                 Objects.equals(webhookValidateOnEnableFunction, that.webhookValidateOnEnableFunction) &&
                 Objects.equals(workflowNodeDescriptionFunction, that.workflowNodeDescriptionFunction) &&
@@ -3864,7 +3878,7 @@ public final class ComponentDsl {
             return Objects.hash(batch, deduplicateFunction, deprecated, description, webhookDisableConsumer,
                 webhookEnableFunction, dynamicWebhookRefreshFunction, webhookRequestFunction, help,
                 listenerDisableConsumer, listenerEnableConsumer, name, outputDefinition, pollFunction, properties,
-                title, type, webhookRawBody, webhookValidateFunction,
+                title, type, webhookRawBody, webhookResponseFunction, webhookValidateFunction,
                 webhookValidateOnEnableFunction, workflowNodeDescriptionFunction,
                 workflowSyncExecution);
         }
@@ -3962,6 +3976,11 @@ public final class ComponentDsl {
         @Override
         public Optional<WebhookRequestFunction> getWebhookRequest() {
             return Optional.ofNullable(webhookRequestFunction);
+        }
+
+        @Override
+        public Optional<WebhookResponseFunction> getWebhookResponse() {
+            return Optional.ofNullable(webhookResponseFunction);
         }
 
         @Override

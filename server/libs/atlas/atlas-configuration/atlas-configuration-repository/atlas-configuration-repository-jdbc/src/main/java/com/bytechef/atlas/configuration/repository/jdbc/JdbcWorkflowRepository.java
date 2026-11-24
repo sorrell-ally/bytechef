@@ -21,14 +21,18 @@ import com.bytechef.atlas.configuration.domain.Workflow.SourceType;
 import com.bytechef.atlas.configuration.repository.WorkflowCrudRepository;
 import com.bytechef.atlas.configuration.repository.WorkflowRepository;
 import com.bytechef.atlas.configuration.repository.annotation.ConditionalOnWorkflowRepositoryJdbc;
+import java.time.Instant;
 import java.util.List;
 import org.springframework.core.annotation.Order;
+import org.springframework.data.jdbc.repository.query.Modifying;
+import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.ListCrudRepository;
 import org.springframework.data.repository.ListPagingAndSortingRepository;
 import org.springframework.stereotype.Repository;
 
 /**
  * @author Ivica Cardic
+ * @author Igor Beslic
  */
 @Order(5)
 @Repository
@@ -44,10 +48,24 @@ public interface JdbcWorkflowRepository
     List<Workflow> findAll();
 
     @Override
+    List<Workflow> findAllById(Iterable<String> ids);
+
+    @Override
     default SourceType getSourceType() {
         return SourceType.JDBC;
     }
 
     @Override
     Workflow save(Workflow workflow);
+
+    @Override
+    @Modifying
+    @Query("""
+        UPDATE workflow
+        SET created_by = :createdBy, created_date = :createdDate, last_modified_by = :lastModifiedBy,
+            last_modified_date = :lastModifiedDate
+        WHERE id = :id
+        """)
+    void updateAuditFields(
+        String id, String createdBy, Instant createdDate, String lastModifiedBy, Instant lastModifiedDate);
 }
