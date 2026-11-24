@@ -93,6 +93,8 @@ export interface ApplicationInfoI {
 const toAllowedParentOrigins = (value: unknown): string[] =>
     Array.isArray(value) ? value.filter((origin): origin is string => typeof origin === 'string') : [];
 
+const isEnabledFlag = (value: unknown) => value === true || value === 'true';
+
 const fetchGetActuatorInfo = async (): Promise<Response> => {
     return await fetch('/actuator/info', {
         method: 'GET',
@@ -116,9 +118,9 @@ export const applicationInfoStore = createStore<ApplicationInfoI>()(
                     const json = await response.json();
                     const signUpEnabledFromPolicy = json.authenticationPolicy?.signUpEnabled;
                     const signUpEnabled =
-                        signUpEnabledFromPolicy === 'true' ||
-                        (signUpEnabledFromPolicy == null && json.signUp?.enabled === 'true');
-                    const ssoOnly = json.authenticationPolicy?.ssoOnly === 'true';
+                        isEnabledFlag(signUpEnabledFromPolicy) ||
+                        (signUpEnabledFromPolicy == null && isEnabledFlag(json.signUp?.enabled));
+                    const ssoOnly = isEnabledFlag(json.authenticationPolicy?.ssoOnly);
 
                     set((state) => ({
                         ...state,

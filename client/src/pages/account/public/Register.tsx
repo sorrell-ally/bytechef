@@ -81,8 +81,8 @@ const Register = () => {
 
     const registrationClosed = !signUpEnabled || ssoOnly;
     const registrationClosedMessage = ssoOnly
-        ? 'This organization signs in with single sign-on. Password registration is turned off.'
-        : 'Self sign-up is turned off. Ask an administrator for an invitation.';
+        ? 'Sign-up is disabled. This organization signs in with single sign-on.'
+        : 'Sign-up is disabled. Ask an administrator for an invitation.';
 
     const ff_1874 = useFeatureFlagsStore()('ff-1874');
 
@@ -152,12 +152,14 @@ const Register = () => {
             <Card className="mx-auto max-w-sm rounded-xl p-6 text-start shadow-none">
                 <CardHeader className="p-0 pb-10">
                     <CardTitle className="self-center text-xl font-semibold text-content-neutral-primary">
-                        Create your account
+                        {registrationClosed ? 'Sign-up is disabled' : 'Create your account'}
                     </CardTitle>
 
-                    <CardDescription className="self-center text-content-neutral-secondary">
-                        Automate the work you do every day.
-                    </CardDescription>
+                    {!registrationClosed && (
+                        <CardDescription className="self-center text-content-neutral-secondary">
+                            Automate the work you do every day.
+                        </CardDescription>
+                    )}
                 </CardHeader>
 
                 <CardContent className="flex flex-col gap-6 p-0">

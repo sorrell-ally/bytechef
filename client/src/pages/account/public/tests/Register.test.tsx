@@ -197,6 +197,22 @@ it('should explain that password registration is turned off in SSO-only mode', (
 
     renderRegisterPage();
 
-    expect(screen.getByText(/Password registration is turned off/)).toBeInTheDocument();
+    expect(screen.getByText('Sign-up is disabled', {exact: true})).toBeInTheDocument();
+    expect(screen.getByText(/This organization signs in with single sign-on/)).toBeInTheDocument();
+    expect(screen.queryByLabelText('Email')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', {name: 'Continue'})).not.toBeInTheDocument();
+});
+
+it('should show that sign-up is disabled when the effective sign-up setting is off', () => {
+    mockApplicationInfoStore({
+        signUp: {activationRequired: false, enabled: false, ssoOnly: false},
+    });
+
+    renderRegisterPage();
+
+    expect(screen.getByText('Sign-up is disabled', {exact: true})).toBeInTheDocument();
+    expect(screen.getByText(/Ask an administrator for an invitation/)).toBeInTheDocument();
+    expect(screen.getByRole('link', {name: 'Back to sign in'})).toHaveAttribute('href', '/login');
+    expect(screen.queryByLabelText('Email')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
 });
