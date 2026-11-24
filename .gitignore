@@ -182,3 +182,12 @@ rebel.xml
 ######################
 **/local.env
 **/.env
+
+######################
+# AWS infra parameters and env files
+######################
+infra/**/*.env
+infra/**/.env
+infra/**/params.json
+infra/**/params.*.json
+!infra/**/params.example.json
