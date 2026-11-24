@@ -7,6 +7,7 @@ import {Form, FormControl, FormField, FormItem, FormLabel, FormMessage} from '@/
 import {getLoginRedirect, rememberLoginRedirect, requiresFullPageLoad} from '@/shared/auth/login-redirect-utils';
 import {useAnalytics} from '@/shared/hooks/useAnalytics';
 import PublicLayoutContainer from '@/shared/layout/PublicLayoutContainer';
+import {useApplicationInfoStore} from '@/shared/stores/useApplicationInfoStore';
 import {useAuthenticationStore} from '@/shared/stores/useAuthenticationStore';
 import {useFeatureFlagsStore} from '@/shared/stores/useFeatureFlagsStore';
 import {getCookie} from '@/shared/util/cookie-utils';
@@ -70,6 +71,13 @@ const Login = () => {
             reset: state.reset,
             ssoRequired: state.ssoRequired,
             verifyMfa: state.verifyMfa,
+        }))
+    );
+
+    const {signUpEnabled, ssoOnly} = useApplicationInfoStore(
+        useShallow((state) => ({
+            signUpEnabled: state.signUp.enabled,
+            ssoOnly: state.signUp.ssoOnly,
         }))
     );
 
@@ -265,7 +273,7 @@ const Login = () => {
                 </CardHeader>
 
                 <CardContent className="flex flex-col gap-6 p-0">
-                    {ff_1874 && (
+                    {ff_1874 && !ssoOnly && (
                         <>
                             <div className="flex flex-col gap-4">
                                 <Button
@@ -334,6 +342,12 @@ const Login = () => {
                                     )}
                                 />
 
+                                {ssoOnly && (
+                                    <p className="text-sm text-content-neutral-secondary" role="status">
+                                        Password sign-in is turned off. Use your organization&apos;s single sign-on.
+                                    </p>
+                                )}
+
                                 {activeSsoRedirect && (
                                     <div className="rounded-lg border border-stroke-brand-secondary bg-surface-brand-secondary p-3">
                                         <p className="mb-2 text-sm text-content-brand-primary" role="status">
@@ -357,102 +371,110 @@ const Login = () => {
                                     </div>
                                 )}
 
+                                {!ssoOnly && (
+                                    <FormField
+                                        control={form.control}
+                                        name="password"
+                                        render={({field}) => (
+                                            <FormItem>
+                                                <FormLabel className="text-content-neutral-primary" htmlFor="password">
+                                                    Password
+                                                </FormLabel>
+
+                                                <FormControl>
+                                                    <div className="relative">
+                                                        <Input
+                                                            aria-label="Password"
+                                                            className="py-5 hover:border-stroke-brand-primary"
+                                                            id="password"
+                                                            type={showPassword ? 'text' : 'password'}
+                                                            {...field}
+                                                        />
+
+                                                        {form.getValues('password') !== '' && (
+                                                            <Button
+                                                                aria-label={
+                                                                    showPassword ? 'Hide Password' : 'Show Password'
+                                                                }
+                                                                className="absolute top-1 right-2 z-10"
+                                                                icon={showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                                                                onClick={() => setShowPassword((show) => !show)}
+                                                                size="iconSm"
+                                                                type="button"
+                                                                variant="ghost"
+                                                            />
+                                                        )}
+                                                    </div>
+                                                </FormControl>
+
+                                                <FormMessage />
+
+                                                <Link
+                                                    className="inline-block text-sm text-content-neutral-secondary hover:text-content-neutral-primary"
+                                                    to="/password-reset/init"
+                                                >
+                                                    Forgot your password?
+                                                </Link>
+                                            </FormItem>
+                                        )}
+                                    />
+                                )}
+                            </div>
+
+                            {!ssoOnly && (
                                 <FormField
                                     control={form.control}
-                                    name="password"
+                                    name="rememberMe"
                                     render={({field}) => (
-                                        <FormItem>
-                                            <FormLabel className="text-content-neutral-primary" htmlFor="password">
-                                                Password
-                                            </FormLabel>
-
+                                        <FormItem className="flex items-center space-y-0 space-x-2 py-4">
                                             <FormControl>
-                                                <div className="relative">
-                                                    <Input
-                                                        aria-label="Password"
-                                                        className="py-5 hover:border-stroke-brand-primary"
-                                                        id="password"
-                                                        type={showPassword ? 'text' : 'password'}
-                                                        {...field}
-                                                    />
-
-                                                    {form.getValues('password') !== '' && (
-                                                        <Button
-                                                            aria-label={
-                                                                showPassword ? 'Hide Password' : 'Show Password'
-                                                            }
-                                                            className="absolute top-1 right-2 z-10"
-                                                            icon={showPassword ? <EyeOffIcon /> : <EyeIcon />}
-                                                            onClick={() => setShowPassword((show) => !show)}
-                                                            size="iconSm"
-                                                            type="button"
-                                                            variant="ghost"
-                                                        />
-                                                    )}
-                                                </div>
+                                                <Checkbox
+                                                    checked={field.value}
+                                                    id="stayLoggedInButton"
+                                                    onCheckedChange={field.onChange}
+                                                />
                                             </FormControl>
 
-                                            <FormMessage />
-
-                                            <Link
-                                                className="inline-block text-sm text-content-neutral-secondary hover:text-content-neutral-primary"
-                                                to="/password-reset/init"
+                                            <FormLabel
+                                                className="font-normal text-content-neutral-primary"
+                                                htmlFor="stayLoggedInButton"
                                             >
-                                                Forgot your password?
-                                            </Link>
+                                                Stay logged in
+                                            </FormLabel>
                                         </FormItem>
                                     )}
                                 />
-                            </div>
+                            )}
 
-                            <FormField
-                                control={form.control}
-                                name="rememberMe"
-                                render={({field}) => (
-                                    <FormItem className="flex items-center space-y-0 space-x-2 py-4">
-                                        <FormControl>
-                                            <Checkbox
-                                                checked={field.value}
-                                                id="stayLoggedInButton"
-                                                onCheckedChange={field.onChange}
-                                            />
-                                        </FormControl>
-
-                                        <FormLabel
-                                            className="font-normal text-content-neutral-primary"
-                                            htmlFor="stayLoggedInButton"
-                                        >
-                                            Stay logged in
-                                        </FormLabel>
-                                    </FormItem>
-                                )}
-                            />
-
-                            <Button
-                                aria-label="log in button"
-                                className="w-full"
-                                disabled={isSubmitting}
-                                icon={
-                                    isSubmitting ? (
-                                        <div aria-label="loading icon">
-                                            <LoadingIcon />
-                                        </div>
-                                    ) : undefined
-                                }
-                                label="Log in"
-                                size="lg"
-                                type="submit"
-                            />
+                            {!ssoOnly && (
+                                <Button
+                                    aria-label="log in button"
+                                    className="w-full"
+                                    disabled={isSubmitting}
+                                    icon={
+                                        isSubmitting ? (
+                                            <div aria-label="loading icon">
+                                                <LoadingIcon />
+                                            </div>
+                                        ) : undefined
+                                    }
+                                    label="Log in"
+                                    size="lg"
+                                    type="submit"
+                                />
+                            )}
                         </form>
                     </Form>
 
-                    <div className="flex items-center justify-center gap-1 text-sm">
-                        <span className="text-content-neutral-secondary">Don&apos;t have an account?</span>
+                    {signUpEnabled && !ssoOnly && (
+                        <div className="flex items-center justify-center gap-1 text-sm">
+                            <span className="text-content-neutral-secondary">Don&apos;t have an account?</span>
 
-                        <Link to="/register">
-                            <Button className="px-1" label="Create account" variant="link" />
-                        </Link>
-                    </div>
+                            <Link to="/register">
+                                <Button className="px-1" label="Create account" variant="link" />
+                            </Link>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
         </PublicLayoutContainer>

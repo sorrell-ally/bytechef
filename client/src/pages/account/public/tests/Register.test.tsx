@@ -189,3 +189,14 @@ it('should navigate to the verify email page after a successful registration', a
 
     vi.restoreAllMocks();
 });
+
+it('should explain that password registration is turned off in SSO-only mode', () => {
+    mockApplicationInfoStore({
+        signUp: {activationRequired: false, enabled: true, ssoOnly: true},
+    });
+
+    renderRegisterPage();
+
+    expect(screen.getByText(/Password registration is turned off/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: 'Continue'})).not.toBeInTheDocument();
+});

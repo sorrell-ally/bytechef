@@ -1,0 +1,9 @@
+mutation updateSelfSignUpEnabled($enabled: Boolean!) {
+    updateSelfSignUpEnabled(enabled: $enabled) {
+        passwordLoginBreakGlass
+        signUpEnabled
+        signUpEnvironmentDefault
+        signUpOverridden
+        ssoOnlyEnabled
+    }
+}

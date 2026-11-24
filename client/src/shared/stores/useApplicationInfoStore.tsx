@@ -68,6 +68,7 @@ export interface ApplicationInfoI {
     signUp: {
         activationRequired: boolean;
         enabled: boolean;
+        ssoOnly: boolean;
     };
     socialLogin: {
         enabled: boolean;
@@ -113,6 +114,11 @@ export const applicationInfoStore = createStore<ApplicationInfoI>()(
 
                 if (response.status === 200) {
                     const json = await response.json();
+                    const signUpEnabledFromPolicy = json.authenticationPolicy?.signUpEnabled;
+                    const signUpEnabled =
+                        signUpEnabledFromPolicy === 'true' ||
+                        (signUpEnabledFromPolicy == null && json.signUp?.enabled === 'true');
+                    const ssoOnly = json.authenticationPolicy?.ssoOnly === 'true';
 
                     set((state) => ({
                         ...state,
@@ -166,7 +172,8 @@ export const applicationInfoStore = createStore<ApplicationInfoI>()(
                         },
                         signUp: {
                             activationRequired: json.signUp?.activationRequired === 'true',
-                            enabled: json.signUp?.enabled === 'true',
+                            enabled: signUpEnabled,
+                            ssoOnly,
                         },
                         socialLogin: {
                             enabled: json.socialLogin?.enabled === 'true',
@@ -256,6 +263,7 @@ export const applicationInfoStore = createStore<ApplicationInfoI>()(
                 signUp: {
                     activationRequired: false,
                     enabled: true,
+                    ssoOnly: false,
                 },
                 socialLogin: {
                     enabled: false,

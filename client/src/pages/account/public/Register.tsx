@@ -71,7 +71,18 @@ const Register = () => {
         }))
     );
 
-    const activationRequired = useApplicationInfoStore((state) => state.signUp.activationRequired);
+    const {activationRequired, signUpEnabled, ssoOnly} = useApplicationInfoStore(
+        useShallow((state) => ({
+            activationRequired: state.signUp.activationRequired,
+            signUpEnabled: state.signUp.enabled,
+            ssoOnly: state.signUp.ssoOnly,
+        }))
+    );
+
+    const registrationClosed = !signUpEnabled || ssoOnly;
+    const registrationClosedMessage = ssoOnly
+        ? 'This organization signs in with single sign-on. Password registration is turned off.'
+        : 'Self sign-up is turned off. Ask an administrator for an invitation.';
 
     const ff_1874 = useFeatureFlagsStore()('ff-1874');
 
@@ -150,7 +161,17 @@ const Register = () => {
                 </CardHeader>
 
                 <CardContent className="flex flex-col gap-6 p-0">
-                    {ff_1874 && (
+                    {registrationClosed && (
+                        <div className="flex flex-col gap-4 text-sm text-content-neutral-secondary">
+                            <p role="status">{registrationClosedMessage}</p>
+
+                            <Link to="/login">
+                                <Button className="px-1" label="Back to sign in" variant="link" />
+                            </Link>
+                        </div>
+                    )}
+
+                    {!registrationClosed && ff_1874 && (
                         <>
                             <div className="flex flex-col gap-4">
                                 <Button
@@ -184,105 +205,109 @@ const Register = () => {
                         </>
                     )}
 
-                    <Form {...form}>
-                        <form className="flex flex-col gap-4" onSubmit={form.handleSubmit(handleSubmit)}>
-                            <FormField
-                                control={form.control}
-                                name="email"
-                                render={({field}) => (
-                                    <FormItem>
-                                        <FormLabel className="text-content-neutral-primary">Email</FormLabel>
+                    {!registrationClosed && (
+                        <Form {...form}>
+                            <form className="flex flex-col gap-4" onSubmit={form.handleSubmit(handleSubmit)}>
+                                <FormField
+                                    control={form.control}
+                                    name="email"
+                                    render={({field}) => (
+                                        <FormItem>
+                                            <FormLabel className="text-content-neutral-primary">Email</FormLabel>
 
-                                        <FormControl>
-                                            <Input
-                                                className="py-5 hover:border-stroke-brand-primary"
-                                                type="email"
-                                                {...field}
-                                            />
-                                        </FormControl>
-
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-
-                            {emailIsValid && (
-                                <>
-                                    <FormField
-                                        control={form.control}
-                                        name="password"
-                                        render={({field}) => (
-                                            <FormItem>
-                                                <FormLabel className="text-content-neutral-primary">Password</FormLabel>
-
-                                                <FormControl>
-                                                    <div className="relative">
-                                                        <Input
-                                                            aria-label="Password"
-                                                            className="py-5 hover:border-stroke-brand-primary"
-                                                            type={showPassword ? 'text' : 'password'}
-                                                            {...field}
-                                                        />
-
-                                                        {getValues('password') !== '' && (
-                                                            <Button
-                                                                aria-label={
-                                                                    showPassword ? 'Hide Password' : 'Show Password'
-                                                                }
-                                                                className="absolute top-1 right-2 z-10"
-                                                                icon={showPassword ? <EyeOffIcon /> : <EyeIcon />}
-                                                                onClick={() => setShowPassword((show) => !show)}
-                                                                size="iconSm"
-                                                                type="button"
-                                                                variant="ghost"
-                                                            />
-                                                        )}
-                                                    </div>
-                                                </FormControl>
-
-                                                <PasswordRequirements
-                                                    errorMessage={errors.password?.message}
-                                                    password={getValues('password')}
+                                            <FormControl>
+                                                <Input
+                                                    className="py-5 hover:border-stroke-brand-primary"
+                                                    type="email"
+                                                    {...field}
                                                 />
-                                            </FormItem>
-                                        )}
-                                    />
+                                            </FormControl>
 
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+
+                                {emailIsValid && (
+                                    <>
+                                        <FormField
+                                            control={form.control}
+                                            name="password"
+                                            render={({field}) => (
+                                                <FormItem>
+                                                    <FormLabel className="text-content-neutral-primary">
+                                                        Password
+                                                    </FormLabel>
+
+                                                    <FormControl>
+                                                        <div className="relative">
+                                                            <Input
+                                                                aria-label="Password"
+                                                                className="py-5 hover:border-stroke-brand-primary"
+                                                                type={showPassword ? 'text' : 'password'}
+                                                                {...field}
+                                                            />
+
+                                                            {getValues('password') !== '' && (
+                                                                <Button
+                                                                    aria-label={
+                                                                        showPassword ? 'Hide Password' : 'Show Password'
+                                                                    }
+                                                                    className="absolute top-1 right-2 z-10"
+                                                                    icon={showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                                                                    onClick={() => setShowPassword((show) => !show)}
+                                                                    size="iconSm"
+                                                                    type="button"
+                                                                    variant="ghost"
+                                                                />
+                                                            )}
+                                                        </div>
+                                                    </FormControl>
+
+                                                    <PasswordRequirements
+                                                        errorMessage={errors.password?.message}
+                                                        password={getValues('password')}
+                                                    />
+                                                </FormItem>
+                                            )}
+                                        />
+
+                                        <Button
+                                            className="w-full"
+                                            disabled={isSubmitting}
+                                            icon={
+                                                isSubmitting ? (
+                                                    <div aria-label="loading icon">
+                                                        <LoadingIcon />
+                                                    </div>
+                                                ) : undefined
+                                            }
+                                            label="Continue with password"
+                                            size="lg"
+                                            type="submit"
+                                        />
+                                    </>
+                                )}
+
+                                {!emailIsValid && (
                                     <Button
                                         className="w-full"
-                                        disabled={isSubmitting}
-                                        icon={
-                                            isSubmitting ? (
-                                                <div aria-label="loading icon">
-                                                    <LoadingIcon />
-                                                </div>
-                                            ) : undefined
-                                        }
-                                        label="Continue with password"
+                                        label="Continue"
+                                        onClick={handleValidateEmailInput}
                                         size="lg"
-                                        type="submit"
                                     />
-                                </>
-                            )}
+                                )}
+                            </form>
 
-                            {!emailIsValid && (
-                                <Button
-                                    className="w-full"
-                                    label="Continue"
-                                    onClick={handleValidateEmailInput}
-                                    size="lg"
-                                />
-                            )}
-                        </form>
+                            <div className="flex items-center justify-center gap-1 text-sm">
+                                <span className="text-content-neutral-secondary">Already have an account?</span>
 
-                        <div className="flex items-center justify-center gap-1 text-sm">
-                            <span className="text-content-neutral-secondary">Already have an account?</span>
-
-                            <Link to="/login">
-                                <Button className="px-1" label="Log in" variant="link" />
-                            </Link>
-                        </div>
-                    </Form>
+                                <Link to="/login">
+                                    <Button className="px-1" label="Log in" variant="link" />
+                                </Link>
+                            </div>
+                        </Form>
+                    )}
                 </CardContent>
             </Card>
         </PublicLayoutContainer>
