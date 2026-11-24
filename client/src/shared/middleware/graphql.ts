@@ -3095,6 +3095,14 @@ export type CreateIdentityProviderMutationVariables = Exact<{
 
 export type CreateIdentityProviderMutation = { createIdentityProvider: { autoProvision: boolean, clientId: string | null, createdBy: string | null, createdDate: any, defaultAuthority: string, domains: Array<string>, enabled: boolean, enforced: boolean, id: string, issuerUri: string | null, lastModifiedBy: string | null, lastModifiedDate: any, metadataUri: string | null, mfaMethod: string | null, mfaRequired: boolean, name: string, nameIdFormat: string | null, scopes: string | null, signingCertificate: string | null, type: string } };
 
+export type CreateUserInvitationMutationVariables = Exact<{
+  email: string;
+  role: string;
+}>;
+
+
+export type CreateUserInvitationMutation = { createUserInvitation: { acceptUrl: string | null, deliveryError: string | null, mailed: boolean, invitation: { email: string, id: string } } };
+
 export type DeleteIdentityProviderMutationVariables = Exact<{
   id: string | number;
 }>;
@@ -3128,6 +3136,25 @@ export type InviteUserMutationVariables = Exact<{
 
 
 export type InviteUserMutation = { inviteUser: boolean };
+
+export type PendingUserInvitationsQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type PendingUserInvitationsQuery = { pendingUserInvitations: Array<{ id: string, email: string, role: string, expiresAt: any }> };
+
+export type ResendUserInvitationMutationVariables = Exact<{
+  id: string | number;
+}>;
+
+
+export type ResendUserInvitationMutation = { resendUserInvitation: { acceptUrl: string | null, deliveryError: string | null, mailed: boolean } };
+
+export type RevokeUserInvitationMutationVariables = Exact<{
+  id: string | number;
+}>;
+
+
+export type RevokeUserInvitationMutation = { revokeUserInvitation: boolean };
 
 export type UpdateIdentityProviderMutationVariables = Exact<{
   id: string | number;
@@ -14654,6 +14681,33 @@ export const useCreateIdentityProviderMutation = <
   }
     )};
 
+export const CreateUserInvitationDocument = new TypedDocumentString(`
+    mutation createUserInvitation($email: String!, $role: String!) {
+  createUserInvitation(email: $email, role: $role) {
+    acceptUrl
+    deliveryError
+    invitation {
+      email
+      id
+    }
+    mailed
+  }
+}
+    `);
+
+export const useCreateUserInvitationMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<CreateUserInvitationMutation, TError, CreateUserInvitationMutationVariables, TContext>) => {
+    
+    return useMutation<CreateUserInvitationMutation, TError, CreateUserInvitationMutationVariables, TContext>(
+      {
+    mutationKey: ['createUserInvitation'],
+    mutationFn: (variables?: CreateUserInvitationMutationVariables) => fetcher<CreateUserInvitationMutation, CreateUserInvitationMutationVariables>(CreateUserInvitationDocument, variables)(),
+    ...options
+  }
+    )};
+
 export const DeleteIdentityProviderDocument = new TypedDocumentString(`
     mutation deleteIdentityProvider($id: ID!) {
   deleteIdentityProvider(id: $id)
@@ -14793,6 +14847,75 @@ export const useInviteUserMutation = <
       {
     mutationKey: ['inviteUser'],
     mutationFn: (variables?: InviteUserMutationVariables) => fetcher<InviteUserMutation, InviteUserMutationVariables>(InviteUserDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const PendingUserInvitationsDocument = new TypedDocumentString(`
+    query pendingUserInvitations {
+  pendingUserInvitations {
+    id
+    email
+    role
+    expiresAt
+  }
+}
+    `);
+
+export const usePendingUserInvitationsQuery = <
+      TData = PendingUserInvitationsQuery,
+      TError = unknown
+    >(
+      variables?: PendingUserInvitationsQueryVariables,
+      options?: Omit<UseQueryOptions<PendingUserInvitationsQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<PendingUserInvitationsQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<PendingUserInvitationsQuery, TError, TData>(
+      {
+    queryKey: variables === undefined ? ['pendingUserInvitations'] : ['pendingUserInvitations', variables],
+    queryFn: fetcher<PendingUserInvitationsQuery, PendingUserInvitationsQueryVariables>(PendingUserInvitationsDocument, variables),
+    ...options
+  }
+    )};
+
+export const ResendUserInvitationDocument = new TypedDocumentString(`
+    mutation resendUserInvitation($id: ID!) {
+  resendUserInvitation(id: $id) {
+    acceptUrl
+    deliveryError
+    mailed
+  }
+}
+    `);
+
+export const useResendUserInvitationMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<ResendUserInvitationMutation, TError, ResendUserInvitationMutationVariables, TContext>) => {
+    
+    return useMutation<ResendUserInvitationMutation, TError, ResendUserInvitationMutationVariables, TContext>(
+      {
+    mutationKey: ['resendUserInvitation'],
+    mutationFn: (variables?: ResendUserInvitationMutationVariables) => fetcher<ResendUserInvitationMutation, ResendUserInvitationMutationVariables>(ResendUserInvitationDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const RevokeUserInvitationDocument = new TypedDocumentString(`
+    mutation revokeUserInvitation($id: ID!) {
+  revokeUserInvitation(id: $id)
+}
+    `);
+
+export const useRevokeUserInvitationMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<RevokeUserInvitationMutation, TError, RevokeUserInvitationMutationVariables, TContext>) => {
+    
+    return useMutation<RevokeUserInvitationMutation, TError, RevokeUserInvitationMutationVariables, TContext>(
+      {
+    mutationKey: ['revokeUserInvitation'],
+    mutationFn: (variables?: RevokeUserInvitationMutationVariables) => fetcher<RevokeUserInvitationMutation, RevokeUserInvitationMutationVariables>(RevokeUserInvitationDocument, variables)(),
     ...options
   }
     )};
