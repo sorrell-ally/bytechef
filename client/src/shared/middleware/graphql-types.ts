@@ -512,6 +512,20 @@ export type AuditEventType = {
   principal: Scalars['String']['output'];
 };
 
+export type AuthenticationPolicy = {
+  __typename?: 'AuthenticationPolicy';
+  /** Whether bytechef.security.password-login-break-glass is on. */
+  passwordLoginBreakGlass: Scalars['Boolean']['output'];
+  /** The self sign-up value in effect. */
+  signUpEnabled: Scalars['Boolean']['output'];
+  /** bytechef.sign-up.enabled, the value used until an administrator saves a choice. */
+  signUpEnvironmentDefault: Scalars['Boolean']['output'];
+  /** Whether an administrator has saved a self sign-up choice. */
+  signUpOverridden: Scalars['Boolean']['output'];
+  /** Whether password login and password registration are turned off. */
+  ssoOnlyEnabled: Scalars['Boolean']['output'];
+};
+
 export type Authorization = {
   __typename?: 'Authorization';
   description?: Maybe<Scalars['String']['output']>;
@@ -2389,6 +2403,10 @@ export type Mutation = {
   updateMcpServerTags?: Maybe<Array<Maybe<Tag>>>;
   updateMcpServerUrl: Scalars['String']['output'];
   updateMcpTool?: Maybe<McpTool>;
+  /** Admin only. Saves the self sign-up choice. After this, the environment property is no longer the value in effect. */
+  updateSelfSignUpEnabled: AuthenticationPolicy;
+  /** Admin only. Turns password login and password registration off or on. Enabling requires an enabled SSO provider the acting administrator has signed in through. */
+  updateSsoOnlyEnabled: AuthenticationPolicy;
   /** Admin only. The type cannot change; omit clientSecret (or send null/empty) to keep the stored one. */
   updateSsoProvider: SsoProvider;
   updateUser: AdminUser;
@@ -3558,6 +3576,16 @@ export type MutationUpdateMcpToolArgs = {
 };
 
 
+export type MutationUpdateSelfSignUpEnabledArgs = {
+  enabled: Scalars['Boolean']['input'];
+};
+
+
+export type MutationUpdateSsoOnlyEnabledArgs = {
+  enabled: Scalars['Boolean']['input'];
+};
+
+
 export type MutationUpdateSsoProviderArgs = {
   id: Scalars['ID']['input'];
   input: SsoProviderInput;
@@ -4048,6 +4076,8 @@ export type Query = {
   approvalTasksByIds?: Maybe<Array<Maybe<ApprovalTask>>>;
   auditEventTypes: Array<Scalars['String']['output']>;
   auditEvents: AuditEventPageType;
+  /** Admin only. The authentication policy in effect, including whether self sign-up still follows the environment default. */
+  authenticationPolicy: AuthenticationPolicy;
   authorities: Array<Scalars['String']['output']>;
   automationGettingStarted: AutomationGettingStarted;
   automationGettingStartedCompleted: Scalars['Boolean']['output'];

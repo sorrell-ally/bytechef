@@ -3078,6 +3078,11 @@ export type UpdateSsoProviderMutationVariables = Exact<{
 
 export type UpdateSsoProviderMutation = { updateSsoProvider: { id: string, name: string, type: Types.SsoProviderType, vendor: Types.SsoProviderVendor, enabled: boolean, domains: Array<string>, enforceSso: boolean, autoProvision: boolean, defaultAuthority: string, registrationId: string, loginPath: string, callbackPath: string, serviceProviderMetadataPath: string | null, issuerUri: string | null, clientId: string | null, clientSecretSet: boolean, scopes: Array<string>, metadataUrl: string | null, metadataXml: string | null } };
 
+export type AuthenticationPolicyQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type AuthenticationPolicyQuery = { authenticationPolicy: { passwordLoginBreakGlass: boolean, signUpEnabled: boolean, signUpEnvironmentDefault: boolean, signUpOverridden: boolean, ssoOnlyEnabled: boolean } };
+
 export type AuthoritiesQueryVariables = Exact<{ [key: string]: never; }>;
 
 
@@ -3131,6 +3136,20 @@ export type UpdateIdentityProviderMutationVariables = Exact<{
 
 
 export type UpdateIdentityProviderMutation = { updateIdentityProvider: { autoProvision: boolean, clientId: string | null, createdBy: string | null, createdDate: any, defaultAuthority: string, domains: Array<string>, enabled: boolean, enforced: boolean, id: string, issuerUri: string | null, lastModifiedBy: string | null, lastModifiedDate: any, metadataUri: string | null, mfaMethod: string | null, mfaRequired: boolean, name: string, nameIdFormat: string | null, scopes: string | null, signingCertificate: string | null, type: string } };
+
+export type UpdateSelfSignUpEnabledMutationVariables = Exact<{
+  enabled: boolean;
+}>;
+
+
+export type UpdateSelfSignUpEnabledMutation = { updateSelfSignUpEnabled: { passwordLoginBreakGlass: boolean, signUpEnabled: boolean, signUpEnvironmentDefault: boolean, signUpOverridden: boolean, ssoOnlyEnabled: boolean } };
+
+export type UpdateSsoOnlyEnabledMutationVariables = Exact<{
+  enabled: boolean;
+}>;
+
+
+export type UpdateSsoOnlyEnabledMutation = { updateSsoOnlyEnabled: { passwordLoginBreakGlass: boolean, signUpEnabled: boolean, signUpEnvironmentDefault: boolean, signUpOverridden: boolean, ssoOnlyEnabled: boolean } };
 
 export type UpdateUserMutationVariables = Exact<{
   login: string;
@@ -14545,6 +14564,34 @@ export const useUpdateSsoProviderMutation = <
   }
     )};
 
+export const AuthenticationPolicyDocument = new TypedDocumentString(`
+    query authenticationPolicy {
+  authenticationPolicy {
+    passwordLoginBreakGlass
+    signUpEnabled
+    signUpEnvironmentDefault
+    signUpOverridden
+    ssoOnlyEnabled
+  }
+}
+    `);
+
+export const useAuthenticationPolicyQuery = <
+      TData = AuthenticationPolicyQuery,
+      TError = unknown
+    >(
+      variables?: AuthenticationPolicyQueryVariables,
+      options?: Omit<UseQueryOptions<AuthenticationPolicyQuery, TError, TData>, 'queryKey'> & { queryKey?: UseQueryOptions<AuthenticationPolicyQuery, TError, TData>['queryKey'] }
+    ) => {
+    
+    return useQuery<AuthenticationPolicyQuery, TError, TData>(
+      {
+    queryKey: variables === undefined ? ['authenticationPolicy'] : ['authenticationPolicy', variables],
+    queryFn: fetcher<AuthenticationPolicyQuery, AuthenticationPolicyQueryVariables>(AuthenticationPolicyDocument, variables),
+    ...options
+  }
+    )};
+
 export const AuthoritiesDocument = new TypedDocumentString(`
     query authorities {
   authorities
@@ -14786,6 +14833,56 @@ export const useUpdateIdentityProviderMutation = <
       {
     mutationKey: ['updateIdentityProvider'],
     mutationFn: (variables?: UpdateIdentityProviderMutationVariables) => fetcher<UpdateIdentityProviderMutation, UpdateIdentityProviderMutationVariables>(UpdateIdentityProviderDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const UpdateSelfSignUpEnabledDocument = new TypedDocumentString(`
+    mutation updateSelfSignUpEnabled($enabled: Boolean!) {
+  updateSelfSignUpEnabled(enabled: $enabled) {
+    passwordLoginBreakGlass
+    signUpEnabled
+    signUpEnvironmentDefault
+    signUpOverridden
+    ssoOnlyEnabled
+  }
+}
+    `);
+
+export const useUpdateSelfSignUpEnabledMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<UpdateSelfSignUpEnabledMutation, TError, UpdateSelfSignUpEnabledMutationVariables, TContext>) => {
+    
+    return useMutation<UpdateSelfSignUpEnabledMutation, TError, UpdateSelfSignUpEnabledMutationVariables, TContext>(
+      {
+    mutationKey: ['updateSelfSignUpEnabled'],
+    mutationFn: (variables?: UpdateSelfSignUpEnabledMutationVariables) => fetcher<UpdateSelfSignUpEnabledMutation, UpdateSelfSignUpEnabledMutationVariables>(UpdateSelfSignUpEnabledDocument, variables)(),
+    ...options
+  }
+    )};
+
+export const UpdateSsoOnlyEnabledDocument = new TypedDocumentString(`
+    mutation updateSsoOnlyEnabled($enabled: Boolean!) {
+  updateSsoOnlyEnabled(enabled: $enabled) {
+    passwordLoginBreakGlass
+    signUpEnabled
+    signUpEnvironmentDefault
+    signUpOverridden
+    ssoOnlyEnabled
+  }
+}
+    `);
+
+export const useUpdateSsoOnlyEnabledMutation = <
+      TError = unknown,
+      TContext = unknown
+    >(options?: UseMutationOptions<UpdateSsoOnlyEnabledMutation, TError, UpdateSsoOnlyEnabledMutationVariables, TContext>) => {
+    
+    return useMutation<UpdateSsoOnlyEnabledMutation, TError, UpdateSsoOnlyEnabledMutationVariables, TContext>(
+      {
+    mutationKey: ['updateSsoOnlyEnabled'],
+    mutationFn: (variables?: UpdateSsoOnlyEnabledMutationVariables) => fetcher<UpdateSsoOnlyEnabledMutation, UpdateSsoOnlyEnabledMutationVariables>(UpdateSsoOnlyEnabledDocument, variables)(),
     ...options
   }
     )};
