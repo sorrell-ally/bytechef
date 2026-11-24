@@ -58,7 +58,7 @@ describe('InviteUserDialog', () => {
 
         expect(
             screen.getByText(
-                'The invitee receives an email with a link on which they set their own password. The link expires after 3 days.'
+                'The invitee gets a single-use link that expires. If mail is not configured, or the email cannot be sent, the link is shown here so you can copy it.'
             )
         ).toBeInTheDocument();
     });

@@ -1,0 +1,7 @@
+mutation resendUserInvitation($id: ID!) {
+    resendUserInvitation(id: $id) {
+        acceptUrl
+        deliveryError
+        mailed
+    }
+}

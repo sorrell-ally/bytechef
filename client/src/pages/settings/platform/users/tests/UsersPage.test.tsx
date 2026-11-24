@@ -31,6 +31,13 @@ vi.mock('@/pages/settings/platform/users/components/hooks/useInviteUserDialog', 
     default: hoisted.mockUseInviteUserDialog,
 }));
 
+vi.mock('@/shared/middleware/graphql', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@/shared/middleware/graphql')>()),
+    usePendingUserInvitationsQuery: () => ({data: {pendingUserInvitations: []}, isLoading: false}),
+    useResendUserInvitationMutation: () => ({isPending: false, mutate: vi.fn()}),
+    useRevokeUserInvitationMutation: () => ({isPending: false, mutate: vi.fn()}),
+}));
+
 const mockUsers = [
     {
         activated: true,

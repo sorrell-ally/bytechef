@@ -1,0 +1,11 @@
+mutation createUserInvitation($email: String!, $role: String!) {
+    createUserInvitation(email: $email, role: $role) {
+        acceptUrl
+        deliveryError
+        invitation {
+            email
+            id
+        }
+        mailed
+    }
+}
