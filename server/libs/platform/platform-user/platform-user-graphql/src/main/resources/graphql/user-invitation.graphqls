@@ -1,0 +1,29 @@
+extend type Query {
+    "Admin only. Invitations that have not been accepted, revoked, or expired."
+    pendingUserInvitations: [UserInvitation!]!
+}
+
+extend type Mutation {
+    "Admin only. Creates a single-use invitation. acceptUrl is set so the link can be copied when mail is not configured or the send fails."
+    createUserInvitation(email: String!, role: String!): UserInvitationResult!
+    "Admin only. Replaces the token and extends the expiry."
+    resendUserInvitation(id: ID!): UserInvitationResult!
+    "Admin only."
+    revokeUserInvitation(id: ID!): Boolean!
+}
+
+type UserInvitation {
+    id: ID!
+    email: String!
+    role: String!
+    createdDate: Long
+    expiresAt: Long!
+}
+
+type UserInvitationResult {
+    invitation: UserInvitation!
+    "Present only for the administrator who just created or resent the invitation."
+    acceptUrl: String
+    mailed: Boolean!
+    deliveryError: String
+}

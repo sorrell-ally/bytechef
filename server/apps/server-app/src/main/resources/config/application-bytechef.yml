@@ -374,6 +374,8 @@ bytechef:
   sign-up:
     activation-required: false
     enabled: true
+    # How long an invitation link stays valid. ISO-8601 duration.
+    invitation-time-to-live: P7D
   # Tenant support mode (SINGLE | MULTI - EE only) default: SINGLE
   tenant:
     mode: SINGLE

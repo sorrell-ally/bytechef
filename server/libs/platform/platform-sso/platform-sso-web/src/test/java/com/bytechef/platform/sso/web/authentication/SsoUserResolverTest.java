@@ -31,12 +31,14 @@ import com.bytechef.platform.sso.domain.SsoProviderType;
 import com.bytechef.platform.user.domain.Authority;
 import com.bytechef.platform.user.domain.User;
 import com.bytechef.platform.user.service.AuthorityService;
+import com.bytechef.platform.user.service.PendingUserInvitation;
 import com.bytechef.platform.user.service.UserService;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 class SsoUserResolverTest {
@@ -65,7 +67,8 @@ class SsoUserResolverTest {
         when(userService.fetchUserByAuthProviderAndProviderId(anyString(), anyString())).thenReturn(Optional.empty());
         when(userService.fetchUserByEmail(anyString())).thenReturn(Optional.empty());
 
-        ssoUserResolver = new SsoUserResolver(authorityService, passwordEncoder, userService);
+        ssoUserResolver = new SsoUserResolver(
+            authorityService, passwordEncoder, emptyPendingUserInvitations(), userService);
     }
 
     @Test
@@ -245,6 +248,15 @@ class SsoUserResolverTest {
         assertThat(ssoUserResolver.getGrantedAuthorities(user))
             .extracting(grantedAuthority -> grantedAuthority.getAuthority())
             .containsExactly(AuthorityConstants.ADMIN);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ObjectProvider<PendingUserInvitation> emptyPendingUserInvitations() {
+        ObjectProvider<PendingUserInvitation> pendingUserInvitations = mock(ObjectProvider.class);
+
+        when(pendingUserInvitations.getIfAvailable()).thenReturn(null);
+
+        return pendingUserInvitations;
     }
 
     private static void assertSsoLoginError(Runnable runnable, SsoLoginError ssoLoginError) {

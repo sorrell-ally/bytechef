@@ -44,3 +44,11 @@ UPDATE authentication_policy SET sso_only_enabled = false WHERE id = 1;
 ```
 
 Setting `BYTECHEF_SECURITY_SSO_ENABLED` to `false` and restarting removes single sign-on entirely, which also restores password login. Prefer the break-glass flag when other people should keep signing in with SSO.
+
+## Invitations
+
+An administrator invites someone by email from **Settings → Users**. The link is single-use, expires after `BYTECHEF_SIGN_UP_INVITATION_TIME_TO_LIVE` (7 days by default), and still works when self sign-up is turned off. The secret is stored only as a SHA-256 hash.
+
+Mail uses the existing SMTP settings: `BYTECHEF_MAIL_HOST`, `BYTECHEF_MAIL_PORT`, `BYTECHEF_MAIL_USERNAME`, `BYTECHEF_MAIL_PASSWORD`, `BYTECHEF_MAIL_FROM`, `BYTECHEF_MAIL_STARTTLS_ENABLE`, and `BYTECHEF_MAIL_SSL_ENABLED`. **This dev deployment has no SMTP server configured.** Until those variables point at a real server, inviting someone does not send mail. The invitation is still saved, and the dialog shows the link so it can be copied. A failed send does the same.
+
+When SSO-only mode is on, the invitee signs in with the identity provider instead of choosing a password. The link starts that sign-in.

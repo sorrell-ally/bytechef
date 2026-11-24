@@ -109,6 +109,19 @@ public class MailService {
     }
 
     /**
+     * Mails an invitation link. Sent synchronously; a delivery failure is thrown as a {@link MailException}.
+     */
+    public void sendUserInvitationEmail(String email, String acceptUrl) {
+        log.debug("Sending invitation email to '{}'", email);
+
+        String content = "<p>You have been invited to ByteChef.</p>" +
+            "<p><a href=\"" + acceptUrl + "\">Accept your invitation</a></p>" +
+            "<p>This link can be used once and then expires.</p>";
+
+        sendEmailNow(email, "You are invited to ByteChef", content, true);
+    }
+
+    /**
      * Mails an invited user the link on which they set their own password. Sent synchronously; a delivery failure is
      * thrown as a {@link MailException}.
      */

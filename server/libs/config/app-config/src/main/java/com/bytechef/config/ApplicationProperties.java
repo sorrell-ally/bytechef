@@ -5737,6 +5737,12 @@ public class ApplicationProperties {
          */
         private boolean enabled;
 
+        /**
+         * How long a mailed invitation link stays valid. Environment variable
+         * {@code BYTECHEF_SIGN_UP_INVITATION_TIME_TO_LIVE}.
+         */
+        private Duration invitationTimeToLive = Duration.ofDays(7);
+
         public boolean isActivationRequired() {
             return activationRequired;
         }
@@ -5751,6 +5757,14 @@ public class ApplicationProperties {
 
         public void setEnabled(boolean enabled) {
             this.enabled = enabled;
+        }
+
+        public Duration getInvitationTimeToLive() {
+            return invitationTimeToLive;
+        }
+
+        public void setInvitationTimeToLive(Duration invitationTimeToLive) {
+            this.invitationTimeToLive = invitationTimeToLive;
         }
     }
 

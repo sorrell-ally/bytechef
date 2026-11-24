@@ -33,6 +33,7 @@ import com.bytechef.platform.sso.web.registration.SsoRegistrationCache;
 import com.bytechef.platform.user.domain.Authority;
 import com.bytechef.platform.user.domain.User;
 import com.bytechef.platform.user.service.AuthorityService;
+import com.bytechef.platform.user.service.PendingUserInvitation;
 import com.bytechef.platform.user.service.UserService;
 import java.time.Instant;
 import java.util.HashMap;
@@ -42,6 +43,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
@@ -69,6 +71,7 @@ class SsoOidcUserServiceTest {
     private UserService userService;
 
     @BeforeEach
+    @SuppressWarnings("unchecked")
     void beforeEach() {
         AuthorityService authorityService = mock(AuthorityService.class);
         PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
@@ -90,7 +93,10 @@ class SsoOidcUserServiceTest {
 
         ssoProvider = entraProvider();
 
-        SsoUserResolver ssoUserResolver = new SsoUserResolver(authorityService, passwordEncoder, userService);
+        ObjectProvider<PendingUserInvitation> pendingUserInvitations = mock(ObjectProvider.class);
+
+        SsoUserResolver ssoUserResolver = new SsoUserResolver(
+            authorityService, passwordEncoder, pendingUserInvitations, userService);
 
         ssoOidcUserService = new SsoOidcUserService(
             oidcUserRequest -> new DefaultOidcUser(List.of(), oidcUserRequest.getIdToken()),

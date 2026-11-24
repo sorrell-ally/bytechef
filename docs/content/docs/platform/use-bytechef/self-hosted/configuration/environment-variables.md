@@ -565,6 +565,7 @@ When a runner is configured both in a YAML file and through environment variable
 |---|---|---|
 | `BYTECHEF_SIGN_UP_ACTIVATION_REQUIRED` | Require account activation | `false` |
 | `BYTECHEF_SIGN_UP_ENABLED` | Default for self sign-up until an administrator saves a choice in Settings → Authentication. After that save, the stored value is the one in effect and changing this variable does not overwrite it. | `true` |
+| `BYTECHEF_SIGN_UP_INVITATION_TIME_TO_LIVE` | How long an invitation link stays valid, as an ISO-8601 duration | `P7D` |
 
 ## Tenant Configuration
 
